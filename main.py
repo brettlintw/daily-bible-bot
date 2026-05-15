@@ -12,21 +12,25 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 注入 CSS：確保版面不跑出畫面，鎖定手機寬度
+# 注入 CSS：確保一頁式版面不溢出，隱藏滾動條
 st.markdown("""
     <style>
     .block-container {
-        padding: 1rem 0.8rem !important;
+        padding: 0.8rem 0.8rem !important;
         max-width: 100vw !important;
         overflow-x: hidden;
     }
-    h1 { font-size: 1.5rem !important; }
+    h1 { font-size: 1.6rem !important; margin-bottom: 0.5rem !important; }
+    h3 { font-size: 1.1rem !important; margin-top: 0.5rem !important; }
     .stButton>button {
         width: 100%;
         border-radius: 12px;
-        height: 3.5em;
+        height: 3.2em;
         font-weight: bold;
+        background-color: #007AFF;
+        color: white;
     }
+    .stTextArea>div>div>textarea { border-radius: 12px; font-size: 16px !important; }
     [data-testid="stHeader"], footer, #MainMenu { visibility: hidden; height: 0; }
     </style>
     """, unsafe_allow_html=True)
@@ -46,36 +50,35 @@ genai.configure(api_key=GEMINI_API_KEY)
 
 # --- 3. UI 介面佈局 ---
 st.title("🛡️ 聖經任務控制台")
-st.caption(f"📅 {datetime.now().strftime('%Y/%m/%d')} | 🛰️ 連線安全 | v5.0")
+st.caption(f"📅 {datetime.now().strftime('%Y/%m/%d')} | 🛰️ 連線安全 | v5.1")
 
-st.markdown("---")
-
-# ✍️ 自定義傳輸任務
+# ✍️ 即時傳輸任務
 st.subheader("✍️ 即時傳輸任務")
-custom_text = st.text_area("自選內容：", placeholder="在此貼上經文...", label_visibility="collapsed")
+custom_text = st.text_area("自選內容：", placeholder="在此貼上經文...", height=100, label_visibility="collapsed")
 if st.button("📤 執行手動推送"):
     if custom_text.strip():
         try:
             line_bot_api.push_message(LINE_USER_ID, TextSendMessage(text=f"【手動推送】\n\n{custom_text}"))
-            st.success("✅ 已送達")
+            st.toast("✅ 已成功送達")
             st.balloons()
         except: st.error("連線異常")
 
 st.markdown("---")
 
-# 🤖 AI 智慧靈糧 (修復 404 報錯)
+# 🤖 AI 智慧靈糧 (修復 404 路徑報錯)
 st.subheader("🤖 AI 智慧推送")
 if st.button("✨ 啟動 AI 生成並推送"):
     try:
-        with st.spinner("AI 正在搜尋..."):
-            # 修正：針對 404 錯誤，改用最明確的模型路徑
-            model = genai.GenerativeModel('gemini-1.5-flash-latest')
+        with st.spinner("系統生成中..."):
+            # 修正：針對 404 錯誤，加上完整的 'models/' 前綴
+            model = genai.GenerativeModel('models/gemini-1.5-flash-latest')
             res = model.generate_content("挑選一段充滿力量的聖經經文並給予啟示，限制在80字內。")
             
             if res and res.text:
                 line_bot_api.push_message(LINE_USER_ID, TextSendMessage(text=f"【AI推送】\n\n{res.text}"))
-                st.success("✨ 推送成功")
-            else: st.error("內容生成失敗")
+                st.toast("✨ AI推送成功")
+                st.success("任務已送出")
+            else: st.error("內容生成異常")
     except Exception as e:
-        st.error("AI 系統異常")
-        st.caption(f"Error: {str(e)[:50]}")
+        st.error("AI 系統暫時無法連線")
+        st.caption(f"Debug: {str(e)[:50]}")
