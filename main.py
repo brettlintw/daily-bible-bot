@@ -5,7 +5,7 @@ import random
 import time
 
 # --- 1. 頁面配置 (精簡一頁式) ---
-st.set_page_config(page_title="聖經控制台 V11.4", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="聖經控制台 V11.5", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
@@ -40,19 +40,23 @@ line_api = LineBotApi(LINE_TOKEN)
 genai.configure(api_key=GEMINI_API_KEY)
 
 # --- 3. UI 佈局 ---
-st.title("🛡️ 聖經任務控制台 V11.4")
-st.caption(f"📅 {datetime.now().strftime('%m/%d')} | v11.4-MusicEdition")
+st.title("🛡️ 聖經任務控制台 V11.5")
+st.caption(f"📅 {datetime.now().strftime('%m/%d')} | v11.5-CustomTime")
 
-# ⏰ 排程管理 (摺疊隱藏)
+# ⏰ 排程管理 (改為自由輸入模式)
 with st.expander("⏰ 推送排程管理", expanded=False):
-    schedules = st.multiselect("設定時段：", ["06:30", "07:00", "08:00", "09:00", "12:00", "21:00"], default=["06:30", "08:00"])
-    if st.button("💾 保存設定"):
-        add_log(f"排程更新")
-        st.toast("✅ 已備份")
+    custom_schedules = st.text_input(
+        "自定義時段 (24小時制，請用逗號分隔)：", 
+        value="06:30, 08:00, 12:00, 21:00",
+        placeholder="例如: 07:15, 13:00, 23:30"
+    )
+    if st.button("💾 保存自定義排程"):
+        add_log(f"排程存檔: {custom_schedules}")
+        st.toast("✅ 時間設定已備份")
 
-# ✍️ 手動全員廣播 (支援手動傳歌曲)
-st.subheader("✍️ 手動廣播 (可傳經文或歌曲)")
+# ✍️ 手動廣播
 with st.form("manual_form", clear_on_submit=True):
+    st.subheader("✍️ 手動廣播 (文字或歌曲)")
     custom_text = st.text_area("內容：", placeholder="在此輸入文字或歌曲連結...", label_visibility="collapsed")
     if st.form_submit_button("📢 執行全員廣播"):
         if custom_text.strip():
@@ -64,7 +68,7 @@ with st.form("manual_form", clear_on_submit=True):
 
 st.markdown("---")
 
-# 🤖 AI 智慧廣播 (新增詩歌選擇開關)
+# 🤖 AI 智慧廣播 (詩歌與經文雙模)
 st.subheader("🤖 AI 智慧廣播")
 c1, c2, c3 = st.columns([1, 1, 1])
 with c1: mood_input = st.text_input("心情：", placeholder="心情...", label_visibility="collapsed")
@@ -73,30 +77,28 @@ with c3: content_type = st.selectbox("內容：", ["聖經經文", "推薦詩歌
 
 if st.button("✨ 啟動 AI 智慧推送"):
     try:
-        # 動態鎖定衛星頻道
         models = [m.name for m in genai.list_models()]
         target_model = next((n for n in models if 'flash' in n), models[0])
         model = genai.GenerativeModel(target_model)
         
-        persona_map = {"暖心": "溫柔牧者。", "專業": "精確分析師。", "KITT": "K.I.T.T.，稱呼 Brett，語氣幽默冷靜。"}
+        persona_map = {"暖心": "溫柔牧者。", "專業": "精確分析師。", "KITT": "K.I.T.T.，稱呼 Brett，冷靜幽默。"}
         
-        # 根據開關調整指令
         if content_type == "聖經經文":
-            prompt = f"Time:{time.time()}。{persona_map[persona]} 針對『{mood_input if mood_input else '信仰'}』挑選一段不常見的聖經經文並給予80字內啟示。"
+            prompt = f"Time:{time.time()}。{persona_map[persona]} 針對『{mood_input if mood_input else '信仰'}』挑選經文並給予80字內啟示。"
         else:
-            prompt = f"Time:{time.time()}。{persona_map[persona]} 針對用戶『{mood_input if mood_input else '疲累但充滿希望'}』的心情，推薦一首優美的基督教詩歌（包含歌名與一段感人歌詞），並給予暖心分析。總字數80字內。"
+            prompt = f"Time:{time.time()}。{persona_map[persona]} 針對用戶『{mood_input if mood_input else '疲累'}』推薦一首基督教詩歌(含歌名歌詞)與暖心分析。80字內。"
 
         res = model.generate_content(prompt)
         if res and res.text:
             header = "【AI經文推送】" if content_type == "聖經經文" else "【AI詩歌推薦】"
             line_api.broadcast(TextSendMessage(text=f"{header}\n\n{res.text}"))
-            add_log(f"AI {content_type}廣播成功")
+            add_log(f"AI {content_type}發送成功")
             st.toast("✨ 廣播完成")
     except Exception as e:
         if "429" in str(e):
-            st.warning("🛑 衛星配額冷卻中，請明日再試或改用手動。")
-            add_log("API 配額封鎖")
-        else: st.error("衛星對接失敗")
+            st.warning("🛑 衛星過熱，請改用手動或明日再試。")
+            add_log("配額耗盡封鎖")
+        else: st.error("衛星連線失敗")
 
 # 📡 系統日誌
 st.markdown("---")
