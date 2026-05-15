@@ -4,10 +4,10 @@ from datetime import datetime
 from linebot import LineBotApi
 from linebot.models import TextSendMessage
 
-# --- 1. 頁面極簡配置 (防止手機溢出) ---
+# --- 1. 頁面極簡配置 (防止手機溢出與位移) ---
 st.set_page_config(page_title="聖經控制台", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
 
-# 注入 CSS：強制縮減所有元件間距與大小
+# 注入 CSS：強制縮減所有元件間距，鎖定手機寬度
 st.markdown("""
     <style>
     .block-container { padding: 0.5rem 0.7rem !important; max-width: 100vw !important; overflow-x: hidden; }
@@ -22,7 +22,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. 安全密鑰讀取 (避免 KeyError) ---
+# --- 2. 安全密鑰讀取 (使用 st.secrets) ---
 def get_cfg(key, fallback):
     try: return st.secrets[key]
     except: return fallback
@@ -37,7 +37,7 @@ genai.configure(api_key=GEMINI_API_KEY)
 
 # --- 3. UI 介面佈局 (一頁式設計) ---
 st.title("🛡️ 聖經任務控制台")
-st.caption(f"📅 {datetime.now().strftime('%m/%d')} | 🛰️ 安全連線 | v7.3")
+st.caption(f"📅 {datetime.now().strftime('%m/%d')} | 🛰️ 安全連線 | v7.4")
 
 # ✍️ 即時傳輸任務
 st.subheader("✍️ 即時傳輸")
@@ -51,7 +51,7 @@ if st.button("📤 執行手動推送"):
 
 st.markdown("---")
 
-# 🤖 AI 排程與生成 (解決 AI 異常問題)
+# 🤖 AI 排程與生成 (修正模型名稱)
 st.subheader("⏰ AI 排程與推送")
 t_list = ["06:30", "07:00", "08:00", "09:00"]
 selected_t = st.selectbox("時間：", t_list, index=2, label_visibility="collapsed")
@@ -62,7 +62,7 @@ with c1:
 with c2:
     if st.button("✨ AI 測試"):
         try:
-            # 修正：確保模型名稱正確且有內容檢查
+            # 修正：改用 gemini-1.5-flash-latest 或 gemini-1.5-flash 
             model = genai.GenerativeModel('gemini-1.5-flash')
             res = model.generate_content("挑選一段充滿力量的聖經經文與啟示，80字內。")
             if res.text:
