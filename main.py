@@ -3,29 +3,39 @@ import google.generativeai as genai
 from datetime import datetime
 import random
 import time
+import os
 
 # --- 1. 頁面配置 (極致校準一頁式) ---
-st.set_page_config(page_title="聖經控制台 V11.8", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="聖經控制台 V11.9", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
     .main .block-container { max-width: 80% !important; padding: 0.3rem 1rem !important; overflow: hidden !important; }
     @media (max-width: 1023px) { .main .block-container { max-width: 100% !important; padding: 0.3rem !important; } }
     h1 { font-size: 1.2rem !important; margin: 0 !important; line-height: 1.1 !important; color: #E0E0E0; }
-    h3 { font-size: 0.85rem !important; margin: 0.1rem 0 !important; font-weight: bold; }
-    .stCaption { font-size: 0.7rem !important; margin-bottom: 0.2rem !important; }
     hr { margin: 0.25rem 0 !important; }
     .stTextArea>div>div>textarea { height: 55px !important; border-radius: 8px; font-size: 14px !important; }
     .stTextInput>div>div>input { height: 2.2rem !important; border-radius: 8px; font-size: 14px !important; }
     .stSelectbox>div>div { height: 2.2rem !important; font-size: 13px !important; display: flex; align-items: center; }
     .stButton>button { border-radius: 8px; height: 2.4rem; font-weight: bold; font-size: 14px !important; }
-    .stExpander { border: none !important; box-shadow: none !important; }
     .log-box { font-size: 0.65rem; background: #121212; color: #00FF41; padding: 6px; border-radius: 8px; font-family: monospace; border: 1px solid #333; height: 60px; overflow-y: auto; }
     [data-testid="stHeader"], footer, #MainMenu { visibility: hidden; height: 0; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. 核心組件與持久化初始化 ---
+# --- 2. 核心組件與雲端同步邏輯 ---
+DB_FILE = "schedule_db.txt" # 雲端持久化文件
+
+def save_to_cloud(data):
+    with open(DB_FILE, "w", encoding="utf-8") as f:
+        f.write(data)
+
+def load_from_cloud():
+    if os.path.exists(DB_FILE):
+        with open(DB_FILE, "r", encoding="utf-8") as f:
+            return f.read()
+    return "06:30, 08:00, 12:00, 21:00" # 初始預設值
+
 def get_cfg(key, fallback):
     try: return st.secrets.get(key, fallback) or fallback
     except: return fallback
@@ -33,10 +43,7 @@ def get_cfg(key, fallback):
 GEMINI_API_KEY = get_cfg("GEMINI_API_KEY", "")
 LINE_TOKEN = get_cfg("LINE_ACCESS_TOKEN", "")
 
-# 修正：初始化持久化變數
 if 'sys_log' not in st.session_state: st.session_state.sys_log = []
-if 'saved_schedule' not in st.session_state: 
-    st.session_state.saved_schedule = "06:30, 08:00, 12:00, 21:00"
 
 def add_log(msg):
     ts = datetime.now().strftime("%H:%M:%S")
@@ -49,21 +56,18 @@ line_api = LineBotApi(LINE_TOKEN)
 genai.configure(api_key=GEMINI_API_KEY)
 
 # --- 3. UI 佈局 ---
-st.title("🛡️ 聖經任務控制台+LINE推送 V11.8")
-st.caption(f"📅 {datetime.now().strftime('%m/%d')} | 🛰️ 排程持久化模式")
+st.title("🛡️ 聖經任務控制台+LINE推送 V11.9")
+st.caption(f"📅 {datetime.now().strftime('%m/%d')} | 🛰️ 跨裝置同步模式")
 
-# ⏰ 排程管理 (修正保存邏輯)
-with st.expander("⏰ 推送排程設定", expanded=False):
-    # 修正：使用 session_state 來讀取與寫入
-    schedule_input = st.text_input(
-        "24h 時段 (用逗號隔開)：", 
-        value=st.session_state.saved_schedule, 
-        label_visibility="collapsed"
-    )
-    if st.button("💾 保存排程"):
-        st.session_state.saved_schedule = schedule_input
-        add_log(f"排程已鎖定: {schedule_input[:15]}...")
-        st.toast("✅ 排程已成功寫入系統")
+# ⏰ 排程管理 (實現雲端讀寫)
+with st.expander("⏰ 推送排程同步設定", expanded=False):
+    current_val = load_from_cloud() # 每次都從雲端文件讀取
+    schedule_input = st.text_input("24h 時段 (用逗號隔開)：", value=current_val, label_visibility="collapsed")
+    
+    if st.button("💾 全裝置同步保存"):
+        save_to_cloud(schedule_input)
+        add_log(f"雲端已同步: {schedule_input[:15]}...")
+        st.toast("✅ 已寫入雲端，各裝置將同步生效")
 
 # ✍️ 手動廣播
 with st.form("manual_form", clear_on_submit=True):
@@ -77,6 +81,8 @@ with st.form("manual_form", clear_on_submit=True):
                 st.toast("✅ 已送達")
             except: st.error("連線異常")
 
+st.markdown("---")
+
 # 🤖 AI 智慧廣播
 st.subheader("🤖 AI 智慧廣播")
 c1, c2, c3 = st.columns([1, 1, 1])
@@ -89,12 +95,11 @@ if st.button("✨ 啟動 AI 智慧推送"):
         models = [m.name for m in genai.list_models()]
         target_model = next((n for n in models if 'flash' in n), models[0])
         model = genai.GenerativeModel(target_model)
-        persona_map = {"暖心": "溫柔牧者。", "專業": "專業分析師。", "KITT": "KITT，稱呼Brett。"}
+        persona_map = {"暖心": "溫柔牧者。", "專業": "分析師。", "KITT": "KITT，稱呼Brett。"}
         
-        if content_type == "聖經經文":
-            prompt = f"Time:{time.time()}。{persona_map[persona]} 針對『{mood_input if mood_input else '信仰'}』選經文並給予80字內啟示。"
-        else:
-            prompt = f"Time:{time.time()}  針對用戶『{mood_input if mood_input else '疲累'}』推薦詩歌(含歌名歌詞)與暖心分析。80字內。"
+        prompt = f"Time:{time.time()}。{persona_map[persona]} 針對『{mood_input if mood_input else '信仰'}』選經文並啟示。80字內。"
+        if content_type == "推薦詩歌":
+            prompt = f"Time:{time.time()} 針對『{mood_input if mood_input else '疲累'}』推薦詩歌含歌詞。80字內。"
 
         res = model.generate_content(prompt)
         if res and res.text:
@@ -104,8 +109,8 @@ if st.button("✨ 啟動 AI 智慧推送"):
             st.toast("✨ 廣播完成")
     except Exception as e:
         if "429" in str(e):
-            st.warning("衛星冷卻中...")
-            add_log("配額上限")
+            st.warning("配額上限")
+            add_log("429 封鎖")
         else: st.error("對接失敗")
 
 # 📡 系統日誌
