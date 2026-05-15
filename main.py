@@ -1,6 +1,4 @@
 import streamlit as st
-import os
-import requests
 import google.generativeai as genai
 from linebot import LineBotApi, WebhookHandler
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
@@ -21,7 +19,7 @@ try:
     LINE_USER_ID = st.secrets["LINE_USER_ID"]
     LINE_CHANNEL_SECRET = st.secrets["LINE_CHANNEL_SECRET"]
 except Exception:
-    # 備援機制：如果 Secrets 尚未設定，則使用您提供的預設值
+    # 備援：若 Secrets 未設定，使用預設值 (建議務必在 Streamlit 設定 Secrets)
     GEMINI_API_KEY = "AIzaSyC4rqWk4ybph9d5E26QTaGgMlLfU8lg64U"
     LINE_ACCESS_TOKEN = "vbmdbVqLgc0mlngXz67zuQun7awHSRdPhoqLookibRQQU7jBi8D+bC32nAIBHZfU8S1oy2XCA7Tr6F2pX4tb3JnExgTaoaxhthf7UNyiXNfiFwcpzuvEp4ghMgBbewf39cQE6p9bk02J5Lj2wsKJ0AdB04t89/1O/w1cDnyilFU="
     LINE_USER_ID = "Uf166c741223bc8ee5d82fd1fd9f4df86"
@@ -34,19 +32,20 @@ genai.configure(api_key=GEMINI_API_KEY)
 
 # --- 3. UI 介面設計 ---
 st.title("📖 聖經 AI 任務簡報")
-st.write(f"歡迎回來，Brett。系統連線正常，隨時待命。")
+st.write(f"歡迎回來，Brett。系統已就緒，隨時準備執行任務。")
 
 with st.expander("🛡️ 系統狀態檢核", expanded=False):
-    st.success("✅ AI 引擎路徑已校準")
-    st.success("✅ LINE 通訊協定已就緒")
+    st.success("✅ 通訊協議校準完成")
+    st.success("✅ AI 引擎待命中")
 
-# --- 4. 核心發送功能 (修正 NotFound 報錯) ---
+# --- 4. 核心發送功能 (含自動搜尋模型邏輯，修復 404) ---
 st.subheader("🚀 即時任務執行")
 if st.button("發送今日經文至我的 LINE"):
-    with st.spinner("AI 正在進行深度內容分析..."):
+    with st.spinner("AI 正在掃描可用連線路徑..."):
         try:
-            # 使用絕對路徑模型代號，確保 1.5 Flash 正常運行
-            model = genai.GenerativeModel('models/gemini-1.5-flash')
+            # 方案 A: 嘗試標準路徑
+            model_name = 'gemini-1.5-flash'
+            model = genai.GenerativeModel(model_name)
             
             prompt = "請挑選一段充滿力量的聖經經文與啟示，語氣溫暖且專業，限制在80字內。"
             response = model.generate_content(prompt)
@@ -55,19 +54,28 @@ if st.button("發送今日經文至我的 LINE"):
                 line_bot_api.push_message(LINE_USER_ID, TextSendMessage(text=f"【每日推送】\n\n{response.text}"))
                 st.balloons()
                 st.success("任務達成：訊息已送達您的手機。")
-            else:
-                st.error("生成內容為空，請重試。")
                 
         except Exception as e:
-            st.error(f"系統異常：{str(e)}")
-            st.info("提示：請確保您的 API Key 有效且已開啟 Gemini 1.5 存取權限。")
+            # 方案 B: 自動搜尋可用模型 (解決 NotFound 錯誤)
+            try:
+                available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+                # 優先選擇 1.5-flash，否則取清單第一個
+                target_model = next((m for m in available_models if "1.5-flash" in m), available_models[0])
+                
+                model = genai.GenerativeModel(target_model)
+                response = model.generate_content(prompt)
+                
+                line_bot_api.push_message(LINE_USER_ID, TextSendMessage(text=f"【備援推送】\n\n{response.text}"))
+                st.success(f"已透過備援路徑 ({target_model}) 成功發送！")
+            except Exception as final_e:
+                st.error(f"系統嚴重異常：{str(final_e)}")
 
 # --- 5. 互動式對話邏輯 (用於 Webhook) ---
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     user_text = event.message.text
     try:
-        model = genai.GenerativeModel('models/gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-1.5-flash')
         prompt = f"使用者心情：'{user_text}'。請以基督徒角度提供安慰與適合經文，限100字。"
         ai_res = model.generate_content(prompt)
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=ai_res.text))
@@ -75,4 +83,4 @@ def handle_message(event):
         pass
 
 st.markdown("---")
-st.caption("版本代號：CL3-Stable | 執行環境：Streamlit Cloud")
+st.caption("版本代號：CL3-Stable-v2 | 執行環境：Streamlit Cloud")
