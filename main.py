@@ -4,7 +4,7 @@ from datetime import datetime
 from linebot import LineBotApi
 from linebot.models import TextSendMessage
 
-# --- 1. 頁面極簡配置 (優化手機一頁式顯示) ---
+# --- 1. 頁面配置與手機版優化 (一頁式顯示) ---
 st.set_page_config(
     page_title="聖經控制台",
     page_icon="🛡️",
@@ -12,7 +12,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 注入 CSS：縮減所有元件間距，防止手機版面溢出
+# 注入 CSS：壓縮所有元件間距，防止手機版面溢出
 st.markdown("""
     <style>
     .block-container { padding: 0.8rem 0.8rem !important; max-width: 100vw !important; overflow-x: hidden; }
@@ -37,13 +37,13 @@ GEMINI_API_KEY = get_config("GEMINI_API_KEY", "AIzaSyC4rqWk4ybph9d5E26QTaGgMlLfU
 LINE_TOKEN = get_config("LINE_ACCESS_TOKEN", "vbmdbVqLgc0mlngXz67zuQun7awHSRdPhoqLookibRQQU7jBi8D+bC32nAIBHZfU8S1oy2XCA7Tr6F2pX4tb3JnExgTaoaxhthf7UNyiXNfiFwcpzuvEp4ghMgBbewf39cQE6p9bk02J5Lj2wsKJ0AdB04t89/1O/w1cDnyilFU=")
 LINE_ID = get_config("LINE_USER_ID", "Uf166c741223bc8ee5d82fd1fd9f4df86")
 
-# 初始化
+# 初始化通訊組件
 line_api = LineBotApi(LINE_TOKEN)
 genai.configure(api_key=GEMINI_API_KEY)
 
-# --- 3. UI 介面佈局 (一頁式設計) ---
+# --- 3. UI 介面佈局 ---
 st.title("🛡️ 聖經任務控制台")
-st.caption(f"📅 {datetime.now().strftime('%m/%d')} | 🛰️ 安全連線 | v8.4-Stable")
+st.caption(f"📅 {datetime.now().strftime('%Y/%m/%d')} | 🛰️ 安全連線 | v8.5-Stable")
 
 # ✍️ 即時傳輸任務
 st.subheader("✍️ 即時傳輸")
@@ -58,11 +58,11 @@ if st.button("📤 執行手動推送"):
 
 st.markdown("---")
 
-# ⏰ 多重排程推送
-st.subheader("⏰ 多重排程推送")
+# ⏰ 多重排程設定 (保留您需要的多選功能)
+st.subheader("⏰ 多重排程設定")
 schedules = st.multiselect(
     "選擇每日推送時間：",
-    ["06:30", "07:00", "08:00", "09:00", "12:00", "21:00"],
+    ["06:30", "07:00", "07:30", "08:00", "08:30", "09:00", "12:00", "21:00"],
     default=["06:30", "08:00"],
     label_visibility="collapsed"
 )
@@ -76,9 +76,9 @@ st.subheader("🤖 AI 智慧推送")
 if st.button("✨ 啟動 AI 測試"):
     try:
         with st.spinner("系統生成中..."):
-            # 關鍵修正：改用您之前成功版本中的最穩定模型 ID
+            # 關鍵修正：採用目前最穩定的模型標識符，避開 404 錯誤
             model = genai.GenerativeModel('gemini-1.5-flash')
-            res = model.generate_content("請幫我從聖經中挑選一段適合今日的經文並給予一段暖心的啟示，字數限制在80字內。")
+            res = model.generate_content("請幫我從聖經中挑選一段適合今日的經文並給予一段暖心的啟示，字數限制在 80 字內。")
             
             if res and res.text:
                 line_api.push_message(LINE_ID, TextSendMessage(text=f"【AI測試】\n\n{res.text}"))
@@ -86,5 +86,5 @@ if st.button("✨ 啟動 AI 測試"):
                 st.success("任務已執行")
             else: st.error("內容異常")
     except Exception as e:
-        st.error("AI 系統暫時無法連線")
+        st.error("AI 系統連線異常")
         st.caption(f"Debug: {str(e)[:50]}")
