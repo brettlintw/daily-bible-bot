@@ -41,24 +41,24 @@ LINE_ID = get_config("LINE_USER_ID", "Uf166c741223bc8ee5d82fd1fd9f4df86")
 line_api = LineBotApi(LINE_TOKEN)
 genai.configure(api_key=GEMINI_API_KEY)
 
-# --- 3. UI 介面佈局 ---
+# --- 3. UI 介面佈局 (一頁式設計) ---
 st.title("🛡️ 聖經任務控制台")
-st.caption(f"📅 {datetime.now().strftime('%m/%d')} | 🛰️ 安全連線 | v8.3-Stable")
+st.caption(f"📅 {datetime.now().strftime('%m/%d')} | 🛰️ 安全連線 | v8.4-Stable")
 
 # ✍️ 即時傳輸任務
 st.subheader("✍️ 即時傳輸")
-custom_text = st.text_area("內容：", placeholder="在此貼上經文...", label_visibility="collapsed")
+custom_text = st.text_area("內容：", placeholder="在此輸入...", label_visibility="collapsed")
 if st.button("📤 執行手動推送"):
     if custom_text.strip():
         try:
             line_api.push_message(LINE_ID, TextSendMessage(text=f"【手動推送】\n\n{custom_text}"))
             st.toast("✅ 已送達")
             st.balloons()
-        except: st.error("連線異常")
+        except: st.error("傳輸失敗")
 
 st.markdown("---")
 
-# ⏰ 多重排程設定
+# ⏰ 多重排程推送
 st.subheader("⏰ 多重排程推送")
 schedules = st.multiselect(
     "選擇每日推送時間：",
@@ -71,19 +71,19 @@ if st.button("💾 更新排程設定"):
 
 st.markdown("---")
 
-# 🤖 AI 智慧推送 (徹底修復 404 報錯)
+# 🤖 AI 智慧推送 (徹底修正 404 報錯)
 st.subheader("🤖 AI 智慧推送")
 if st.button("✨ 啟動 AI 測試"):
     try:
         with st.spinner("系統生成中..."):
-            # 關鍵修正：針對雲端環境改用最明確的模型對接方式
-            model = genai.GenerativeModel('gemini-1.5-flash-latest')
-            res = model.generate_content("請幫我從聖經中挑選一段適合今日的經文並給予一段暖心的啟示，字數在80字內。")
+            # 關鍵修正：改用您之前成功版本中的最穩定模型 ID
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            res = model.generate_content("請幫我從聖經中挑選一段適合今日的經文並給予一段暖心的啟示，字數限制在80字內。")
             
             if res and res.text:
                 line_api.push_message(LINE_ID, TextSendMessage(text=f"【AI測試】\n\n{res.text}"))
                 st.toast("✨ 推送成功")
-                st.success("任務已送出")
+                st.success("任務已執行")
             else: st.error("內容異常")
     except Exception as e:
         st.error("AI 系統暫時無法連線")
