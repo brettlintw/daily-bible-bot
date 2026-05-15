@@ -12,12 +12,10 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 注入 CSS：縮減元件間距，鎖定手機寬度防止溢出
 st.markdown("""
     <style>
     .block-container { padding: 0.8rem 0.8rem !important; max-width: 100vw !important; overflow-x: hidden; }
     h1 { font-size: 1.3rem !important; margin: 0 !important; }
-    h3 { font-size: 0.95rem !important; margin-top: 0.4rem !important; }
     .stButton>button { width: 100%; border-radius: 10px; height: 2.8rem; font-weight: bold; }
     .stMultiSelect div[data-baseweb="select"] { border-radius: 10px; min-height: 2.2rem; }
     .stTextArea>div>div>textarea { border-radius: 10px; font-size: 16px !important; height: 75px !important; }
@@ -41,11 +39,11 @@ genai.configure(api_key=GEMINI_API_KEY)
 
 # --- 3. UI 介面佈局 ---
 st.title("🛡️ 聖經任務控制台")
-st.caption(f"📅 {datetime.now().strftime('%m/%d')} | 🛰️ 連線安全 | v8.7-Stable")
+st.caption(f"📅 {datetime.now().strftime('%m/%d')} | 🛰️ 核心狀態：校準中 | v8.8-Elite")
 
 # ✍️ 即時傳輸
 st.subheader("✍️ 即時傳輸")
-custom_text = st.text_area("內容：", placeholder="在此輸入...", label_visibility="collapsed")
+custom_text = st.text_area("內容：", placeholder="在此輸入內容...", label_visibility="collapsed")
 if st.button("📤 執行手動推送"):
     if custom_text.strip():
         try:
@@ -58,35 +56,29 @@ st.markdown("---")
 
 # ⏰ 多重排程設定
 st.subheader("⏰ 多重排程推送")
-schedules = st.multiselect(
-    "選擇每日推送時間：",
-    ["06:30", "07:00", "07:30", "08:00", "08:30", "09:00", "12:00", "21:00"],
-    default=["06:30", "08:00"],
-    label_visibility="collapsed"
-)
+schedules = st.multiselect("排程時間：", ["06:30", "07:00", "08:00", "09:00", "12:00", "21:00"], default=["06:30", "08:00"], label_visibility="collapsed")
 if st.button("💾 更新排程設定"):
     st.toast(f"已同步：{', '.join(schedules)}")
 
 st.markdown("---")
 
-# 🤖 AI 智慧推送 (版本相容性校準)
+# 🤖 AI 智慧推送 (V8.8 自動偵測邏輯)
 st.subheader("🤖 AI 智慧推送")
 if st.button("✨ 啟動 AI 測試"):
     try:
-        with st.spinner("AI 頻道偵測中..."):
-            # 修正：嘗試最穩定的模型標識符，並加入備援邏輯
-            try:
-                model = genai.GenerativeModel('gemini-1.5-flash-latest')
-                res = model.generate_content("請挑選一段充滿力量的聖經經文並給予啟示，80字內。")
-            except:
-                model = genai.GenerativeModel('gemini-1.5-flash')
-                res = model.generate_content("請挑選一段充滿力量的聖經經文並給予啟示，80字內。")
+        with st.spinner("AI 頻道自動導引中..."):
+            # 修正核心：自動尋找支援生成內容的模型
+            available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+            target_model = 'models/gemini-1.5-flash' if 'models/gemini-1.5-flash' in available_models else available_models[0]
+            
+            model = genai.GenerativeModel(target_model)
+            res = model.generate_content("請挑選一段充滿力量的聖經經文並給予啟示，80字內。")
             
             if res and res.text:
                 line_api.push_message(LINE_ID, TextSendMessage(text=f"【AI測試】\n\n{res.text}"))
                 st.toast("✨ 推送成功")
-                st.success("任務已執行")
+                st.success(f"任務已執行 (使用模型: {target_model})")
             else: st.error("內容異常")
     except Exception as e:
         st.error("AI 系統暫時無法連線")
-        st.caption(f"Debug: {str(e)[:55]}")
+        st.caption(f"Debug Info: {str(e)[:60]}")
