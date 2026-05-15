@@ -12,7 +12,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 注入 CSS：縮減元件間距，防止手機溢出，優化選單顯示
+# 注入 CSS：縮減元件間距，鎖定手機寬度防止溢出
 st.markdown("""
     <style>
     .block-container { padding: 0.8rem 0.8rem !important; max-width: 100vw !important; overflow-x: hidden; }
@@ -41,7 +41,7 @@ genai.configure(api_key=GEMINI_API_KEY)
 
 # --- 3. UI 介面佈局 ---
 st.title("🛡️ 聖經任務控制台")
-st.caption(f"📅 {datetime.now().strftime('%m/%d')} | 🛰️ 安全連線 | v8.6-Final")
+st.caption(f"📅 {datetime.now().strftime('%m/%d')} | 🛰️ 連線安全 | v8.7-Stable")
 
 # ✍️ 即時傳輸
 st.subheader("✍️ 即時傳輸")
@@ -65,26 +65,28 @@ schedules = st.multiselect(
     label_visibility="collapsed"
 )
 if st.button("💾 更新排程設定"):
-    st.success(f"已同步：{', '.join(schedules)}")
+    st.toast(f"已同步：{', '.join(schedules)}")
 
 st.markdown("---")
 
-# 🤖 AI 智慧推送 (修正模型路徑對接)
+# 🤖 AI 智慧推送 (版本相容性校準)
 st.subheader("🤖 AI 智慧推送")
 if st.button("✨ 啟動 AI 測試"):
     try:
-        with st.spinner("AI 頻道對接中..."):
-            # 修正：針對 404 問題，嘗試不帶 prefixes 的直接呼叫格式
-            # 這通常是為了解決 v1beta 與 v1 版本之間的 API 路徑差異
-            model = genai.GenerativeModel('gemini-1.5-flash')
-            res = model.generate_content("請幫我從聖經中挑選一段適合今日的經文並給予暖心的啟示，字數限制在 80 字內。")
+        with st.spinner("AI 頻道偵測中..."):
+            # 修正：嘗試最穩定的模型標識符，並加入備援邏輯
+            try:
+                model = genai.GenerativeModel('gemini-1.5-flash-latest')
+                res = model.generate_content("請挑選一段充滿力量的聖經經文並給予啟示，80字內。")
+            except:
+                model = genai.GenerativeModel('gemini-1.5-flash')
+                res = model.generate_content("請挑選一段充滿力量的聖經經文並給予啟示，80字內。")
             
             if res and res.text:
                 line_api.push_message(LINE_ID, TextSendMessage(text=f"【AI測試】\n\n{res.text}"))
                 st.toast("✨ 推送成功")
-                st.success("任務已順利執行")
-            else: st.error("內容生成異常")
+                st.success("任務已執行")
+            else: st.error("內容異常")
     except Exception as e:
-        # 詳細捕捉錯誤代碼供排查
-        st.error("AI 系統連線失敗")
-        st.caption(f"Debug Info: {str(e)[:55]}")
+        st.error("AI 系統暫時無法連線")
+        st.caption(f"Debug: {str(e)[:55]}")
