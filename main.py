@@ -3,9 +3,9 @@ import requests
 import google.generativeai as genai
 
 # 從您設定的 Secrets 讀取密鑰
-GEMINI_KEY = os.getenv('GEMINI_API_KEY')
-LINE_TOKEN = os.getenv('LINE_ACCESS_TOKEN')
-USER_ID = os.getenv('LINE_USER_ID')
+GEMINI_KEY = os.getenv('AIzaSyC4rqWk4ybph9d5E26QTaGgMlLfU8lg64U')
+LINE_TOKEN = os.getenv('vbmdbVqLgc0mlngXz67zuQun7awHSRdPhoqLookibRQQU7jBi8D+bC32nAIBHZfU8S1oy2XCA7Tr6F2pX4tb3JnExgTaoaxhthf7UNyiXNfiFwcpzuvEp4ghMgBbewf39cQE6p9bk02J5Lj2wsKJ0AdB04t89/1O/w1cDnyilFU=')
+USER_ID = os.getenv('Uf166c741223bc8ee5d82fd1fd9f4df86')
 
 def get_bible_verse():
     genai.configure(api_key=GEMINI_KEY)
