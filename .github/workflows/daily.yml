@@ -1,7 +1,7 @@
 name: Daily Bible Verse
 on:
   schedule:
-    - cron: '30 22 * * *' # 台灣時間 06:30
+    - cron: '0 0 * * *' # 台灣時間 08:00
   workflow_dispatch:
 
 jobs:
