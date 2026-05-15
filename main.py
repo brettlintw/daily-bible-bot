@@ -3,7 +3,6 @@ import google.generativeai as genai
 from linebot import LineBotApi, WebhookHandler
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
 from linebot.exceptions import InvalidSignatureError
-import json
 
 # --- 核心配置：系統連線金鑰 ---
 GEMINI_API_KEY = "AIzaSyC4rqWk4ybph9d5E26QTaGgMlLfU8lg64U"
@@ -27,40 +26,41 @@ st.divider()
 # 通訊狀態區
 st.subheader("📡 通訊狀態")
 st.info("Webhook URL: `https://brett-bible-bot.streamlit.app`")
+st.warning("⚠️ 注意：由於 Streamlit 平台的限制，LINE 後台的 'Verify' 按鈕會顯示 303 錯誤，請直接傳訊息測試即可。")
 
 # 手動執行區
 st.subheader("⚡ 執行即時指令")
 if st.button("🚀 執行：手動推送今日經文"):
     with st.spinner("正在呼叫 AI 引擎生成經文..."):
         try:
+            # 使用簡化模型名稱，避免 404 錯誤
             model = genai.GenerativeModel('gemini-1.5-flash')
             prompt = "請挑選一段聖經經文並提供50字內的溫暖啟示，語氣保持專業、冷靜且充滿理性。"
             response = model.generate_content(prompt)
             
-            # 推送訊息
+            # 主動推送訊息
             line_bot_api.push_message(LINE_USER_ID, TextSendMessage(text=f"【手動觸發】\n\n{response.text}"))
             st.success("任務達成：訊息已成功發送至您的手機。")
             st.balloons()
         except Exception as e:
             st.error(f"系統故障：{str(e)}")
 
-# --- Webhook 偵聽邏輯 (雙向互動核心) ---
+# --- Webhook 處理邏輯 (當 LINE 伺服器傳送訊息過來時) ---
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     user_text = event.message.text
     try:
         model = genai.GenerativeModel('gemini-1.5-flash')
-        # 針對使用者傳送的訊息進行 AI 回應
-        prompt = f"使用者目前的心情或提問：'{user_text}'。請以基督徒顧問的角度，給予溫暖的安慰並引用一段適合的聖經經文，限制在100字內。"
+        prompt = f"使用者心情：'{user_text}'。請以基督徒顧問的角度，給予溫暖安慰並引用適合的聖經經文，限制100字內。"
         response = model.generate_content(prompt)
         
-        # 回覆訊息
+        # 回覆訊息給使用者
         line_bot_api.reply_message(
             event.reply_token,
             TextSendMessage(text=response.text)
         )
     except Exception as e:
-        print(f"Webhook 處理錯誤: {e}")
+        print(f"處理失敗: {e}")
 
 # 底部資訊
 st.divider()
