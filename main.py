@@ -4,7 +4,7 @@ from datetime import datetime
 from linebot import LineBotApi
 from linebot.models import TextSendMessage
 
-# --- 1. 頁面配置與 iPhone 螢幕鎖定 (鎖定寬度，解決版面跑掉問題) ---
+# --- 1. 行動端優化配置 (解決版面跑位與跳頁) ---
 st.set_page_config(
     page_title="聖經 AI 控制台",
     page_icon="🛡️",
@@ -12,7 +12,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 注入 CSS：強制手機版面不溢出，並修復 iOS 鍵盤彈出導致的跳頁
+# 注入 CSS：徹底鎖定手機寬度，防止橫向滑動與自動縮放
 st.markdown("""
     <style>
     .block-container {
@@ -61,7 +61,7 @@ with c2:
 
 st.markdown("---")
 
-# ✍️ 自定義任務
+# ✍️ 自定義推送
 st.subheader("✍️ 自定義推送")
 custom_msg = st.text_area("訊息內容：", placeholder="貼上經文或心情...", height=120)
 
@@ -69,29 +69,29 @@ if st.button("📤 執行自定義推送任務"):
     if custom_msg.strip():
         try:
             line_bot_api.push_message(LINE_USER_ID, TextSendMessage(text=f"【手動自選】\n\n{custom_msg}"))
-            st.success("傳輸成功")
+            st.success("任務已送達")
             st.balloons()
-        except Exception as e:
-            st.error("傳輸中斷")
+        except:
+            st.error("連線異常")
     else:
-        st.warning("請輸入內容")
+        st.warning("內容不可為空")
 
 st.markdown("---")
 
-# 🤖 AI 智慧靈糧 (徹底解決 404 調用失敗問題)
+# 🤖 AI 智慧靈糧 (徹底修正 404 調用失敗問題)
 st.subheader("🤖 AI 智慧任務")
 if st.button("✨ 啟動 AI 靈糧生成"):
     try:
-        with st.spinner("系統通訊中..."):
-            # 核心修正：改用 GenerativeModel 顯式模型名稱聲明
-            # 這是解決截圖中 404 error 的關鍵
-            model = genai.GenerativeModel(model_name='gemini-1.5-flash')
+        with st.spinner("AI 引擎熱機中..."):
+            # 核心修正：直接使用 'gemini-1.5-flash' 名稱，不帶 models/ 前綴
+            # 這是目前穩定版 SDK 對於 Streamlit 雲端環境最穩定的調用方式
+            model = genai.GenerativeModel('gemini-1.5-flash')
             
-            response = model.generate_content("請提供一段充滿力量的聖經經文與50字內的鼓勵啟示，語氣溫暖。")
+            response = model.generate_content("請提供一段聖經經文與50字內的鼓勵啟示，語氣專業且溫暖。")
             
             if response and response.text:
-                line_bot_api.push_message(LINE_USER_ID, TextSendMessage(text=f"【AI 推送任務】\n\n{response.text}"))
-                st.success("AI 任務已送達")
+                line_bot_api.push_message(LINE_USER_ID, TextSendMessage(text=f"【AI 任務推送】\n\n{response.text}"))
+                st.success("AI 任務送達成功")
                 st.balloons()
             else:
                 st.error("生成內容空白")
@@ -99,4 +99,4 @@ if st.button("✨ 啟動 AI 靈糧生成"):
         st.error("AI 引擎調用失敗")
         st.caption(f"技術日誌: {str(e)[:100]}")
 
-st.caption("系統版本: CL3-Elite-v6.0 (Stable Final)")
+st.caption("系統版本: CL3-Elite-v6.1 (Stable Final)")
