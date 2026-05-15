@@ -12,7 +12,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 注入強效 CSS：徹底鎖定手機 100vw 寬度，解決 iPhone 介面偏移問題
+# 注入強效 CSS：徹底鎖定手機寬度，解決 iPhone 介面偏移問題
 st.markdown("""
     <style>
     .block-container {
@@ -28,7 +28,6 @@ st.markdown("""
         background-color: #007AFF;
         color: white;
     }
-    /* 修正 iOS 鍵盤彈出導致的版面跑位 */
     input, textarea { font-size: 16px !important; }
     #MainMenu, footer, header { visibility: hidden; }
     </style>
@@ -45,7 +44,7 @@ GEMINI_API_KEY = get_config("GEMINI_API_KEY", "AIzaSyC4rqWk4ybph9d5E26QTaGgMlLfU
 LINE_ACCESS_TOKEN = get_config("LINE_ACCESS_TOKEN", "vbmdbVqLgc0mlngXz67zuQun7awHSRdPhoqLookibRQQU7jBi8D+bC32nAIBHZfU8S1oy2XCA7Tr6F2pX4tb3JnExgTaoaxhthf7UNyiXNfiFwcpzuvEp4ghMgBbewf39cQE6p9bk02J5Lj2wsKJ0AdB04t89/1O/w1cDnyilFU=")
 LINE_USER_ID = get_config("LINE_USER_ID", "Uf166c741223bc8ee5d82fd1fd9f4df86")
 
-# 初始化連線元件
+# 初始化
 line_bot_api = LineBotApi(LINE_ACCESS_TOKEN)
 genai.configure(api_key=GEMINI_API_KEY)
 
@@ -77,26 +76,24 @@ if st.button("📤 執行自定義推送"):
 
 st.markdown("---")
 
-# 🤖 AI 智慧靈糧 (回歸最穩定呼叫模式)
+# 🤖 AI 智慧靈糧 (切換至明確的模型 ID 以修復 404)
 st.subheader("🤖 AI 智慧任務")
 if st.button("✨ 啟動 AI 靈糧生成"):
     try:
-        with st.spinner("AI 引擎啟動中..."):
-            # 核心修正：回歸最純粹的模型 ID 宣告方式，避開 v1beta 歧義
-            model = genai.GenerativeModel('gemini-1.5-flash')
+        with st.spinner("AI 引擎熱機中..."):
+            # 備援方案：明確指定 models/ 前綴以解決 v1beta 搜尋失敗
+            model = genai.GenerativeModel('models/gemini-1.5-flash')
             
-            # 使用明確的生成請求
             response = model.generate_content("請提供一段充滿力量的聖經經文與50字內的鼓勵啟示，語氣專業且溫暖。")
             
             if response and response.text:
-                line_bot_api.push_message(LINE_USER_ID, TextSendMessage(text=f"【AI 智慧推送】\n\n{response.text}"))
-                st.success("AI 任務已送達成功")
+                line_bot_api.push_message(LINE_USER_ID, TextSendMessage(text=f"【AI 推送】\n\n{response.text}"))
+                st.success("AI 任務送達成功")
                 st.balloons()
             else:
                 st.error("生成內容異常")
     except Exception as e:
-        # 捕捉精確錯誤日誌
         st.error("AI 引擎調用失敗")
-        st.caption(f"診斷資訊: {str(e)[:100]}")
+        st.caption(f"診斷日誌: {str(e)[:100]}")
 
-st.caption("系統版本: CL3-Elite-v6.4 (Stable Final)")
+st.caption("系統版本: CL3-Elite-v6.5 (Recovery Stable)")
