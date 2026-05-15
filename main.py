@@ -4,12 +4,28 @@ from datetime import datetime
 import random
 import time
 
-# --- 1. 頁面配置與 CSS ---
-st.set_page_config(page_title="聖經控制台 V10.7", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
+# --- 1. 頁面配置與 80% 寬度鎖定 CSS ---
+st.set_page_config(page_title="聖經控制台 V10.8", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
+
+# 注入 CSS：將網頁內容控制在 80% 寬度，並保持置中
 st.markdown("""
     <style>
-    .block-container { padding: 0.8rem 0.8rem !important; max-width: 100vw !important; }
-    h1 { font-size: 1.3rem !important; margin: 0 !important; color: #E0E0E0; }
+    /* 核心外框比例控制 */
+    @media (min-width: 1024px) {
+        .main .block-container {
+            max-width: 80% !important;
+            padding-left: 5rem !important;
+            padding-right: 5rem !important;
+        }
+    }
+    /* 手機端維持滿版以利操作 */
+    @media (max-width: 1023px) {
+        .main .block-container {
+            max-width: 100% !important;
+            padding: 0.8rem 0.8rem !important;
+        }
+    }
+    h1 { font-size: 1.5rem !important; margin: 0 !important; color: #E0E0E0; }
     .stButton>button { width: 100%; border-radius: 12px; height: 3.2rem; font-weight: bold; }
     [data-testid="stHeader"], footer, #MainMenu { visibility: hidden; height: 0; }
     .log-box { font-size: 0.75rem; background: #121212; color: #00FF41; padding: 12px; border-radius: 8px; font-family: monospace; border: 1px solid #333; }
@@ -45,13 +61,14 @@ if not GEMINI_API_KEY or not LINE_TOKEN:
 line_api = init_apis()
 
 # --- 3. UI 介面 ---
-st.title("🛡️ 聖經任務控制台 V10.7")
-st.caption(f"📅 {datetime.now().strftime('%m/%d')} | 🛰️ 流量緩衝防護模式 | v10.7")
+st.title("🛡️ 聖經任務控制台 V10.8")
+st.caption(f"📅 {datetime.now().strftime('%m/%d')} | 🛰️ 80% 比例視覺鎖定模式 | v10.8")
 
 # 即時廣播
 from linebot.models import TextSendMessage
 with st.form("broadcast_form", clear_on_submit=True):
-    custom_text = st.text_area("廣播內容：", placeholder="在此輸入...", label_visibility="collapsed", height=100)
+    st.subheader("✍️ 即時廣播傳輸")
+    custom_text = st.text_area("內容：", placeholder="在此輸入...", label_visibility="collapsed", height=100)
     if st.form_submit_button("📢 執行全員廣播"):
         if custom_text.strip():
             try:
@@ -63,7 +80,7 @@ with st.form("broadcast_form", clear_on_submit=True):
 
 st.markdown("---")
 
-# AI 智慧廣播 (V10.7 強化流量抗壓)
+# AI 智慧廣播 (保留 V10.7 流量防護邏輯)
 st.subheader("🤖 AI 智慧廣播")
 mood_input = st.text_input("今日心情：", placeholder="例如：挑戰、疲累...")
 persona = st.selectbox("風格：", ["溫暖啟發 (暖心)", "冷靜理性 (專業)", "K.I.T.T. 霹靂語調"], index=0)
@@ -86,7 +103,6 @@ if st.button("✨ 啟動 AI 廣播推送"):
         model = genai.GenerativeModel(target_model)
         prompt = f"{persona_map[persona]} 針對『{mood_input if mood_input else '隨機信仰力量'}』選經文並給予80字內啟示。隨機ID:{random.random()}"
 
-        # 智慧重試邏輯
         res = None
         for attempt in range(2):
             try:
@@ -95,8 +111,8 @@ if st.button("✨ 啟動 AI 廣播推送"):
                 break 
             except Exception as e:
                 if "429" in str(e) and attempt == 0:
-                    status.warning("⚠️ 衛星頻寬塞車，自動進行第二次對接中...")
-                    time.sleep(5) # 強制等待 5 秒
+                    status.warning("⚠️ 衛星頻寬塞車，自動重試中...")
+                    time.sleep(5)
                     continue
                 raise e
 
@@ -111,7 +127,7 @@ if st.button("✨ 啟動 AI 廣播推送"):
     except Exception as e:
         err = str(e)
         if "429" in err:
-            status.error("🛑 流量已達上限！請等待約 1 分鐘後再嘗試。")
+            status.error("🛑 流量上限！請稍後 1 分鐘再試。")
             add_log("警告：流量封鎖")
         else:
             status.error(f"衛星對接失敗：{err[:20]}")
