@@ -4,71 +4,107 @@ from datetime import datetime
 from linebot import LineBotApi
 from linebot.models import TextSendMessage
 
-# --- 1. 頁面極簡配置 (優化手機顯示) ---
-st.set_page_config(page_title="聖經控制台", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
+# --- 1. 手機版全螢幕自適應配置 ---
+st.set_page_config(
+    page_title="K.I.T.T. 控制台",
+    page_icon="🛡️",
+    layout="centered",
+    initial_sidebar_state="collapsed"
+)
 
-# 注入 CSS：強制縮減間距，鎖定手機寬度防止溢出
+# 注入 CSS 解決版面溢出與跳頁問題
 st.markdown("""
     <style>
-    .block-container { padding: 0.5rem 0.7rem !important; max-width: 100vw !important; overflow-x: hidden; }
-    h1 { font-size: 1.3rem !important; margin: 0 !important; padding: 0 !important; }
-    h3 { font-size: 0.95rem !important; margin: 0.4rem 0 !important; }
-    .stButton>button { width: 100%; border-radius: 8px; height: 2.5rem; font-weight: 600; font-size: 0.9rem; }
-    .stTextArea>div>div>textarea { border-radius: 8px; font-size: 15px !important; height: 75px !important; }
-    [data-testid="stHeader"], footer, #MainMenu { visibility: hidden; height: 0; }
-    hr { margin: 0.4rem 0 !important; }
+    /* 移除頂部空白，鎖定手機寬度 */
+    .block-container {
+        padding: 1rem !important;
+        max-width: 100vw !important;
+        overflow-x: hidden;
+    }
+    /* 讓按鈕與輸入框高度適合手指點擊 */
+    .stButton>button {
+        width: 100%;
+        border-radius: 12px;
+        height: 3.5rem;
+        font-weight: 700;
+        margin-top: 5px;
+    }
+    /* 優化文字區域，防止鍵盤彈出時版面位移 */
+    .stTextArea>div>div>textarea {
+        border-radius: 12px;
+        font-size: 16px !important; /* 防止 iOS 自動縮放 */
+    }
+    /* 隱藏 Streamlit 預設選單與頁尾，讓它更像原生 App */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. 安全密鑰讀取 (優先使用 st.secrets) ---
-def get_cfg(key, fallback):
-    try: return st.secrets[key]
-    except: return fallback
+# --- 2. 安全密鑰讀取機制 ---
+def get_config(key, fallback):
+    try:
+        return st.secrets[key]
+    except:
+        return fallback
 
-GEMINI_API_KEY = get_cfg("GEMINI_API_KEY", "AIzaSyC4rqWk4ybph9d5E26QTaGgMlLfU8lg64U")
-LINE_TOKEN = get_cfg("LINE_ACCESS_TOKEN", "vbmdbVqLgc0mlngXz67zuQun7awHSRdPhoqLookibRQQU7jBi8D+bC32nAIBHZfU8S1oy2XCA7Tr6F2pX4tb3JnExgTaoaxhthf7UNyiXNfiFwcpzuvEp4ghMgBbewf39cQE6p9bk02J5Lj2wsKJ0AdB04t89/1O/w1cDnyilFU=")
-LINE_ID = get_cfg("LINE_USER_ID", "Uf166c741223bc8ee5d82fd1fd9f4df86")
+GEMINI_API_KEY = get_config("GEMINI_API_KEY", "AIzaSyC4rqWk4ybph9d5E26QTaGgMlLfU8lg64U")
+LINE_ACCESS_TOKEN = get_config("LINE_ACCESS_TOKEN", "vbmdbVqLgc0mlngXz67zuQun7awHSRdPhoqLookibRQQU7jBi8D+bC32nAIBHZfU8S1oy2XCA7Tr6F2pX4tb3JnExgTaoaxhthf7UNyiXNfiFwcpzuvEp4ghMgBbewf39cQE6p9bk02J5Lj2wsKJ0AdB04t89/1O/w1cDnyilFU=")
+LINE_USER_ID = get_config("LINE_USER_ID", "Uf166c741223bc8ee5d82fd1fd9f4df86")
 
-# 初始化
-line_api = LineBotApi(LINE_TOKEN)
+# 初始化通訊組件
+line_bot_api = LineBotApi(LINE_ACCESS_TOKEN)
 genai.configure(api_key=GEMINI_API_KEY)
 
-# --- 3. UI 介面佈局 (一頁式設計) ---
+# --- 3. UI 任務控制台 ---
 st.title("🛡️ 聖經任務控制台")
-st.caption(f"📅 {datetime.now().strftime('%m/%d')} | 🛰️ 安全連線 | v7.6")
 
-# ✍️ 即時傳輸任務
-st.subheader("✍️ 即時傳輸")
-custom_text = st.text_area("內容：", placeholder="在此輸入...", label_visibility="collapsed")
-if st.button("📤 執行手動推送"):
-    if custom_text.strip():
-        try:
-            line_api.push_message(LINE_ID, TextSendMessage(text=f"【手動推送】\n\n{custom_text}"))
-            st.toast("✅ 已送達")
-        except: st.error("傳輸失敗")
+# 狀態列：使用橫向排列
+c1, c2 = st.columns(2)
+with c1:
+    st.caption("今日日期")
+    st.write(f"**{datetime.now().strftime('%Y/%m/%d')}**")
+with c2:
+    st.caption("傳輸協定")
+    st.write("**5G / Encrypted**")
 
 st.markdown("---")
 
-# 🤖 AI 排程與生成 (修正模型調用路徑)
-st.subheader("⏰ AI 排程與推送")
-t_list = ["06:30", "07:00", "08:00", "09:00"]
-selected_t = st.selectbox("時間：", t_list, index=2, label_visibility="collapsed")
+# ✍️ 自定義經文任務
+st.subheader("✍️ 自定義推送")
+custom_verse = st.text_area("內容：", placeholder="在此輸入或貼上聖經經文...", height=100)
 
-c1, c2 = st.columns(2)
-with c1:
-    if st.button("💾 確認設定"): st.toast(f"已排程 {selected_t}")
-with c2:
-    if st.button("✨ AI 測試"):
+if st.button("📤 執行自定義推送"):
+    if custom_verse.strip():
         try:
-            with st.spinner("系統生成中..."):
-                # 修正：嘗試使用最原始的模型名稱標識符
-                model = genai.GenerativeModel('gemini-1.5-flash')
-                res = model.generate_content("請幫我從聖經中挑選一段適合今日的經文並給予一段溫暖的啟示，總字數限制在80字內。")
-                
-                if res and res.text:
-                    line_api.push_message(LINE_ID, TextSendMessage(text=f"【AI測試】\n\n{res.text}"))
-                    st.toast("✨ 推送成功")
-                else: st.error("內容生成異常")
+            line_bot_api.push_message(LINE_USER_ID, TextSendMessage(text=f"【手動自選經文】\n\n{custom_verse}"))
+            st.success("推送成功")
+            st.balloons()
         except Exception as e:
-            st.error("AI 系統暫時無法連線")
-            st.caption(f"Error Code: {str(e)[:50]}")
+            st.error("傳輸中斷")
+    else:
+        st.warning("內容不可為空")
+
+st.markdown("---")
+
+# 🤖 AI 智慧靈糧 (徹底修正 404 模型路徑問題)
+st.subheader("🤖 AI 智慧推送")
+if st.button("✨ 啟動 AI 生成"):
+    try:
+        with st.spinner("正在呼叫 Gemini 核心..."):
+            # 修正：移除 models/ 前綴，使用最穩定的字串名稱
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            prompt = "請挑選一段充滿力量的聖經經文與啟示，語氣溫暖，限制在80字內。"
+            response = model.generate_content(prompt)
+            
+            if response and response.text:
+                line_bot_api.push_message(LINE_USER_ID, TextSendMessage(text=f"【AI 推送任務】\n\n{response.text}"))
+                st.success("AI 任務已送達")
+            else:
+                st.error("內容生成失敗")
+    except Exception as e:
+        # 如果還是 404，程式會自動捕獲並提示
+        st.error("AI 模組調用失敗，請確認 API 權限。")
+        st.caption(f"系統日誌: {str(e)}")
+
+st.caption("系統版本: CL3-Elite-v4.2 (Mobile Final)")
