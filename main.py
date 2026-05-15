@@ -5,7 +5,7 @@ import random
 import time
 
 # --- 1. 頁面配置 (精簡一頁式) ---
-st.set_page_config(page_title="聖經控制台 V11.2", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="聖經控制台 V11.3", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
@@ -19,7 +19,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. 核心組件與對接邏輯 ---
+# --- 2. 核心組件 ---
 def get_cfg(key, fallback):
     try: return st.secrets.get(key, fallback) or fallback
     except: return fallback
@@ -34,73 +34,61 @@ def add_log(msg):
     st.session_state.sys_log.insert(0, f"[{ts}] {msg}")
     if len(st.session_state.sys_log) > 4: st.session_state.sys_log.pop()
 
-# 每次執行都重新驗證配置，確保不卡死
 from linebot import LineBotApi
 from linebot.models import TextSendMessage
 line_api = LineBotApi(LINE_TOKEN)
 genai.configure(api_key=GEMINI_API_KEY)
 
-# --- 3. UI 一頁式佈局 ---
-st.title("🛡️ 聖經任務控制台 V11.2")
-st.caption(f"📅 {datetime.now().strftime('%m/%d')} | v11.2-Recovery")
+# --- 3. UI 佈局 ---
+st.title("🛡️ 聖經任務控制台 V11.3")
+st.caption(f"📅 {datetime.now().strftime('%m/%d')} | v11.3-Elite")
 
-# ⏰ 定時推送排程
+# ⏰ 排程管理
 with st.expander("⏰ 推送排程管理", expanded=False):
     schedules = st.multiselect("設定時段：", ["06:30", "07:00", "08:00", "09:00", "12:00", "21:00"], default=["06:30", "08:00"])
-    if st.button("💾 同步排程"):
-        add_log(f"排程存檔: {len(schedules)} 個時段")
-        st.toast("✅ 已同步")
+    if st.button("💾 保存排程"):
+        add_log(f"排程已保存")
+        st.toast("✅ 設定已備份")
 
-# ✍️ 即時廣播
-with st.form("broadcast_form", clear_on_submit=True):
-    custom_text = st.text_area("內容：", placeholder="在此輸入...", label_visibility="collapsed")
+# ✍️ 手動全員廣播 (最高優先級)
+st.subheader("✍️ 手動全員廣播")
+with st.form("manual_form", clear_on_submit=True):
+    custom_text = st.text_area("廣播內容：", placeholder="在此輸入要發送給所有人的訊息...", label_visibility="collapsed")
     if st.form_submit_button("📢 執行全員廣播"):
         if custom_text.strip():
             try:
-                line_api.broadcast(TextSendMessage(text=f"【特別推送】\n\n{custom_text}"))
-                add_log("廣播發送成功")
+                line_api.broadcast(TextSendMessage(text=f"【手動推送】\n\n{custom_text}"))
+                add_log("手動廣播成功")
                 st.toast("✅ 已送達")
-            except Exception as e:
-                st.error(f"傳輸失敗: {str(e)[:15]}")
+            except: st.error("LINE 通訊異常")
 
 st.markdown("---")
 
-# 🤖 AI 智慧廣播 (強化連線跳脫)
+# 🤖 AI 智慧廣播 (配額保護模式)
 st.subheader("🤖 AI 智慧廣播")
 c1, c2 = st.columns([1, 1])
-with c1: mood_input = st.text_input("心情：", placeholder="心情...", label_visibility="collapsed")
+with c1: mood_input = st.text_input("今日心情：", placeholder="心情...", label_visibility="collapsed")
 with c2: persona = st.selectbox("風格：", ["暖心", "專業", "KITT"], index=0, label_visibility="collapsed")
 
 if st.button("✨ 啟動 AI 廣播"):
-    status_placeholder = st.empty()
     try:
-        # 強制重新獲取模型清單，不使用快取
         models = [m.name for m in genai.list_models()]
         target_model = next((n for n in models if 'flash' in n), models[0])
-        
-        persona_map = {"暖心": "溫柔牧者。", "專業": "分析師。", "KITT": "KITT，稱呼Brett。"}
         model = genai.GenerativeModel(target_model)
         
-        # 增加 Prompt 的亂數性，繞過可能的快取封鎖
-        prompt = f"Time:{time.time()}。{persona_map[persona]} 針對『{mood_input if mood_input else '信仰與力量'}』選經文並給予啟示。80字內。"
+        persona_map = {"暖心": "溫柔牧者。", "專業": "分析師。", "KITT": "KITT，稱呼Brett。"}
+        prompt = f"Time:{time.time()}。{persona_map[persona]} 針對『{mood_input if mood_input else '信仰'}』選經文並給予啟示。80字內。"
 
         res = model.generate_content(prompt)
-
-        if res and hasattr(res, 'text'):
+        if res and res.text:
             line_api.broadcast(TextSendMessage(text=f"【AI智慧推送】\n\n{res.text}"))
-            add_log("AI 智慧任務達成")
-            st.toast("✨ 廣播完成")
-        else:
-            st.error("衛星回傳數據格式不符")
-
+            add_log("AI 智慧廣播成功")
+            st.toast("✨ 任務達成")
     except Exception as e:
-        err_msg = str(e)
-        if "429" in err_msg:
-            st.warning("⚠️ 頻寬飽和，請 5 分鐘後再嘗試（或檢查 API 每日上限）。")
-            add_log("流量飽和封鎖 (429)")
-        else:
-            st.error(f"衛星對接失敗")
-            add_log(f"Error: {err_msg[:20]}")
+        if "429" in str(e):
+            st.warning("🛑 今日 AI 衛星配額已耗盡，請改用『手動廣播』或明日再試。")
+            add_log("API 每日配額耗盡")
+        else: st.error("衛星對接失敗")
 
 # 📡 系統日誌
 st.markdown("---")
