@@ -1,0 +1,24 @@
+name: Daily Bible Verse
+on:
+  schedule:
+    - cron: '30 22 * * *' # 台灣時間每天早上 06:30 推送 (UTC 22:30)
+  workflow_dispatch: # 讓您可以手動點按鈕測試
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - name: Install dependencies
+        run: pip install google-generativeai requests
+      - name: Run script
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          LINE_ACCESS_TOKEN: ${{ secrets.LINE_ACCESS_TOKEN }}
+          LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
+        run: python main.py
