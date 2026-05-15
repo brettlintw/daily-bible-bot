@@ -10,14 +10,13 @@ from linebot.models import MessageEvent, TextMessage, TextSendMessage
 st.set_page_config(
     page_title="聖經 AI 任務簡報",
     page_icon="📖",
-    layout="centered", # 讓內容在不同螢幕都能置中
+    layout="centered", 
     initial_sidebar_state="collapsed"
 )
 
-# --- 2. 注入手機版自適應 CSS (解決版面跑掉問題) ---
+# --- 2. 注入手機版自適應 CSS ---
 st.markdown("""
     <style>
-    /* 調整主容器邊距 */
     .block-container {
         padding-top: 1.5rem !important;
         padding-bottom: 1rem !important;
@@ -25,27 +24,19 @@ st.markdown("""
         padding-right: 1rem !important;
         max-width: 100% !important;
     }
-    
-    /* 強制標題字體大小自適應 */
     h1 {
         font-size: 1.8rem !important;
         line-height: 1.2 !important;
     }
-    
-    /* 讓按鈕在手機上佔滿寬度 */
     .stButton>button {
         width: 100%;
         border-radius: 10px;
         height: 3em;
         margin-top: 10px;
     }
-    
-    /* 卡片式容器設計 */
     .stMetric, .stAlert, .stExpander {
         border-radius: 15px !important;
     }
-
-    /* 隱藏手機版多餘的頂部空間 */
     [data-testid="stHeader"] {
         background: rgba(0,0,0,0);
         height: 2rem;
@@ -72,7 +63,6 @@ genai.configure(api_key=GEMINI_API_KEY)
 # --- 4. 行動端 UI 佈局 ---
 st.title("🛡️ 聖經 AI 任務簡報")
 
-# 使用 Container 確保元素垂直堆疊不跑位
 with st.container():
     col1, col2 = st.columns([1, 1])
     with col1:
@@ -84,7 +74,6 @@ with st.container():
 
 st.markdown("---")
 
-# 互動功能區
 with st.expander("⏰ 推送時間排程管理", expanded=False):
     st.info("目前設定：每日 06:30 (台灣時間)")
     if st.button("修改推送時間"):
@@ -102,5 +91,3 @@ if st.button("立刻發送一段暖心經文"):
         st.balloons()
 
 st.caption("系統版本: CL3-Elite-v3.1 (Mobile Optimized)")
-
-請將這段新代碼更新到您的 **`main.py`** 中。更新後，您 iPhone 上的介面應該會變得非常緊湊且整齊。請試試看！
