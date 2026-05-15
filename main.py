@@ -4,10 +4,9 @@ from datetime import datetime
 import random
 import time
 
-# --- 1. 頁面配置 (極致壓縮一頁式) ---
-st.set_page_config(page_title="聖經任務控制台 V11.6", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
+# --- 1. 頁面配置 (極致校準一頁式) ---
+st.set_page_config(page_title="聖經控制台 V11.7", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
 
-# 注入 CSS：強制鎖定 80% 寬度，消除溢出捲軸，極小化間距
 st.markdown("""
     <style>
     /* 核心佈局比例與捲軸封鎖 */
@@ -22,22 +21,22 @@ st.markdown("""
     h1 { font-size: 1.2rem !important; margin: 0 !important; line-height: 1.1 !important; color: #E0E0E0; }
     h3 { font-size: 0.85rem !important; margin: 0.1rem 0 !important; font-weight: bold; }
     .stCaption { font-size: 0.7rem !important; margin-bottom: 0.2rem !important; }
-    hr { margin: 0.3rem 0 !important; }
+    hr { margin: 0.25rem 0 !important; }
     
-    /* 組件高度精確控制 */
+    /* 修正：增加高度防止文字被切掉 (從 1.8rem 升至 2.2rem) */
     .stTextArea>div>div>textarea { height: 55px !important; border-radius: 8px; font-size: 14px !important; }
-    .stTextInput>div>div>input { height: 1.8rem !important; border-radius: 8px; font-size: 14px !important; }
-    .stButton>button { border-radius: 8px; height: 2.4rem; font-weight: bold; font-size: 14px !important; }
-    .stSelectbox>div>div { height: 1.8rem !important; font-size: 13px !important; }
+    .stTextInput>div>div>input { height: 2.2rem !important; border-radius: 8px; font-size: 14px !important; }
+    .stSelectbox>div>div { height: 2.2rem !important; font-size: 13px !important; display: flex; align-items: center; }
     
-    /* 摺疊選單緊湊化 */
+    /* 按鈕與摺疊選單 */
+    .stButton>button { border-radius: 8px; height: 2.4rem; font-weight: bold; font-size: 14px !important; }
     .stExpander { border: none !important; box-shadow: none !important; }
     
     /* 日誌區高度鎖定 */
     .log-box { 
         font-size: 0.65rem; background: #121212; color: #00FF41; 
         padding: 6px; border-radius: 8px; font-family: monospace; 
-        border: 1px solid #333; height: 65px; overflow-y: auto;
+        border: 1px solid #333; height: 60px; overflow-y: auto;
     }
     [data-testid="stHeader"], footer, #MainMenu { visibility: hidden; height: 0; }
     </style>
@@ -64,10 +63,10 @@ line_api = LineBotApi(LINE_TOKEN)
 genai.configure(api_key=GEMINI_API_KEY)
 
 # --- 3. UI 佈局 ---
-st.title("🛡️ 聖經任務控制台+LINE推送 V11.6")
-st.caption(f"📅 {datetime.now().strftime('%m/%d')} | 🛰️ 一頁式極致壓縮模式")
+st.title("🛡️ 聖經任務控制台+LINE推送 V11.7")
+st.caption(f"📅 {datetime.now().strftime('%m/%d')} | 🛰️ 視覺校準模式")
 
-# ⏰ 排程管理 (摺疊式以節省空間)
+# ⏰ 排程管理
 with st.expander("⏰ 推送排程設定", expanded=False):
     custom_schedules = st.text_input("24h 時段 (用逗號隔開)：", value="06:30, 08:00, 12:00, 21:00", label_visibility="collapsed")
     if st.button("💾 保存排程"):
@@ -86,7 +85,7 @@ with st.form("manual_form", clear_on_submit=True):
                 st.toast("✅ 已送達")
             except: st.error("連線異常")
 
-# 🤖 AI 智慧廣播 (雙模切換)
+# 🤖 AI 智慧廣播
 st.subheader("🤖 AI 智慧廣播")
 c1, c2, c3 = st.columns([1, 1, 1])
 with c1: mood_input = st.text_input("心情：", placeholder="心情...", label_visibility="collapsed")
@@ -114,7 +113,7 @@ if st.button("✨ 啟動 AI 智慧推送"):
             st.toast("✨ 廣播完成")
     except Exception as e:
         if "429" in str(e):
-            st.warning("衛星冷卻中，請等 60 秒。")
+            st.warning("衛星過熱冷卻中...")
             add_log("配額上限")
         else: st.error("對接失敗")
 
