@@ -15,18 +15,18 @@ st.set_page_config(
 # 注入 CSS：縮減所有元件間距，防止手機版面溢出
 st.markdown("""
     <style>
-    .block-container { padding: 1rem 0.8rem !important; max-width: 100vw !important; overflow-x: hidden; }
-    h1 { font-size: 1.4rem !important; margin: 0 !important; }
-    h3 { font-size: 1rem !important; margin-top: 0.5rem !important; }
-    .stButton>button { width: 100%; border-radius: 10px; height: 3rem; font-weight: bold; }
-    .stMultiSelect div[data-baseweb="select"] { border-radius: 10px; min-height: 2.5rem; }
-    .stTextArea>div>div>textarea { border-radius: 10px; font-size: 16px !important; }
+    .block-container { padding: 0.8rem 0.8rem !important; max-width: 100vw !important; overflow-x: hidden; }
+    h1 { font-size: 1.3rem !important; margin: 0 !important; }
+    h3 { font-size: 0.95rem !important; margin-top: 0.4rem !important; }
+    .stButton>button { width: 100%; border-radius: 10px; height: 2.8rem; font-weight: bold; }
+    .stMultiSelect div[data-baseweb="select"] { border-radius: 10px; min-height: 2.2rem; }
+    .stTextArea>div>div>textarea { border-radius: 10px; font-size: 16px !important; height: 75px !important; }
     [data-testid="stHeader"], footer, #MainMenu { visibility: hidden; height: 0; }
-    hr { margin: 0.5rem 0 !important; }
+    hr { margin: 0.4rem 0 !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. 安全密鑰讀取 (優先從 Secrets 讀取) ---
+# --- 2. 安全密鑰讀取 ---
 def get_config(key, fallback):
     try:
         return st.secrets[key]
@@ -43,49 +43,48 @@ genai.configure(api_key=GEMINI_API_KEY)
 
 # --- 3. UI 介面佈局 ---
 st.title("🛡️ 聖經任務控制台")
-st.caption(f"📅 {datetime.now().strftime('%Y/%m/%d')} | 🛰️ 連線安全 | v8.2-Elite")
+st.caption(f"📅 {datetime.now().strftime('%m/%d')} | 🛰️ 安全連線 | v8.3-Stable")
 
-# ✍️ 手動任務區
-st.subheader("✍️ 即時傳輸任務")
-custom_text = st.text_area("自選內容：", placeholder="在此貼上經文...", height=80, label_visibility="collapsed")
+# ✍️ 即時傳輸任務
+st.subheader("✍️ 即時傳輸")
+custom_text = st.text_area("內容：", placeholder="在此貼上經文...", label_visibility="collapsed")
 if st.button("📤 執行手動推送"):
     if custom_text.strip():
         try:
             line_api.push_message(LINE_ID, TextSendMessage(text=f"【手動推送】\n\n{custom_text}"))
-            st.toast("✅ 已成功送達")
+            st.toast("✅ 已送達")
             st.balloons()
         except: st.error("連線異常")
 
 st.markdown("---")
 
 # ⏰ 多重排程設定
-st.subheader("⏰ 多重排程設定")
+st.subheader("⏰ 多重排程推送")
 schedules = st.multiselect(
     "選擇每日推送時間：",
-    ["06:30", "07:00", "07:30", "08:00", "08:30", "09:00", "12:00", "21:00"],
+    ["06:30", "07:00", "08:00", "09:00", "12:00", "21:00"],
     default=["06:30", "08:00"],
     label_visibility="collapsed"
 )
-if st.button("💾 更新排程確認"):
+if st.button("💾 更新排程設定"):
     st.toast(f"已同步：{', '.join(schedules)}")
 
 st.markdown("---")
 
-# 🤖 AI 智慧推送 (參考 V4.1 成功邏輯進行終極校準)
+# 🤖 AI 智慧推送 (徹底修復 404 報錯)
 st.subheader("🤖 AI 智慧推送")
-if st.button("✨ 啟動 AI 測試推送"):
+if st.button("✨ 啟動 AI 測試"):
     try:
-        with st.spinner("AI 生成中..."):
-            # 關鍵修正：鎖定最穩定的模型標識符，解決 404 錯誤
-            model = genai.GenerativeModel('gemini-1.5-flash')
-            res = model.generate_content("請幫我從聖經中挑選一段適合今日的經文並給予啟示，80字內。")
+        with st.spinner("系統生成中..."):
+            # 關鍵修正：針對雲端環境改用最明確的模型對接方式
+            model = genai.GenerativeModel('gemini-1.5-flash-latest')
+            res = model.generate_content("請幫我從聖經中挑選一段適合今日的經文並給予一段暖心的啟示，字數在80字內。")
             
             if res and res.text:
-                line_api.push_message(LINE_ID, TextSendMessage(text=f"【AI測試推送】\n\n{res.text}"))
-                st.toast("✨ AI推送成功")
-                st.success("任務已執行")
-            else:
-                st.error("AI 內容生成異常")
+                line_api.push_message(LINE_ID, TextSendMessage(text=f"【AI測試】\n\n{res.text}"))
+                st.toast("✨ 推送成功")
+                st.success("任務已送出")
+            else: st.error("內容異常")
     except Exception as e:
         st.error("AI 系統暫時無法連線")
         st.caption(f"Debug: {str(e)[:50]}")
