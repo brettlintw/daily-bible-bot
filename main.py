@@ -6,17 +6,17 @@ import time
 import threading
 
 # --- 1. 頁面配置 (極致校準一頁式) ---
-st.set_page_config(page_title="聖經控制台 V12.5", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="聖經控制台 V12.6", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
     .main .block-container { max-width: 80% !important; padding: 0.3rem 1rem !important; overflow: hidden !important; }
     @media (max-width: 1023px) { .main .block-container { max-width: 100% !important; padding: 0.3rem !important; } }
     h1 { font-size: 1.15rem !important; margin: 0 !important; line-height: 1.1 !important; color: #E0E0E0; }
-    .stTextArea>div>div>textarea { height: 55px !important; border-radius: 8px; }
+    .stTextArea>div>div>textarea { height: 50px !important; border-radius: 8px; }
     .stTextInput>div>div>input { height: 2.1rem !important; border-radius: 8px; }
     .stButton>button { border-radius: 8px; height: 2.5rem; font-weight: bold; }
-    .log-box { font-size: 0.65rem; background: #121212; color: #00FF41; padding: 6px; border-radius: 8px; font-family: monospace; height: 65px; overflow-y: auto; border: 1px solid #333; }
+    .log-box { font-size: 0.65rem; background: #121212; color: #00FF41; padding: 6px; border-radius: 8px; font-family: monospace; height: 60px; overflow-y: auto; border: 1px solid #333; }
     .status-tag { font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; background: #2E7D32; color: white; margin-left: 10px; }
     [data-testid="stHeader"], footer, #MainMenu { visibility: hidden; height: 0; }
     </style>
@@ -55,12 +55,10 @@ from linebot.models import TextSendMessage
 line_api = LineBotApi(LINE_TOKEN)
 genai.configure(api_key=GEMINI_API_KEY)
 
-# --- 3. 自動推送核心邏輯 (修正：動態強制點亮燈號) ---
+# --- 3. 自動推送核心邏輯 ---
 def auto_push_worker():
-    """背景線程：每 30 秒巡邏一次"""
     while True:
         try:
-            # 修正核心：每次巡邏都強制作動，對外宣告自己存活
             with global_data["lock"]:
                 global_data["engine_active"] = True
             
@@ -84,11 +82,7 @@ def auto_push_worker():
                     
                     res = model.generate_content(
                         prompt,
-                        generation_config={
-                            "temperature": 0.95,
-                            "top_p": 0.95,
-                            "max_output_tokens": 150
-                        }
+                        generation_config={"temperature": 0.95, "top_p": 0.95, "max_output_tokens": 150}
                     )
                     
                     if res and res.text:
@@ -101,46 +95,62 @@ def auto_push_worker():
             pass
         time.sleep(30)
 
-# 啟動巡航引擎
 with global_data["lock"]:
     threads = threading.enumerate()
     if not any(t.name == "KITT_AutoEngine" for t in threads):
         engine_thread = threading.Thread(target=auto_push_worker, name="KITT_AutoEngine", daemon=True)
         engine_thread.start()
-        # 線程啟動時立即點亮
         global_data["engine_active"] = True
 
 # --- 4. UI 佈局 ---
-# 動態讀取最新燈號狀態
 with global_data["lock"]:
     is_active = global_data["engine_active"]
 
 status_html = '<span class="status-tag">🛰️ 衛星通訊正常</span>' if is_active else '<span class="status-tag" style="background:#C62828;">❌ 引擎離線</span>'
-st.markdown(f"<h1>🛡️ 聖經任務控制台+LINE推送 V12.5 {status_html}</h1>", unsafe_allow_html=True)
-st.caption(f"📅 {datetime.now(TZ_TW).strftime('%m/%d')} | 🚀 巡航引擎狀態強固版")
+st.markdown(f"<h1>🛡️ 聖經任務控制台+LINE推送 V12.6 {status_html}</h1>", unsafe_allow_html=True)
+st.caption(f"📅 {datetime.now(TZ_TW).strftime('%m/%d')} | 🚀 手動單人定向推送升級版")
 
+# ⏰ 排程管理
 with st.expander("⏰ 排程管理 (預設 08:00, 12:00, 21:00)", expanded=False):
     schedule_input = st.text_input("24h 時段：", value=global_data["schedule"], label_visibility="collapsed")
     if st.button("💾 保存並同步引擎"):
         with global_data["lock"]:
             global_data["schedule"] = schedule_input
         add_global_log(f"排程更新: {schedule_input[:15]}")
-        st.toast("✅ 預設三時段已成功寫入核心")
+        st.toast("✅ 預設三時段已更新")
 
-with st.form("manual_form", clear_on_submit=True):
-    st.subheader("✍️ 手動廣播")
-    custom_text = st.text_area("內容：", placeholder="在此輸入文字...", label_visibility="collapsed")
-    if st.form_submit_button("📢 執行全員廣播"):
+# ✍️ 手動廣播 (新增單人指定推送功能)
+st.subheader("✍️ 手動廣播")
+with st.form("manual_form", clear_on_submit=False): # 取消 clear 方便測試
+    mc1, mc2 = st.columns([1, 2])
+    with mc1:
+        target_type = st.selectbox("對象：", ["全員廣播", "指定單人"], index=0, label_visibility="collapsed")
+    with mc2:
+        user_id_input = st.text_input("請輸入 LINE User ID：", placeholder="U12345abcdef...", label_visibility="collapsed")
+    
+    custom_text = st.text_area("廣播內容：", placeholder="在此輸入文字或歌曲連結...", label_visibility="collapsed")
+    
+    if st.form_submit_button("📢 執行發送"):
         if custom_text.strip():
             try:
-                line_api.broadcast(TextSendMessage(text=f"【手動推送】\n\n{custom_text}"))
-                add_global_log("手動廣播完成")
-                st.toast("✅ 已送達")
+                msg_obj = TextSendMessage(text=f"【手動推送】\n\n{custom_text}")
+                if target_type == "全員廣播":
+                    line_api.broadcast(msg_obj)
+                    add_global_log("全員廣播完成")
+                    st.toast("✅ 已送達所有人")
+                else:
+                    if user_id_input.strip():
+                        line_api.push_message(user_id_input.strip(), msg_obj)
+                        add_global_log(f"單人推送成功: {user_id_input.strip()[:8]}...")
+                        st.toast("🎯 定向導引送達")
+                    else:
+                        st.error("❌ 錯誤：指定單人模式下 User ID 不能為空！")
             except Exception as e: 
-                st.error("連線異常")
-                add_global_log("手動廣播失敗")
+                st.error("傳輸中斷，請檢查 ID 是否正確")
+                add_global_log("手動傳輸失敗")
 
 st.markdown("---")
+# 🤖 AI 智慧廣播
 st.subheader("🤖 AI 智慧廣播")
 c1, c2, c3 = st.columns([1, 1, 1])
 with c1: mood_input = st.text_input("心情：", label_visibility="collapsed")
@@ -154,10 +164,7 @@ if st.button("✨ 啟動 AI 廣播"):
         salt = random.randint(1000, 9999)
         prompt = f"Seed:{time.time()}-{salt}。{persona_map[persona]} 針對『{mood_input if mood_input else '信仰'}』給予啟示。80字內。"
         
-        res = model.generate_content(
-            prompt,
-            generation_config={"temperature": 0.95, "top_p": 0.95}
-        )
+        res = model.generate_content(prompt, generation_config={"temperature": 0.95, "top_p": 0.95})
         if res and res.text:
             header = "【AI經文推送】" if content_type == "聖經經文" else "【AI詩歌推薦】"
             line_api.broadcast(TextSendMessage(text=f"{header}\n\n{res.text}"))
