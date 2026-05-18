@@ -6,7 +6,7 @@ import time
 import threading
 
 # --- 1. 頁面配置 (極致校準一頁式) ---
-st.set_page_config(page_title="聖經控制台 V12.4", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="聖經控制台 V12.5", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
@@ -33,7 +33,6 @@ TZ_TW = timezone(timedelta(hours=8))
 
 @st.cache_resource
 def get_global_engine_assets():
-    # 修正 2：更新預設排程為 08:00, 12:00, 21:00，並將日誌移入全域快取防止線程衝突
     return {
         "schedule": "08:00, 12:00, 21:00", 
         "last_run": "", 
@@ -45,7 +44,6 @@ def get_global_engine_assets():
 global_data = get_global_engine_assets()
 
 def add_global_log(msg):
-    """線程安全的日誌記錄系統"""
     with global_data["lock"]:
         ts = datetime.now(TZ_TW).strftime("%H:%M:%S")
         global_data["logs"].insert(0, f"[{ts}] {msg}")
@@ -57,18 +55,20 @@ from linebot.models import TextSendMessage
 line_api = LineBotApi(LINE_TOKEN)
 genai.configure(api_key=GEMINI_API_KEY)
 
-# --- 3. 自動推送核心邏輯 (修正：完美語法與例外隔離) ---
+# --- 3. 自動推送核心邏輯 (修正：動態強制點亮燈號) ---
 def auto_push_worker():
     """背景線程：每 30 秒巡邏一次"""
-    global_data["engine_active"] = True
     while True:
         try:
+            # 修正核心：每次巡邏都強制作動，對外宣告自己存活
+            with global_data["lock"]:
+                global_data["engine_active"] = True
+            
             now_tw = datetime.now(TZ_TW)
             now_str = now_tw.strftime("%H:%M")
             date_str = now_tw.strftime("%Y-%m-%d")
             task_id = f"{date_str}-{now_str}"
             
-            # 安全讀取排程設定
             with global_data["lock"]:
                 current_schedule = global_data["schedule"]
             schedules = [s.strip() for s in current_schedule.split(",")]
@@ -97,7 +97,7 @@ def auto_push_worker():
                         add_global_log(f"自動推送成功 ({now_str})")
                 except Exception as api_err:
                     add_global_log(f"API異常: {str(api_err)[:15]}")
-        except Exception as thread_err:
+        except Exception:
             pass
         time.sleep(30)
 
@@ -107,11 +107,17 @@ with global_data["lock"]:
     if not any(t.name == "KITT_AutoEngine" for t in threads):
         engine_thread = threading.Thread(target=auto_push_worker, name="KITT_AutoEngine", daemon=True)
         engine_thread.start()
+        # 線程啟動時立即點亮
+        global_data["engine_active"] = True
 
 # --- 4. UI 佈局 ---
-status_html = '<span class="status-tag">🛰️ 衛星通訊正常</span>' if global_data["engine_active"] else '<span class="status-tag" style="background:#C62828;">❌ 引擎離線</span>'
-st.markdown(f"<h1>🛡️ 聖經任務控制台+LINE推送 V12.4 {status_html}</h1>", unsafe_allow_html=True)
-st.caption(f"📅 {datetime.now(TZ_TW).strftime('%m/%d')} | 🚀 防禦型多線程鎖定版")
+# 動態讀取最新燈號狀態
+with global_data["lock"]:
+    is_active = global_data["engine_active"]
+
+status_html = '<span class="status-tag">🛰️ 衛星通訊正常</span>' if is_active else '<span class="status-tag" style="background:#C62828;">❌ 引擎離線</span>'
+st.markdown(f"<h1>🛡️ 聖經任務控制台+LINE推送 V12.5 {status_html}</h1>", unsafe_allow_html=True)
+st.caption(f"📅 {datetime.now(TZ_TW).strftime('%m/%d')} | 🚀 巡航引擎狀態強固版")
 
 with st.expander("⏰ 排程管理 (預設 08:00, 12:00, 21:00)", expanded=False):
     schedule_input = st.text_input("24h 時段：", value=global_data["schedule"], label_visibility="collapsed")
@@ -153,14 +159,14 @@ if st.button("✨ 啟動 AI 廣播"):
             generation_config={"temperature": 0.95, "top_p": 0.95}
         )
         if res and res.text:
-            line_api.broadcast(TextSendMessage(text=f"【AI手動推送】\n\n{res.text}"))
+            header = "【AI經文推送】" if content_type == "聖經經文" else "【AI詩歌推薦】"
+            line_api.broadcast(TextSendMessage(text=f"{header}\n\n{res.text}"))
             add_global_log("AI手動發送成功")
             st.toast("✨ 已送達")
     except Exception as e: 
         st.error("衛星對接失敗")
 
 st.markdown("---")
-# 讀取全域執行緒安全的日誌
 with global_data["lock"]:
     current_logs = list(global_data["logs"])
 
