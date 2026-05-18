@@ -6,7 +6,7 @@ import time
 import threading
 
 # --- 1. 頁面配置 (極致一頁式無捲頁) ---
-st.set_page_config(page_title="聖經控制台 V13.2", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="聖經控制台 V13.4", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
@@ -36,13 +36,13 @@ from linebot.models import TextSendMessage
 line_api = LineBotApi(LINE_TOKEN)
 genai.configure(api_key=GEMINI_API_KEY)
 
-# --- 3. 動力核心：不滅全域守護引擎 (V13.2 絕對單發防禦版) ---
+# --- 3. 終極防禦核心：不滅全域守護引擎 (V13.4 實體時鐘防禦版) ---
 @st.cache_resource
 class GlobalAutomatonEngine:
     def __init__(self):
         self.schedule = "08:00, 12:00, 21:00"
-        self.completed_tasks = {} # 核心改裝：格式為 {"2026-05-18": ["08:00", "12:00"]} 絕對防止同日重複
-        self.logs = ["📡 系統提示：V13.2 絕對單發防禦核心已全面接管防線。"]
+        self.completed_tasks = {} # 記憶體格式：{"2026-05-18": ["08:00"]}
+        self.logs = ["📡 系統提示：V13.4 實體時鐘防禦核心已全面接管防線。"]
         self.lock = threading.Lock()
         
         self.thread = threading.Thread(target=self._patrol_loop, name="KITT_EternalEngine", daemon=True)
@@ -54,53 +54,62 @@ class GlobalAutomatonEngine:
                 now_tw = datetime.now(TZ_TW)
                 now_str = now_tw.strftime("%H:%M")
                 date_today = now_tw.strftime("%Y-%m-%d")
+                current_second = now_tw.second # 獲取當前實體秒數
                 
                 with self.lock:
                     schedules = [s.strip() for s in self.schedule.split(",")]
-                    # 跨日清空機制：如果新的一天到來，自動建立乾淨的歷史紀錄
                     if date_today not in self.completed_tasks:
                         self.completed_tasks = {date_today: []}
-                
-                # 精準比對目前時間是否匹配任何排程
-                matched_schedule = None
-                for s in schedules:
-                    try:
-                        sched_time = datetime.strptime(s, "%H:%M")
-                        diff = (datetime.strptime(now_str, "%H:%M") - sched_time).total_seconds()
-                        # 寬容度修正：只在排程時間到的 0 到 59 秒之內允許點火
-                        if 0 <= diff < 60:
+                    
+                    # 1. 檢查時間是否精準匹配時段
+                    matched_schedule = None
+                    for s in schedules:
+                        if s == now_str:
                             matched_schedule = s
                             break
-                    except:
-                        pass
-                
-                # 終極防線：如果該時段在今天「已經執行過」，直接封鎖
-                if matched_schedule and matched_schedule not in self.completed_tasks[date_today]:
-                    model = genai.GenerativeModel("gemini-1.5-flash")
                     
-                    salt = random.randint(1000, 9999)
-                    prompt = f"Seed:{time.time()}-{salt}。當前時間點是 {matched_schedule}。你是溫柔牧者，請為這個特定的時刻精選一段聖經經文（確保每次內容完全不同），並給予80字內溫暖啟示。直接輸出內容。"
-                    
-                    res = model.generate_content(
-                        prompt,
-                        generation_config={
-                            "temperature": 0.95,
-                            "top_p": 0.95,
-                            "max_output_tokens": 150
-                        }
-                    )
-                    
-                    if res and res.text:
-                        line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{res.text}"))
-                        
-                        # 記憶體寫入鎖定：立刻將該時段加入今日已完成名單
-                        with self.lock:
+                    # 2. 核心修正：加裝【實體秒數擋板】與【前置鎖定】雙重保險
+                    # 只有在該分鐘的前 20 秒內允許點火，且今天該時段沒跑過
+                    # 這能徹底隔絕多個雲端實例在同一分鐘中後期重複觸發的可能
+                    should_trigger = False
+                    if matched_schedule and current_second < 20:
+                        if matched_schedule not in self.completed_tasks[date_today]:
                             self.completed_tasks[date_today].append(matched_schedule)
+                            should_trigger = True
+
+                # 3. 安全隔離發射區
+                if should_trigger:
+                    try:
+                        model = genai.GenerativeModel("gemini-1.5-flash")
+                        salt = random.randint(1000, 9999)
+                        prompt = f"Seed:{time.time()}-{salt}。當前時間點是 {matched_schedule}。你是溫柔牧者，請為這個特定的時刻精選一段聖經經文（確保每次內容完全不同），並給予80字內溫暖啟示。直接輸出內容。"
                         
-                        self.add_log(f"自動排程推送成功 ({matched_schedule})")
-            except Exception as e:
+                        res = model.generate_content(
+                            prompt,
+                            generation_config={
+                                "temperature": 0.95,
+                                "top_p": 0.95,
+                                "max_output_tokens": 150
+                            }
+                        )
+                        
+                        if res and res.text:
+                            line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{res.text}"))
+                            self.add_log(f"自動排程推送成功 ({matched_schedule})")
+                        else:
+                            # 異常補償：若完全沒有內容，從歷史移除允許下一週期重試
+                            with self.lock:
+                                if matched_schedule in self.completed_tasks[date_today]:
+                                    self.completed_tasks[date_today].remove(matched_schedule)
+                    except Exception:
+                        with self.lock:
+                            if matched_schedule in self.completed_tasks[date_today]:
+                                self.completed_tasks[date_today].remove(matched_schedule)
+                        self.add_log(f"API傳輸異常補償")
+                        
+            except Exception:
                 pass
-            time.sleep(20) # 保持高頻巡邏，但依賴 completed_tasks 做絕對不重複攔截
+            time.sleep(15) # 提高巡邏頻率至 15 秒，確保一定能踩中前 20 秒的黃金點火窗
 
     def add_log(self, msg):
         with self.lock:
@@ -112,8 +121,8 @@ class GlobalAutomatonEngine:
 engine = GlobalAutomatonEngine()
 
 # --- 4. UI 佈局 ---
-st.markdown(f"<h1>🛡️ 聖經任務控制台+LINE推送 V13.2 <span class='status-tag'>🛰️ 衛星通訊正常</span></h1>", unsafe_allow_html=True)
-st.caption(f"📅 {datetime.now(TZ_TW).strftime('%m/%d')} | 🚀 絕對單發防禦模式鎖定")
+st.markdown(f"<h1>🛡️ 聖經任務控制台+LINE推送 V13.4 <span class='status-tag'>🛰️ 衛星通訊正常</span></h1>", unsafe_allow_html=True)
+st.caption(f"📅 {datetime.now(TZ_TW).strftime('%m/%d')} | 🚀 實體時鐘秒級硬鎖定版")
 
 # ⏰ 排程管理
 with st.expander("⏰ 排程管理 (預設 08:00, 12:00, 21:00)", expanded=False):
