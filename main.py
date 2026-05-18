@@ -5,8 +5,8 @@ import random
 import time
 import threading
 
-# --- 1. 頁面配置 ---
-st.set_page_config(page_title="聖經控制台 V12.2", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
+# --- 1. 頁面配置 (極致校準一頁式) ---
+st.set_page_config(page_title="聖經控制台 V12.4", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
@@ -32,29 +32,32 @@ LINE_TOKEN = get_cfg("LINE_ACCESS_TOKEN", "")
 TZ_TW = timezone(timedelta(hours=8))
 
 @st.cache_resource
-def get_global_assets():
+def get_global_engine_assets():
+    # 修正 2：更新預設排程為 08:00, 12:00, 21:00，並將日誌移入全域快取防止線程衝突
     return {
-        "schedule": "06:30, 08:00, 12:00, 21:00", 
+        "schedule": "08:00, 12:00, 21:00", 
         "last_run": "", 
         "engine_active": False,
+        "logs": [],
         "lock": threading.Lock()
     }
 
-global_data = get_global_assets()
+global_data = get_global_engine_assets()
 
-if 'sys_log' not in st.session_state: st.session_state.sys_log = []
-
-def add_log(msg):
-    ts = datetime.now(TZ_TW).strftime("%H:%M:%S")
-    st.session_state.sys_log.insert(0, f"[{ts}] {msg}")
-    if len(st.session_state.sys_log) > 3: st.session_state.sys_log.pop()
+def add_global_log(msg):
+    """線程安全的日誌記錄系統"""
+    with global_data["lock"]:
+        ts = datetime.now(TZ_TW).strftime("%H:%M:%S")
+        global_data["logs"].insert(0, f"[{ts}] {msg}")
+        if len(global_data["logs"]) > 4: 
+            global_data["logs"].pop()
 
 from linebot import LineBotApi
 from linebot.models import TextSendMessage
 line_api = LineBotApi(LINE_TOKEN)
 genai.configure(api_key=GEMINI_API_KEY)
 
-# --- 3. 自動推送核心邏輯 ---
+# --- 3. 自動推送核心邏輯 (修正：完美語法與例外隔離) ---
 def auto_push_worker():
     """背景線程：每 30 秒巡邏一次"""
     global_data["engine_active"] = True
@@ -65,46 +68,58 @@ def auto_push_worker():
             date_str = now_tw.strftime("%Y-%m-%d")
             task_id = f"{date_str}-{now_str}"
             
-            # 取得目前的排程清單
-            schedules = [s.strip() for s in global_data["schedule"].split(",")]
+            # 安全讀取排程設定
+            with global_data["lock"]:
+                current_schedule = global_data["schedule"]
+            schedules = [s.strip() for s in current_schedule.split(",")]
             
-            # 觸發檢查：如果當前時間符合排程，且今天這個分鐘還沒跑過
             if now_str in schedules and global_data["last_run"] != task_id:
-                # 執行推送
-                models = [m.name for m in genai.list_models()]
-                target_model = next((n for n in models if 'flash' in n), models[0])
-                model = genai.GenerativeModel(target_model)
-                
-                prompt = f"Time:{time.time()}。你是溫柔牧者，請針對今日的盼望，精選一段聖經經文並給予80字內啟示。"
-                res = model.generate_content(prompt)
-                
-                if res and res.text:
-                    line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{res.text}"))
-                    global_data["last_run"] = task_id # 鎖定任務以免重複
-        except Exception:
+                try:
+                    models = [m.name for m in genai.list_models()]
+                    target_model = next((n for n in models if 'flash' in n), models[0])
+                    model = genai.GenerativeModel(target_model)
+                    
+                    salt = random.randint(1000, 9999)
+                    prompt = f"Seed:{time.time()}-{salt}。當前時間點是 {now_str}。你是溫柔牧者，請為這個特定時段精選一段聖經經文（確保每次內容不同），並給予80字內溫暖啟示。直接輸出內容。"
+                    
+                    res = model.generate_content(
+                        prompt,
+                        generation_config={
+                            "temperature": 0.95,
+                            "top_p": 0.95,
+                            "max_output_tokens": 150
+                        }
+                    )
+                    
+                    if res and res.text:
+                        line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{res.text}"))
+                        global_data["last_run"] = task_id
+                        add_global_log(f"自動推送成功 ({now_str})")
+                except Exception as api_err:
+                    add_global_log(f"API異常: {str(api_err)[:15]}")
+        except Exception as thread_err:
             pass
         time.sleep(30)
 
 # 啟動巡航引擎
 with global_data["lock"]:
-    # 檢查是否有存活的線程，沒有則建立
     threads = threading.enumerate()
     if not any(t.name == "KITT_AutoEngine" for t in threads):
         engine_thread = threading.Thread(target=auto_push_worker, name="KITT_AutoEngine", daemon=True)
         engine_thread.start()
 
 # --- 4. UI 佈局 ---
-# 增加狀態燈號顯示
 status_html = '<span class="status-tag">🛰️ 衛星通訊正常</span>' if global_data["engine_active"] else '<span class="status-tag" style="background:#C62828;">❌ 引擎離線</span>'
-st.markdown(f"<h1>🛡️ 聖經任務控制台+LINE推送 V12.2 {status_html}</h1>", unsafe_allow_html=True)
-st.caption(f"📅 {datetime.now(TZ_TW).strftime('%m/%d')} | 🚀 全自動巡航引擎模式")
+st.markdown(f"<h1>🛡️ 聖經任務控制台+LINE推送 V12.4 {status_html}</h1>", unsafe_allow_html=True)
+st.caption(f"📅 {datetime.now(TZ_TW).strftime('%m/%d')} | 🚀 防禦型多線程鎖定版")
 
-with st.expander("⏰ 排程管理 (點擊保存後立即生效)", expanded=False):
+with st.expander("⏰ 排程管理 (預設 08:00, 12:00, 21:00)", expanded=False):
     schedule_input = st.text_input("24h 時段：", value=global_data["schedule"], label_visibility="collapsed")
     if st.button("💾 保存並同步引擎"):
-        global_data["schedule"] = schedule_input
-        add_log(f"同步新排程: {schedule_input}")
-        st.toast("✅ 排程已寫入衛星記憶體")
+        with global_data["lock"]:
+            global_data["schedule"] = schedule_input
+        add_global_log(f"排程更新: {schedule_input[:15]}")
+        st.toast("✅ 預設三時段已成功寫入核心")
 
 with st.form("manual_form", clear_on_submit=True):
     st.subheader("✍️ 手動廣播")
@@ -113,9 +128,11 @@ with st.form("manual_form", clear_on_submit=True):
         if custom_text.strip():
             try:
                 line_api.broadcast(TextSendMessage(text=f"【手動推送】\n\n{custom_text}"))
-                add_log("手動廣播完成")
+                add_global_log("手動廣播完成")
                 st.toast("✅ 已送達")
-            except: st.error("連線異常")
+            except Exception as e: 
+                st.error("連線異常")
+                add_global_log("手動廣播失敗")
 
 st.markdown("---")
 st.subheader("🤖 AI 智慧廣播")
@@ -128,14 +145,24 @@ if st.button("✨ 啟動 AI 廣播"):
     try:
         model = genai.GenerativeModel("gemini-1.5-flash")
         persona_map = {"暖心": "溫柔牧者。", "專業": "分析師。", "KITT": "KITT，稱呼Brett。"}
-        prompt = f"Time:{time.time()}。{persona_map[persona]} 針對『{mood_input if mood_input else '信仰'}』給予啟示。80字內。"
-        res = model.generate_content(prompt)
+        salt = random.randint(1000, 9999)
+        prompt = f"Seed:{time.time()}-{salt}。{persona_map[persona]} 針對『{mood_input if mood_input else '信仰'}』給予啟示。80字內。"
+        
+        res = model.generate_content(
+            prompt,
+            generation_config={"temperature": 0.95, "top_p": 0.95}
+        )
         if res and res.text:
             line_api.broadcast(TextSendMessage(text=f"【AI手動推送】\n\n{res.text}"))
-            add_log("AI 任務成功")
+            add_global_log("AI手動發送成功")
             st.toast("✨ 已送達")
-    except: st.error("衛星對接失敗")
+    except Exception as e: 
+        st.error("衛星對接失敗")
 
 st.markdown("---")
-if st.session_state.sys_log:
-    st.markdown(f"<pre class='log-box'>{chr(10).join(st.session_state.sys_log)}</pre>", unsafe_allow_html=True)
+# 讀取全域執行緒安全的日誌
+with global_data["lock"]:
+    current_logs = list(global_data["logs"])
+
+if current_logs:
+    st.markdown(f"<pre class='log-box'>{chr(10).join(current_logs)}</pre>", unsafe_allow_html=True)
