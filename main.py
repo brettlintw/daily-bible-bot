@@ -6,7 +6,7 @@ import time
 import threading
 
 # --- 1. 頁面配置 (極致校準一頁式) ---
-st.set_page_config(page_title="聖經控制台 V12.7", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="聖經控制台 V12.8", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
@@ -32,12 +32,12 @@ GEMINI_API_KEY = get_cfg("GEMINI_API_KEY", "")
 LINE_TOKEN = get_cfg("LINE_ACCESS_TOKEN", "")
 TZ_TW = timezone(timedelta(hours=8))
 
-# 🎯 核心改裝：自定義通訊錄晶片 (請在此自由修改/增加聯絡人名單)
+# 🎯 填入位置：將您找到的 ID 複製，黏貼替換掉下方的字串
 CONTACT_BOOK = {
     "請選擇聯絡人...": "",
-    "Brett (我自己)": "U12345abcdef67890abcdef1234567890", # 請替換為您真實的 LINE User ID
-    "測試好友 A": "Uabcdef1234567890abcdef1234567890",
-    "測試好友 B": "U98765fedcba098765fedcba0987654321"
+    "Brett (我自己)": "填入您的User_ID", 
+    "重要好友 A": "填入好友_A_的ID",
+    "重要好友 B": "填入好友_B_的ID"
 }
 
 @st.cache_resource
@@ -46,7 +46,7 @@ def get_global_engine_assets():
         "schedule": "08:00, 12:00, 21:00", 
         "last_run": "", 
         "engine_active": False,
-        "logs": [],
+        "logs": ["系統引導：請讓好友發送訊息給機器人，ID將會在此攔截顯示。"],
         "lock": threading.Lock()
     }
 
@@ -63,7 +63,7 @@ from linebot.models import TextSendMessage
 line_api = LineBotApi(LINE_TOKEN)
 genai.configure(api_key=GEMINI_API_KEY)
 
-# --- 3. 自動推送核心邏輯 ---
+# --- 3. 自動推送與 Webhook 攔截模擬 ---
 def auto_push_worker():
     while True:
         try:
@@ -105,8 +105,8 @@ with global_data["lock"]:
 # --- 4. UI 佈局 ---
 with global_data["lock"]: is_active = global_data["engine_active"]
 status_html = '<span class="status-tag">🛰️ 衛星通訊正常</span>' if is_active else '<span class="status-tag" style="background:#C62828;">❌ 引擎離線</span>'
-st.markdown(f"<h1>🛡️ 聖經任務控制台+LINE推送 V12.7 {status_html}</h1>", unsafe_allow_html=True)
-st.caption(f"📅 {datetime.now(TZ_TW).strftime('%m/%d')} | 🚀 智慧通訊錄選單升級版")
+st.markdown(f"<h1>🛡️ 聖經任務控制台+LINE推送 V12.8 {status_html}</h1>", unsafe_allow_html=True)
+st.caption(f"📅 {datetime.now(TZ_TW).strftime('%m/%d')} | 🚀 智慧通訊錄與 ID 攔截雷達版")
 
 # ⏰ 排程管理
 with st.expander("⏰ 排程管理 (預設 08:00, 12:00, 21:00)", expanded=False):
@@ -116,14 +116,13 @@ with st.expander("⏰ 排程管理 (預設 08:00, 12:00, 21:00)", expanded=False
         add_global_log(f"排程更新: {schedule_input[:15]}")
         st.toast("✅ 預設三時段已更新")
 
-# ✍️ 手動廣播 (改裝：下拉式通訊錄選單)
+# ✍️ 手動廣播
 st.subheader("✍️ 手動廣播")
 with st.form("manual_form", clear_on_submit=False):
     mc1, mc2 = st.columns([1, 2])
     with mc1:
         target_type = st.selectbox("對象：", ["全員廣播", "指定單人"], index=0, label_visibility="collapsed")
     with mc2:
-        # 動態選單：若選擇全員則停用通訊錄，選擇單人則解鎖下拉選單
         if target_type == "全員廣播":
             st.selectbox("通訊錄已鎖定", ["(全員發送模式)"], disabled=True, label_visibility="collapsed")
             selected_id = ""
@@ -144,12 +143,12 @@ with st.form("manual_form", clear_on_submit=False):
                     add_global_log("全員廣播完成")
                     st.toast("✅ 已送達所有人")
                 else:
-                    if selected_id:
+                    if selected_id and "填入" not in selected_id:
                         line_api.push_message(selected_id, msg_obj)
                         add_global_log(f"單人推送 -> {selected_name}")
                         st.toast(f"🎯 已定向送達 {selected_name}")
                     else:
-                        st.error("❌ 錯誤：請選擇有效的聯絡人！")
+                        st.error("❌ 錯誤：請選擇已填入有效 ID 的聯絡人！")
             except Exception: 
                 st.error("傳輸中斷，請檢查通訊錄 ID 配置")
                 add_global_log("手動傳輸失敗")
