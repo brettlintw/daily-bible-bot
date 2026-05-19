@@ -6,7 +6,7 @@ import time
 import threading
 
 # --- 1. 頁面配置 (極致一頁式無捲頁) ---
-st.set_page_config(page_title="聖經控制台 V13.6", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="聖經控制台 V13.7", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
@@ -37,45 +37,13 @@ line_api = LineBotApi(LINE_TOKEN)
 
 genai.configure(api_key=GEMINI_API_KEY)
 
-# --- 3. 雙重核心智慧調度演算法 (修復 404 漏洞) ---
-def generate_content_safe(prompt, max_tokens=150):
-    """具備極限容錯的雙模型降級發射晶片"""
-    # 優先使用高階通用型 pro 模型，避開部分免費帳號對 flash 的 404 限制
-    primary_model = "gemini-1.5-pro"
-    backup_model = "gemini-pro"
-    
-    try:
-        model = genai.GenerativeModel(model_name=primary_model)
-        res = model.generate_content(
-            prompt,
-            generation_config=genai.types.GenerationConfig(
-                temperature=0.95, top_p=0.95, max_output_tokens=max_tokens
-            )
-        )
-        if res and res.text:
-            return res.text
-    except Exception as e:
-        # 如果 1.5-pro 依舊回傳 404，立刻啟動備用防線，切換至絕對通車的經典 pro
-        if "404" in str(e) or "not found" in str(e).lower():
-            model = genai.GenerativeModel(model_name=backup_model)
-            res = model.generate_content(
-                prompt,
-                generation_config=genai.types.GenerationConfig(
-                    temperature=0.95, top_p=0.95, max_output_tokens=max_tokens
-                )
-            )
-            if res and res.text:
-                return res.text
-        raise e
-    return None
-
-# --- 4. 不滅全域守護引擎 ---
+# --- 3. 不滅全域守護引擎 ---
 @st.cache_resource
 class GlobalAutomatonEngine:
     def __init__(self):
         self.schedule = "08:00, 12:00, 21:00"
         self.completed_tasks = {}
-        self.logs = ["📡 系統提示：V13.6 全地區相容防禦核心已全面對接。"]
+        self.logs = ["📡 系統提示：V13.7 終極防禦核心已就位。"]
         self.lock = threading.Lock()
         
         self.thread = threading.Thread(target=self._patrol_loop, name="KITT_EternalEngine", daemon=True)
@@ -108,13 +76,19 @@ class GlobalAutomatonEngine:
 
                 if should_trigger:
                     try:
+                        model = genai.GenerativeModel(model_name="gemini-2.5-flash")
                         salt = random.randint(1000, 9999)
                         prompt = f"Seed:{time.time()}-{salt}。當前時間點是 {matched_schedule}。你是溫柔牧者，請為這個特定的時刻精選一段聖經經文並給予80字內溫暖啟示。直接輸出內容。"
                         
-                        text_output = generate_content_safe(prompt, max_tokens=150)
+                        res = model.generate_content(
+                            prompt,
+                            generation_config=genai.types.GenerationConfig(
+                                temperature=0.95, top_p=0.95, max_output_tokens=150
+                            )
+                        )
                         
-                        if text_output:
-                            line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{text_output}"))
+                        if res and res.text:
+                            line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{res.text}"))
                             self.add_log(f"自動排程推送成功 ({matched_schedule})")
                         else:
                             with self.lock:
@@ -138,9 +112,9 @@ class GlobalAutomatonEngine:
 
 engine = GlobalAutomatonEngine()
 
-# --- 5. UI 佈局 ---
-st.markdown(f"<h1>🛡️ 聖經任務控制台+LINE推送 V13.6 <span class='status-tag'>🛰️ 衛星通訊正常</span></h1>", unsafe_allow_html=True)
-st.caption(f"📅 {datetime.now(TZ_TW).strftime('%m/%d')} | 🚀 跨模型調度容錯版")
+# --- 4. UI 佈局 ---
+st.markdown(f"<h1>🛡️ 聖經任務控制台+LINE推送 V13.7 <span class='status-tag'>🛰️ 衛星通訊正常</span></h1>", unsafe_allow_html=True)
+st.caption(f"📅 {datetime.now(TZ_TW).strftime('%m/%d')} | 🚀 旗艦修復版")
 
 # ⏰ 排程管理
 with st.expander("⏰ 排程管理 (預設 08:00, 12:00, 21:00)", expanded=False):
@@ -151,7 +125,7 @@ with st.expander("⏰ 排程管理 (預設 08:00, 12:00, 21:00)", expanded=False
         with engine.lock:
             engine.schedule = schedule_input
         engine.add_log(f"排程更新: {schedule_input[:15]}")
-        st.toast("✅ 預設三時段已成功同步至全域引擎")
+        st.toast("✅ 預設三時段已更新")
 
 # ✍️ 手動廣播
 st.subheader("✍️ 手動全員廣播")
@@ -177,6 +151,7 @@ with c3: content_type = st.selectbox("內容：", ["聖經經文", "推薦詩歌
 
 if st.button("✨ 啟動 AI 廣播"):
     try:
+        model = genai.GenerativeModel(model_name="gemini-2.5-flash")
         persona_map = {"暖心": "溫柔牧者。", "專業": "分析師。", "KITT": "KITT，稱呼Brett。"}
         salt = random.randint(1000, 9999)
         
@@ -185,21 +160,18 @@ if st.button("✨ 啟動 AI 廣播"):
         else:
             prompt = f"Seed:{time.time()}-{salt}。{persona_map[persona]} 針對用戶『{mood_input if mood_input else '疲累'}』的心情推薦基督教詩歌(含歌名歌詞)與暖心分析。80字內。"
         
-        # 呼叫雙重容錯發射晶片
-        res_text = generate_content_safe(prompt, max_tokens=150)
-        
-        if res_text:
+        res = model.generate_content(prompt, generation_config=genai.types.GenerationConfig(temperature=0.95, top_p=0.95))
+        if res and res.text:
             header = "【AI經文推送】" if content_type == "聖經經文" else "【AI詩歌推薦】"
-            line_api.broadcast(TextSendMessage(text=f"{header}\n\n{res_text}"))
+            line_api.broadcast(TextSendMessage(text=f"{header}\n\n{res.text}"))
             engine.add_log(f"手動觸發 AI {content_type[:2]}成功")
             st.toast("✨ 廣播完成")
     except Exception as e:
-        st.error(f"衛星對接失敗: {str(e)[:30]}")
-        engine.add_log(f"AI廣播失敗: {str(e)[:25]}")
+        st.error(f"衛星對接失敗: {str(e)[:40]}")
+        engine.add_log(f"AI廣播失敗: {str(e)[:35]}")
 
 st.markdown("---")
 with engine.lock:
     current_logs = list(engine.logs)
-
 if current_logs:
     st.markdown(f"<pre class='log-box'>{chr(10).join(current_logs)}</pre>", unsafe_allow_html=True)
