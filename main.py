@@ -6,7 +6,7 @@ import time
 import threading
 
 # --- 1. 頁面配置 (極致一頁式無捲頁) ---
-st.set_page_config(page_title="聖經控制台 V13.8", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="聖經控制台 V14.0", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
@@ -22,7 +22,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. 核心配置與時區鎖定 ---
+# --- 2. 核心配置 ---
 def get_cfg(key, fallback):
     try: return st.secrets.get(key, fallback) or fallback
     except: return fallback
@@ -37,13 +37,13 @@ line_api = LineBotApi(LINE_TOKEN)
 
 genai.configure(api_key=GEMINI_API_KEY)
 
-# --- 3. 終極防禦核心：不滅全域守護引擎 (V13.8 完整文字版) ---
+# --- 3. 不滅全域守護引擎 (V14.0 絕對完整純淨版) ---
 @st.cache_resource
 class GlobalAutomatonEngine:
     def __init__(self):
         self.schedule = "08:00, 12:00, 21:00"
         self.completed_tasks = {}
-        self.logs = ["📡 系統提示：V13.8 完整文字放寬核心已啟動，排除字數截斷風險。"]
+        self.logs = ["📡 系統提示：V14.0 語意純淨防禦核心已全面上線。"]
         self.lock = threading.Lock()
         
         self.thread = threading.Thread(target=self._patrol_loop, name="KITT_EternalEngine", daemon=True)
@@ -75,34 +75,45 @@ class GlobalAutomatonEngine:
                             should_trigger = True
 
                 if should_trigger:
-                    try:
-                        # 沿用 V13.7 成功點火的模型 gemini-2.5-flash (或改回 gemini-1.5-flash 視您的 Key 權限而定)
-                        model = genai.GenerativeModel(model_name="gemini-2.5-flash")
-                        salt = random.randint(1000, 9999)
-                        # 修正 1：強化 Prompt，要求語義完整，不准在結尾切斷
-                        prompt = f"Seed:{time.time()}-{salt}。當前時間點是 {matched_schedule}。你是溫柔牧者，請為這個特定的時刻精選一段聖經經文並給予一段溫暖啟示。請確保內容結構完整，結尾必須有完整的句號。直接輸出內容。"
-                        
-                        res = model.generate_content(
-                            prompt,
-                            generation_config=genai.types.GenerationConfig(
-                                temperature=0.95, 
-                                top_p=0.95, 
-                                max_output_tokens=500  # 修正 2：頻寬大幅放寬至 500 Token
+                    # 隨機延時防 429
+                    time.sleep(random.uniform(1.0, 5.0))
+                    
+                    for attempt in range(2):
+                        try:
+                            model = genai.GenerativeModel(model_name="gemini-2.5-flash")
+                            salt = random.randint(1000, 9999)
+                            
+                            # 修正 1：淨化 Prompt，拿掉所有字數限制，嚴格禁止 Markdown 粗體符號
+                            prompt = (
+                                f"Seed:{time.time()}-{salt}。當前時間點是 {matched_schedule}。 "
+                                f"你是溫柔牧者，請為這個特定的時刻精選一段聖經經文並給予一段溫暖啟示。 "
+                                f"【嚴格格式要求】：請直接輸出純文字與正常標點符號，絕對不要使用任何 ** 粗體符號或 # 標題符號。 "
+                                f"內容結構必須完整，結尾必須是一個完整的句子與句號。不可截斷。"
                             )
-                        )
-                        
-                        if res and res.text:
-                            line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{res.text}"))
-                            self.add_log(f"自動排程推送成功 ({matched_schedule})")
-                        else:
+                            
+                            res = model.generate_content(
+                                prompt,
+                                generation_config=genai.types.GenerationConfig(
+                                    temperature=0.90, top_p=0.95, max_output_tokens=600  # 穩固放大至 600
+                                )
+                            )
+                            
+                            if res and res.text:
+                                line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{res.text.strip()}"))
+                                self.add_log(f"自動排程推送成功 ({matched_schedule})")
+                                break
+                            else:
+                                raise Exception("Empty response")
+                                
+                        except Exception as e:
+                            if "429" in str(e) and attempt == 0:
+                                time.sleep(5.0)
+                                continue
                             with self.lock:
                                 if matched_schedule in self.completed_tasks[date_today]:
                                     self.completed_tasks[date_today].remove(matched_schedule)
-                    except Exception as inner_err:
-                        with self.lock:
-                            if matched_schedule in self.completed_tasks[date_today]:
-                                    self.completed_tasks[date_today].remove(matched_schedule)
-                        self.add_log(f"自動發射異常: {str(inner_err)[:20]}")
+                            self.add_log(f"自動發射異常: {str(e)[:20]}")
+                            break
                         
             except Exception:
                 pass
@@ -117,8 +128,8 @@ class GlobalAutomatonEngine:
 engine = GlobalAutomatonEngine()
 
 # --- 4. UI 佈局 ---
-st.markdown(f"<h1>🛡️ 聖經任務控制台+LINE推送 V13.8 <span class='status-tag'>🛰️ 衛星通訊正常</span></h1>", unsafe_allow_html=True)
-st.caption(f"📅 {datetime.now(TZ_TW).strftime('%m/%d')} | 🚀 文字頻寬翻倍擴張版")
+st.markdown(f"<h1>🛡️ 聖經任務控制台+LINE推送 V14.0 <span class='status-tag'>🛰️ 衛星通訊正常</span></h1>", unsafe_allow_html=True)
+st.caption(f"📅 {datetime.now(TZ_TW).strftime('%m/%d')} | 🚀 語意邊界解鎖版")
 
 # ⏰ 排程管理
 with st.expander("⏰ 排程管理 (預設 08:00, 12:00, 21:00)", expanded=False):
@@ -159,22 +170,16 @@ if st.button("✨ 啟動 AI 廣播"):
         persona_map = {"暖心": "溫柔牧者。", "專業": "分析師。", "KITT": "KITT，稱呼Brett。"}
         salt = random.randint(1000, 9999)
         
+        # 修正 2：手動廣播模組也同步拔除 80 字限令，全面淨化格式
         if content_type == "聖經經文":
-            prompt = f"Seed:{time.time()}-{salt}。{persona_map[persona]} 針對『{mood_input if mood_input else '信仰'}』給予聖經經文啟示。請確保內容完整。"
+            prompt = f"Seed:{time.time()}-{salt}。{persona_map[persona]} 針對『{mood_input if mood_input else '信仰'}』精選一段聖經經文並給予溫暖啟示。請直接輸出純文字，絕對不要使用 ** 粗體符號。內容必須結構完整並句號結尾。"
         else:
-            prompt = f"Seed:{time.time()}-{salt}。{persona_map[persona]} 針對用戶『{mood_input if mood_input else '疲累'}』的心情推薦基督教詩歌(含歌名歌詞)與暖心分析。請確保內容完整。"
+            prompt = f"Seed:{time.time()}-{salt}]. {persona_map[persona]} 針對用戶『{mood_input if mood_input else '疲累'}』的心情推薦基督教詩歌(含歌名歌詞)與暖心分析。請直接輸出純文字，絕對不要使用 ** 粗體符號。內容必須結構完整並句號結尾。"
         
-        res = model.generate_content(
-            prompt, 
-            generation_config=genai.types.GenerationConfig(
-                temperature=0.95, 
-                top_p=0.95, 
-                max_output_tokens=500 # AI智慧廣播也同步放寬
-            )
-        )
+        res = model.generate_content(prompt, generation_config=genai.types.GenerationConfig(temperature=0.90, top_p=0.95, max_output_tokens=600))
         if res and res.text:
             header = "【AI經文推送】" if content_type == "聖經經文" else "【AI詩歌推薦】"
-            line_api.broadcast(TextSendMessage(text=f"{header}\n\n{res.text}"))
+            line_api.broadcast(TextSendMessage(text=f"{header}\n\n{res.text.strip()}"))
             engine.add_log(f"手動觸發 AI {content_type[:2]}成功")
             st.toast("✨ 廣播完成")
     except Exception as e:
