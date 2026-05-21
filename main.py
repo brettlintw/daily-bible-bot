@@ -6,7 +6,7 @@ import time
 import threading
 
 # --- 1. 頁面配置 (極致一頁式無捲頁) ---
-st.set_page_config(page_title="聖經控制台 V15.1", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="聖經控制台 V15.2", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
@@ -37,13 +37,14 @@ line_api = LineBotApi(LINE_TOKEN)
 
 genai.configure(api_key=GEMINI_API_KEY)
 
-# --- 3. 不滅全域守護引擎 (V15.1 反思領受擴充版) ---
+# --- 3. 不滅全域守護引擎 (V15.2 結構精煉與時間鎖版) ---
 @st.cache_resource
 class GlobalAutomatonEngine:
     def __init__(self):
-        self.schedule = "08:00, 12:00, 21:00"
+        # 修正 3：排程管理預設時間調整為 09:00
+        self.schedule = "09:00"
         self.completed_tasks = {}
-        self.logs = ["📡 系統提示：V15.1 反思領受強化核心已通電就位。"]
+        self.logs = ["📡 系統提示：V15.2 九點定錨與反思領受鎖定核心已就位。"]
         self.lock = threading.Lock()
         
         self.thread = threading.Thread(target=self._patrol_loop, name="KITT_EternalEngine", daemon=True)
@@ -71,16 +72,15 @@ class GlobalAutomatonEngine:
                     try:
                         model = genai.GenerativeModel(model_name="gemini-2.5-flash")
                         
-                        # 修正 1：升級自動排程 Prompt，硬性鎖定反思與領受區塊
+                        # 修正 1：Prompt 結構精煉為三行
                         prompt = (
-                            f"現在的時間點是 {now_str}。你是溫柔牧者，請為這個特定的時刻精選一段聖經經文，並給予深度的啟示、反思與領受。\n\n"
+                            f"現在的時間點是 {now_str}。你是溫柔牧者，請為這個特定的時刻精選一段聖經經文，並給予深度的反思與領受。\n\n"
                             f"【輸出嚴格格式要求】：\n"
                             f"1. 第一行必須明確寫出【經文章節】，例如：(約翰福音 3:16) 或 (詩篇 23:1)\n"
                             f"2. 第二行寫出完整的【經文內容】\n"
-                            f"3. 接下來請提供溫暖的【啟示與說明】\n"
-                            f"4. 最後必須獨立開闢一個小段落，明確寫出【今日的反思與領受】，引導讀者如何將這段經文應用在生活中。\n"
-                            f"5. 直接輸出純文字，不要使用任何 ** 粗體符號或 # 標題符號。\n"
-                            f"6. 【關鍵防線】：敘述長度不設限，但全文必須在一個完整的「句號」處優雅結束，絕對不可在句子中途斷掉。"
+                            f"3. 第三行寫出【今日反思與領受】，引導讀者如何將這段經文的啟示應用在今天的日常生活中。\n"
+                            f"4. 直接輸出純文字，不要使用任何 ** 粗體符號或 # 標題符號。\n"
+                            f"5. 【關鍵防線】：敘述長度不設限，但全文必須在一個完整的「句號」處優雅結束，絕對不可在句子中途斷掉。"
                         )
                         
                         res = model.generate_content(
@@ -117,11 +117,12 @@ class GlobalAutomatonEngine:
 engine = GlobalAutomatonEngine()
 
 # --- 4. UI 佈局 ---
-st.markdown(f"<h1>🛡️ 聖經任務控制台+LINE推送 V15.1 <span class='status-tag'>🛰️ 衛星通訊正常</span></h1>", unsafe_allow_html=True)
-st.caption(f"📅 {datetime.now(TZ_TW).strftime('%m/%d')} | 🚀 反思領受解鎖版")
+st.markdown(f"<h1>🛡️ 聖經任務控制台+LINE推送 V15.2 <span class='status-tag'>🛰️ 衛星通訊正常</span></h1>", unsafe_allow_html=True)
+st.caption(f"📅 {datetime.now(TZ_TW).strftime('%m/%d')} | 🚀 結構精煉定錨版")
 
 # ⏰ 排程管理
-with st.expander("⏰ 排程管理 (預設 08:00,21:00)", expanded=False):
+# 修正 3：排程管理提示字改為 (預設 9:00)
+with st.expander("⏰ 排程管理 (預設 9:00)", expanded=False):
     with engine.lock:
         current_schedule_val = engine.schedule
     schedule_input = st.text_input("24h 時段：", value=current_schedule_val, label_visibility="collapsed")
@@ -129,6 +130,7 @@ with st.expander("⏰ 排程管理 (預設 08:00,21:00)", expanded=False):
         with engine.lock:
             engine.schedule = schedule_input
         engine.add_log(f"排程更新: {schedule_input[:15]}")
+        # 修正 2：彈出提示文字改成「預設時段已更新」
         st.toast("✅ 預設時段已更新")
 
 # ✍️ 手動廣播
@@ -158,24 +160,23 @@ if st.button("✨ 啟動 AI 廣播"):
         model = genai.GenerativeModel(model_name="gemini-2.5-flash")
         persona_map = {"暖心": "溫柔牧者。", "專業": "分析師。", "KITT": "KITT，稱呼Brett。"}
         
-        # 修正 2：手動 AI 智慧廣播 Prompt 同步進行結構化升級
+        # 修正 1：手動 AI 智慧廣播 Prompt 同步改為三行全新結構
         if content_type == "聖經經文":
             prompt = (
-                f"{persona_map[persona]} 針對『{mood_input if mood_input else '信仰'}』精選一段聖經經文，並給予深度的啟示、反思與領受。\n\n"
+                f"{persona_map[persona]} 針對『{mood_input if mood_input else '信仰'}』精選一段聖經經文，並給予深度的反思與領受。\n\n"
                 f"【輸出嚴格格式要求】\n"
                 f"1. 第一行必須寫出明確的【經文章節】，例如：(約翰福音 3:16)\n"
                 f"2. 第二行寫出完整的【經文內容】\n"
-                f"3. 接下來提供【啟示與說明】\n"
-                f"4. 最後必須獨立開闢一個段落，明確寫出【今日的反思與領受】。\n"
-                f"5. 直接輸出純文字，不要使用粗體或標題符號。結構必須絕對完整結尾。"
+                f"3. 第三行寫出【今日反思與領受】。\n"
+                f"4. 直接輸出純文字，不要使用粗體或標題符號。結構必須絕對完整結尾。"
             )
         else:
             prompt = (
                 f"{persona_map[persona]} 針對用戶『{mood_input if mood_input else '疲累'}』的心情推薦基督教詩歌(含歌名歌詞)與深度分析。\n\n"
                 f"【輸出嚴格格式要求】\n"
                 f"1. 必須明確寫出【詩歌歌名】與【精選歌詞內容】\n"
-                f"2. 接下來提供溫暖的【附註說明與分析】\n"
-                f"3. 最後提供一段專屬的【心靈領受與祝福】\n"
+                f"2. 第二行提供溫暖的【附註說明與分析】\n"
+                f"3. 第三行提供一段專屬的【心靈領受與祝福】\n"
                 f"4. 直接輸出純文字，不要使用粗體或標題符號。結構必須絕對完整結尾。"
             )
         
