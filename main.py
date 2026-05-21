@@ -6,7 +6,7 @@ import time
 import threading
 
 # --- 1. 頁面配置 (極致一頁式無捲頁) ---
-st.set_page_config(page_title="聖經控制台 V14.9", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="聖經控制台 V15.0", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
@@ -37,13 +37,13 @@ line_api = LineBotApi(LINE_TOKEN)
 
 genai.configure(api_key=GEMINI_API_KEY)
 
-# --- 3. 不滅全域守護引擎 (V14.9 徹底解放與快取重洗版) ---
+# --- 3. 不滅全域守護引擎 (V15.0 鋼鐵時間鎖防線) ---
 @st.cache_resource
 class GlobalAutomatonEngine:
     def __init__(self):
         self.schedule = "08:00, 12:00, 21:00"
         self.completed_tasks = {}
-        self.logs = ["📡 系統提示：V14.9 核心已重置，文字上限全開。"]
+        self.logs = ["📡 系統提示：V15.0 雙重時間鎖定核心已通電就位。"]
         self.lock = threading.Lock()
         
         self.thread = threading.Thread(target=self._patrol_loop, name="KITT_EternalEngine", daemon=True)
@@ -55,33 +55,27 @@ class GlobalAutomatonEngine:
                 now_tw = datetime.now(TZ_TW)
                 now_str = now_tw.strftime("%H:%M")
                 date_today = now_tw.strftime("%Y-%m-%d")
-                current_second = now_tw.second
                 
                 with self.lock:
                     schedules = [s.strip() for s in self.schedule.split(",")]
                     if date_today not in self.completed_tasks:
-                        self.completed_tasks = {date_today: []}
+                        self.completed_tasks[date_today] = []
                     
-                    matched_schedule = None
-                    for s in schedules:
-                        if s == now_str:
-                            matched_schedule = s
-                            break
-                    
+                    # 修正核心：一旦進入排程時段，且今天該時段還沒執行過，立刻鎖定
                     should_trigger = False
-                    if matched_schedule and current_second < 20:
-                        if matched_schedule not in self.completed_tasks[date_today]:
-                            self.completed_tasks[date_today].append(matched_schedule)
-                            should_trigger = True
+                    if now_str in schedules and now_str not in self.completed_tasks[date_today]:
+                        # 先發制人：立刻先將該時段登記，鎖死防線，防止同分鐘內二次觸發
+                        self.completed_tasks[date_today].append(now_str)
+                        should_trigger = True
 
                 if should_trigger:
+                    # 稍微隨機延遲，避開剛好跨分那一秒的伺服器擁堵
                     time.sleep(random.uniform(1.0, 3.0))
                     try:
                         model = genai.GenerativeModel(model_name="gemini-2.5-flash")
                         
-                        # 修正 1：下達絕對結尾令，解除字數邊界
                         prompt = (
-                            f"現在的時間點是 {matched_schedule}。你是溫柔牧者，請為這個特定的時刻精選一段聖經經文，並給予一段溫暖的啟示說明。\n\n"
+                            f"現在的時間點是 {now_str}。你是溫柔牧者，請為這個特定的時刻精選一段聖經經文，並給予一段溫暖的啟示說明。\n\n"
                             f"【輸出嚴格格式要求】：\n"
                             f"1. 第一行必須明確寫出【經文章節】，例如：(約翰福音 3:16) 或 (詩篇 23:1)\n"
                             f"2. 第二行寫出完整的【經文內容】\n"
@@ -93,26 +87,29 @@ class GlobalAutomatonEngine:
                         res = model.generate_content(
                             prompt,
                             generation_config=genai.types.GenerationConfig(
-                                temperature=0.75, top_p=0.90, max_output_tokens=2000  # 空間直衝 2000，不留遺憾
+                                temperature=0.75, top_p=0.90, max_output_tokens=2000
                             )
                         )
                         
                         if res and res.text:
                             safe_text = str(res.text).strip()
                             line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{safe_text}"))
-                            self.add_log(f"自動排程推送成功 ({matched_schedule})")
+                            self.add_log(f"自動排程推送成功 ({now_str})")
                         else:
+                            # 如果生成徹底失敗，才允許釋放鎖
                             with self.lock:
-                                if matched_schedule in self.completed_tasks[date_today]:
-                                    self.completed_tasks[date_today].remove(matched_schedule)
+                                if now_str in self.completed_tasks[date_today]:
+                                    self.completed_tasks[date_today].remove(now_str)
                     except Exception as inner_err:
+                        # 發生異常則釋放鎖，允許後續重試
                         with self.lock:
-                            if matched_schedule in self.completed_tasks[date_today]:
-                                    self.completed_tasks[date_today].remove(matched_schedule)
+                            if now_str in self.completed_tasks[date_today]:
+                                    self.completed_tasks[date_today].remove(now_str)
                         self.add_log(f"自動發射異常: {str(inner_err)[:20]}")
                         
             except Exception:
                 pass
+            # 維持 15 秒步進，搭配上方的一旦登記即鎖死機制，完全免疫重複
             time.sleep(15)
 
     def add_log(self, msg):
@@ -124,8 +121,8 @@ class GlobalAutomatonEngine:
 engine = GlobalAutomatonEngine()
 
 # --- 4. UI 佈局 ---
-st.markdown(f"<h1>🛡️ 聖經任務控制台+LINE推送 V14.9 <span class='status-tag'>🛰️ 衛星通訊正常</span></h1>", unsafe_allow_html=True)
-st.caption(f"📅 {datetime.now(TZ_TW).strftime('%m/%d')} | 🚀 2.5-Flash 全新完全體")
+st.markdown(f"<h1>🛡️ 聖經任務控制台+LINE推送 V15.0 <span class='status-tag'>🛰️ 衛星通訊正常</span></h1>", unsafe_allow_html=True)
+st.caption(f"📅 {datetime.now(TZ_TW).strftime('%m/%d')} | 🚀 雙重時間鎖定完全體")
 
 # ⏰ 排程管理
 with st.expander("⏰ 排程管理 (預設 08:00, 12:00, 21:00)", expanded=False):
