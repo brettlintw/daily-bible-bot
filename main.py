@@ -6,7 +6,7 @@ import time
 import threading
 
 # --- 1. 頁面配置 (極致一頁式無捲頁) ---
-st.set_page_config(page_title="聖經控制台 V14.5", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="聖經控制台 V14.6", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
@@ -37,13 +37,13 @@ line_api = LineBotApi(LINE_TOKEN)
 
 genai.configure(api_key=GEMINI_API_KEY)
 
-# --- 3. 不滅全域守護引擎 (V14.5 旗艦付費解鎖版) ---
+# --- 3. 不滅全域守護引擎 (V14.6 旗艦付費解鎖版) ---
 @st.cache_resource
 class GlobalAutomatonEngine:
     def __init__(self):
         self.schedule = "08:00, 12:00, 21:00"
         self.completed_tasks = {}
-        self.logs = ["📡 系統提示：V14.5 官方付費端點核心已通電就位。"]
+        self.logs = ["📡 系統提示：V14.6 修正版全能付費核心已通電就位。"]
         self.lock = threading.Lock()
         
         self.thread = threading.Thread(target=self._patrol_loop, name="KITT_EternalEngine", daemon=True)
@@ -77,8 +77,8 @@ class GlobalAutomatonEngine:
                 if should_trigger:
                     time.sleep(random.uniform(1.0, 3.0))
                     try:
-                        # 核心修改 1：換裝付費專案標準路徑端點 gemini-1.5-pro-latest
-                        model = genai.GenerativeModel(model_name="gemini-1.5-pro-latest")
+                        # 修正 1：移除錯誤的 -latest，更換為付費通道標準識別碼 gemini-1.5-pro
+                        model = genai.GenerativeModel(model_name="gemini-1.5-pro")
                         
                         prompt = (
                             f"現在的時間點是 {matched_schedule}。你是溫柔牧者，請為這個特定的時刻精選一段聖經經文並給予一段溫暖啟示。\n"
@@ -119,8 +119,8 @@ class GlobalAutomatonEngine:
 engine = GlobalAutomatonEngine()
 
 # --- 4. UI 佈局 ---
-st.markdown(f"<h1>🛡️ 聖經任務控制台+LINE推送 V14.5 <span class='status-tag'>🛰️ 衛星通訊正常</span></h1>", unsafe_allow_html=True)
-st.caption(f"📅 {datetime.now(TZ_TW).strftime('%m/%d')} | 🚀 官方付費端點對接版")
+st.markdown(f"<h1>🛡️ 聖經任務控制台+LINE推送 V14.6 <span class='status-tag'>🛰️ 衛星通訊正常</span></h1>", unsafe_allow_html=True)
+st.caption(f"📅 {datetime.now(TZ_TW).strftime('%m/%d')} | 🚀 全能相容付費版")
 
 # ⏰ 排程管理
 with st.expander("⏰ 排程管理 (預設 08:00, 12:00, 21:00)", expanded=False):
@@ -157,8 +157,8 @@ with c3: content_type = st.selectbox("內容：", ["聖經經文", "推薦詩歌
 
 if st.button("✨ 啟動 AI 廣播"):
     try:
-        # 核心修改 2：手動廣播同步更新為 gemini-1.5-pro-latest
-        model = genai.GenerativeModel(model_name="gemini-1.5-pro-latest")
+        # 修正 2：手動廣播亦換裝標準 gemini-1.5-pro
+        model = genai.GenerativeModel(model_name="gemini-1.5-pro")
         persona_map = {"暖心": "溫柔牧者。", "專業": "分析師。", "KITT": "KITT，稱呼Brett。"}
         
         if content_type == "聖經經文":
