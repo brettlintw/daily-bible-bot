@@ -6,7 +6,7 @@ import time
 import threading
 
 # --- 1. 頁面配置 (極致一頁式無捲頁) ---
-st.set_page_config(page_title="聖經控制台 V14.8", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="聖經控制台 V14.9", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
@@ -37,13 +37,13 @@ line_api = LineBotApi(LINE_TOKEN)
 
 genai.configure(api_key=GEMINI_API_KEY)
 
-# --- 3. 不滅全域守護引擎 (V14.8 經文章節鎖定版) ---
+# --- 3. 不滅全域守護引擎 (V14.9 徹底解放與快取重洗版) ---
 @st.cache_resource
 class GlobalAutomatonEngine:
     def __init__(self):
         self.schedule = "08:00, 12:00, 21:00"
         self.completed_tasks = {}
-        self.logs = ["📡 系統提示：V14.8 經文章節鎖定核心已就位。"]
+        self.logs = ["📡 系統提示：V14.9 核心已重置，文字上限全開。"]
         self.lock = threading.Lock()
         
         self.thread = threading.Thread(target=self._patrol_loop, name="KITT_EternalEngine", daemon=True)
@@ -79,20 +79,21 @@ class GlobalAutomatonEngine:
                     try:
                         model = genai.GenerativeModel(model_name="gemini-2.5-flash")
                         
-                        # 核心結構化 Prompt 規範：確保章節與說明並存
+                        # 修正 1：下達絕對結尾令，解除字數邊界
                         prompt = (
                             f"現在的時間點是 {matched_schedule}。你是溫柔牧者，請為這個特定的時刻精選一段聖經經文，並給予一段溫暖的啟示說明。\n\n"
                             f"【輸出嚴格格式要求】：\n"
                             f"1. 第一行必須明確寫出【經文章節】，例如：(約翰福音 3:16) 或 (詩篇 23:1)\n"
                             f"2. 第二行寫出完整的【經文內容】\n"
                             f"3. 接下來請提供溫暖的【附註說明與啟示】\n"
-                            f"4. 直接輸出純文字，不要使用任何 ** 粗體符號或 # 標題符號。內容必須完整，結尾不可截斷。"
+                            f"4. 直接輸出純文字，不要使用任何 ** 粗體符號或 # 標題符號。\n"
+                            f"5. 【關鍵防線】：敘述長度不設限，但全文必須在一個完整的「句號」處優雅結束，絕對不可在句子中途斷掉。"
                         )
                         
                         res = model.generate_content(
                             prompt,
                             generation_config=genai.types.GenerationConfig(
-                                temperature=0.75, top_p=0.90, max_output_tokens=1000
+                                temperature=0.75, top_p=0.90, max_output_tokens=2000  # 空間直衝 2000，不留遺憾
                             )
                         )
                         
@@ -123,8 +124,8 @@ class GlobalAutomatonEngine:
 engine = GlobalAutomatonEngine()
 
 # --- 4. UI 佈局 ---
-st.markdown(f"<h1>🛡️ 聖經任務控制台+LINE推送 V14.8 <span class='status-tag'>🛰️ 衛星通訊正常</span></h1>", unsafe_allow_html=True)
-st.caption(f"📅 {datetime.now(TZ_TW).strftime('%m/%d')} | 🚀 經文章節鎖定版")
+st.markdown(f"<h1>🛡️ 聖經任務控制台+LINE推送 V14.9 <span class='status-tag'>🛰️ 衛星通訊正常</span></h1>", unsafe_allow_html=True)
+st.caption(f"📅 {datetime.now(TZ_TW).strftime('%m/%d')} | 🚀 2.5-Flash 全新完全體")
 
 # ⏰ 排程管理
 with st.expander("⏰ 排程管理 (預設 08:00, 12:00, 21:00)", expanded=False):
@@ -171,7 +172,8 @@ if st.button("✨ 啟動 AI 廣播"):
                 f"1. 第一行必須寫出明確的【經文章節】，例如：(約翰福音 3:16)\n"
                 f"2. 第二行寫出完整的【經文內容】\n"
                 f"3. 接下來提供【附註說明與分析】\n"
-                f"4. 直接輸出純文字，不要使用粗體或標題符號。結構必須絕對完整結尾。"
+                f"4. 直接輸出純文字，不要使用粗體或標題符號。\n"
+                f"5. 【關鍵防線】：全文必須在一個完整的「句號」處優雅結束，絕對不可中途截斷。"
             )
         else:
             prompt = (
@@ -179,13 +181,14 @@ if st.button("✨ 啟動 AI 廣播"):
                 f"【輸出嚴格格式要求】\n"
                 f"1. 必須明確寫出【詩歌歌名】與【精選歌詞內容】\n"
                 f"2. 接下來提供溫暖的【附註說明與分析】\n"
-                f"3. 直接輸出純文字，不要使用粗體或標題符號。結構必須絕對完整結尾。"
+                f"3. 直接輸出純文字，不要使用粗體或標題符號。\n"
+                f"4. 【關鍵防線】：全文必須在一個完整的「句號」處優雅結束，絕對不可中途截斷。"
             )
         
         res = model.generate_content(
             prompt, 
             generation_config=genai.types.GenerationConfig(
-                temperature=0.75, top_p=0.90, max_output_tokens=1000
+                temperature=0.75, top_p=0.90, max_output_tokens=2000
             )
         )
         if res and res.text:
