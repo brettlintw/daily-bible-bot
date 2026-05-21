@@ -37,13 +37,13 @@ line_api = LineBotApi(LINE_TOKEN)
 
 genai.configure(api_key=GEMINI_API_KEY)
 
-# --- 3. 不滅全域守護引擎 (V14.8 2.5-Flash 付費旗艦版) ---
+# --- 3. 不滅全域守護引擎 (V14.8 經文章節鎖定版) ---
 @st.cache_resource
 class GlobalAutomatonEngine:
     def __init__(self):
         self.schedule = "08:00, 12:00, 21:00"
         self.completed_tasks = {}
-        self.logs = ["📡 系統提示：V14.8 章節解鎖核心已通電就位。"]
+        self.logs = ["📡 系統提示：V14.8 經文章節鎖定核心已就位。"]
         self.lock = threading.Lock()
         
         self.thread = threading.Thread(target=self._patrol_loop, name="KITT_EternalEngine", daemon=True)
@@ -79,11 +79,14 @@ class GlobalAutomatonEngine:
                     try:
                         model = genai.GenerativeModel(model_name="gemini-2.5-flash")
                         
-                        # 修正 1：優化排程提示詞，強制要求加入聖經章節標註
+                        # 核心結構化 Prompt 規範：確保章節與說明並存
                         prompt = (
-                            f"現在的時間點是 {matched_schedule}。你是溫柔牧者，請為這個特定的時刻精選一段聖經經文並給予一段溫暖啟示。\n"
-                            f"【重要要求】：內容必須明確包含聖經的章節出處標註（例如：書名 章:節）。\n"
-                            f"【格式規範】：不要使用任何 ** 粗體符號或 # 標題符號，結尾必須結構完整，不可截斷。"
+                            f"現在的時間點是 {matched_schedule}。你是溫柔牧者，請為這個特定的時刻精選一段聖經經文，並給予一段溫暖的啟示說明。\n\n"
+                            f"【輸出嚴格格式要求】：\n"
+                            f"1. 第一行必須明確寫出【經文章節】，例如：(約翰福音 3:16) 或 (詩篇 23:1)\n"
+                            f"2. 第二行寫出完整的【經文內容】\n"
+                            f"3. 接下來請提供溫暖的【附註說明與啟示】\n"
+                            f"4. 直接輸出純文字，不要使用任何 ** 粗體符號或 # 標題符號。內容必須完整，結尾不可截斷。"
                         )
                         
                         res = model.generate_content(
@@ -121,7 +124,7 @@ engine = GlobalAutomatonEngine()
 
 # --- 4. UI 佈局 ---
 st.markdown(f"<h1>🛡️ 聖經任務控制台+LINE推送 V14.8 <span class='status-tag'>🛰️ 衛星通訊正常</span></h1>", unsafe_allow_html=True)
-st.caption(f"📅 {datetime.now(TZ_TW).strftime('%m/%d')} | 🚀 章節解鎖旗艦版")
+st.caption(f"📅 {datetime.now(TZ_TW).strftime('%m/%d')} | 🚀 經文章節鎖定版")
 
 # ⏰ 排程管理
 with st.expander("⏰ 排程管理 (預設 08:00, 12:00, 21:00)", expanded=False):
@@ -161,11 +164,23 @@ if st.button("✨ 啟動 AI 廣播"):
         model = genai.GenerativeModel(model_name="gemini-2.5-flash")
         persona_map = {"暖心": "溫柔牧者。", "專業": "分析師。", "KITT": "KITT，稱呼Brett。"}
         
-        # 修正 2：優化手動按鈕提示詞，確保輸出完整的章節出處
         if content_type == "聖經經文":
-            prompt = f"{persona_map[persona]} 針對『{mood_input if mood_input else '信仰'}』精選一段聖經經文並給予溫暖啟示。必須明確標註經文出處章節（例如：書名 章:節）。不要使用粗體，結構必須絕對完整結尾。"
+            prompt = (
+                f"{persona_map[persona]} 針對『{mood_input if mood_input else '信仰'}』精選一段聖經經文，並給予溫暖的啟示說明。\n\n"
+                f"【輸出嚴格格式要求】\n"
+                f"1. 第一行必須寫出明確的【經文章節】，例如：(約翰福音 3:16)\n"
+                f"2. 第二行寫出完整的【經文內容】\n"
+                f"3. 接下來提供【附註說明與分析】\n"
+                f"4. 直接輸出純文字，不要使用粗體或標題符號。結構必須絕對完整結尾。"
+            )
         else:
-            prompt = f"{persona_map[persona]} 針對用戶『{mood_input if mood_input else '疲累'}』的心情推薦基督教詩歌(含歌名歌詞)與暖心分析。必須明確寫出詩歌名稱。不要使用粗體，結構必須絕對完整結尾。"
+            prompt = (
+                f"{persona_map[persona]} 針對用戶『{mood_input if mood_input else '疲累'}』的心情推薦基督教詩歌(含歌名歌詞)與暖心分析。\n\n"
+                f"【輸出嚴格格式要求】\n"
+                f"1. 必須明確寫出【詩歌歌名】與【精選歌詞內容】\n"
+                f"2. 接下來提供溫暖的【附註說明與分析】\n"
+                f"3. 直接輸出純文字，不要使用粗體或標題符號。結構必須絕對完整結尾。"
+            )
         
         res = model.generate_content(
             prompt, 
