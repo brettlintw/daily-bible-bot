@@ -121,7 +121,7 @@ st.markdown(f"<h1>🛡️ 聖經任務控制台+LINE推送 V15.1 <span class='st
 st.caption(f"📅 {datetime.now(TZ_TW).strftime('%m/%d')} | 🚀 反思領受解鎖版")
 
 # ⏰ 排程管理
-with st.expander("⏰ 排程管理 (預設 08:00, 12:00, 21:00)", expanded=False):
+with st.expander("⏰ 排程管理 (預設 08:00,21:00)", expanded=False):
     with engine.lock:
         current_schedule_val = engine.schedule
     schedule_input = st.text_input("24h 時段：", value=current_schedule_val, label_visibility="collapsed")
@@ -129,7 +129,7 @@ with st.expander("⏰ 排程管理 (預設 08:00, 12:00, 21:00)", expanded=False
         with engine.lock:
             engine.schedule = schedule_input
         engine.add_log(f"排程更新: {schedule_input[:15]}")
-        st.toast("✅ 預設三時段已更新")
+        st.toast("✅ 預設時段已更新")
 
 # ✍️ 手動廣播
 st.subheader("✍️ 手動全員廣播")
