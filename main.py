@@ -77,8 +77,8 @@ class GlobalAutomatonEngine:
                 if should_trigger:
                     time.sleep(random.uniform(1.0, 3.0))
                     try:
-                        # 修正 1：移除錯誤的 -latest，更換為付費通道標準識別碼 gemini-1.5-pro
-                        model = genai.GenerativeModel(model_name="gemini-2.5-flash")
+                        # 修正 1：移除錯誤的 -latest，更換為付費通道標準識別碼 gemini-3.5-flash
+                        model = genai.GenerativeModel(model_name="gemini-3.5-flash")
                         
                         prompt = (
                             f"現在的時間點是 {matched_schedule}。你是溫柔牧者，請為這個特定的時刻精選一段聖經經文並給予一段溫暖啟示。\n"
