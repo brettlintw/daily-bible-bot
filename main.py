@@ -4,13 +4,15 @@ from datetime import datetime, timedelta, timezone
 import random
 import time
 import threading
+import json
+import os
 
-# --- 1. 頁面配置 (極致一頁式無捲頁) ---
-st.set_page_config(page_title="聖經控制台 V15.2", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
+# --- 1. 頁面配置 (極致一頁式無捲頁，適度放寬高度給歷史紀錄) ---
+st.set_page_config(page_title="聖經控制台 V15.5", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
-    .main .block-container { max-width: 80% !important; padding: 0.3rem 1rem !important; overflow: hidden !important; }
+    .main .block-container { max-width: 80% !important; padding: 0.3rem 1rem !important; }
     @media (max-width: 1023px) { .main .block-container { max-width: 100% !important; padding: 0.3rem !important; } }
     h1 { font-size: 1.15rem !important; margin: 0 !important; line-height: 1.1 !important; color: #E0E0E0; }
     .stTextArea>div>div>textarea { height: 55px !important; border-radius: 8px; }
@@ -18,6 +20,10 @@ st.markdown("""
     .stButton>button { border-radius: 8px; height: 2.5rem; font-weight: bold; }
     .log-box { font-size: 0.65rem; background: #121212; color: #00FF41; padding: 6px; border-radius: 8px; font-family: monospace; height: 65px; overflow-y: auto; border: 1px solid #333; }
     .status-tag { font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; background: #2E7D32; color: white; margin-left: 10px; }
+    .history-card { background: #1E1E1E; padding: 10px; border-radius: 8px; border-left: 5px solid #0288D1; margin-bottom: 8px; color: #E0E0E0; }
+    .type-tag-auto { background: #2E7D32; color: white; padding: 1px 6px; border-radius: 4px; font-size: 0.65rem; }
+    .type-tag-manual { background: #C62828; color: white; padding: 1px 6px; border-radius: 4px; font-size: 0.65rem; }
+    .type-tag-ai { background: #1565C0; color: white; padding: 1px 6px; border-radius: 4px; font-size: 0.65rem; }
     [data-testid="stHeader"], footer, #MainMenu { visibility: hidden; height: 0; }
     </style>
     """, unsafe_allow_html=True)
@@ -37,14 +43,45 @@ line_api = LineBotApi(LINE_TOKEN)
 
 genai.configure(api_key=GEMINI_API_KEY)
 
-# --- 3. 不滅全域守護引擎 (V15.2 結構精煉與時間鎖版) ---
+DB_FILE = "bible_history.json"
+
+# --- 3. 典藏庫資料核心控制 ---
+def save_to_history(category, content):
+    """
+    category: "定時推送", "手動廣播", "AI智慧廣播"
+    """
+    now_tw = datetime.now(TZ_TW)
+    date_str = now_tw.strftime("%Y-%m-%d")
+    time_str = now_tw.strftime("%H:%M:%S")
+    
+    new_entry = {
+        "id": int(time.time() * 1000),
+        "date": date_str,
+        "time": time_str,
+        "category": category,
+        "content": content
+    }
+    
+    lock = threading.Lock()
+    with lock:
+        data = []
+        if os.path.exists(DB_FILE):
+            try:
+                with open(DB_FILE, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except:
+                data = []
+        data.insert(0, new_entry) # 最新排在最前面
+        with open(DB_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+
+# --- 4. 不滅全域守護引擎 (V15.5 鋼鐵時間鎖+自動存檔版) ---
 @st.cache_resource
 class GlobalAutomatonEngine:
     def __init__(self):
-        # 修正 3：排程管理預設時間調整為 09:00
         self.schedule = "09:00"
         self.completed_tasks = {}
-        self.logs = ["📡 系統提示：V15.2 九點定錨與反思領受鎖定核心已就位。"]
+        self.logs = ["📡 系統提示：V15.5 典藏記憶艙核心已通電就位。"]
         self.lock = threading.Lock()
         
         self.thread = threading.Thread(target=self._patrol_loop, name="KITT_EternalEngine", daemon=True)
@@ -72,7 +109,6 @@ class GlobalAutomatonEngine:
                     try:
                         model = genai.GenerativeModel(model_name="gemini-2.5-flash")
                         
-                        # 修正 1：Prompt 結構精煉為三行
                         prompt = (
                             f"現在的時間點是 {now_str}。你是溫柔牧者，請為這個特定的時刻精選一段聖經經文，並給予深度的反思與領受。\n\n"
                             f"【輸出嚴格格式要求】：\n"
@@ -93,6 +129,10 @@ class GlobalAutomatonEngine:
                         if res and res.text:
                             safe_text = str(res.text).strip()
                             line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{safe_text}"))
+                            
+                            # 功能 1 追加：定時推送自動歸檔保存
+                            save_to_history("定時推送", safe_text)
+                            
                             self.add_log(f"自動排程推送成功 ({now_str})")
                         else:
                             with self.lock:
@@ -116,12 +156,11 @@ class GlobalAutomatonEngine:
 
 engine = GlobalAutomatonEngine()
 
-# --- 4. UI 佈局 ---
-st.markdown(f"<h1>🛡️ 聖經任務控制台+LINE推送 V15.2 <span class='status-tag'>🛰️ 衛星通訊正常</span></h1>", unsafe_allow_html=True)
-st.caption(f"📅 {datetime.now(TZ_TW).strftime('%m/%d')} | 🚀 結構精煉定錨版")
+# --- 5. UI 佈局 ---
+st.markdown(f"<h1>🛡️ 聖經任務控制台 V15.5 <span class='status-tag'>🛰️ 數據典藏艙正常運作</span></h1>", unsafe_allow_html=True)
+st.caption(f"📅 {datetime.now(TZ_TW).strftime('%Y/%m/%d')} | 🚀 歷史紀錄安全導出版")
 
 # ⏰ 排程管理
-# 修正 3：排程管理提示字改為 (預設 9:00)
 with st.expander("⏰ 排程管理 (預設 9:00)", expanded=False):
     with engine.lock:
         current_schedule_val = engine.schedule
@@ -130,7 +169,6 @@ with st.expander("⏰ 排程管理 (預設 9:00)", expanded=False):
         with engine.lock:
             engine.schedule = schedule_input
         engine.add_log(f"排程更新: {schedule_input[:15]}")
-        # 修正 2：彈出提示文字改成「預設時段已更新」
         st.toast("✅ 預設時段已更新")
 
 # ✍️ 手動廣播
@@ -141,8 +179,12 @@ with st.form("manual_form", clear_on_submit=False):
         if custom_text.strip():
             try:
                 line_api.broadcast(TextSendMessage(text=f"【手動推送】\n\n{custom_text}"))
+                
+                # 功能 1 追加：手動廣播資料歸檔保存
+                save_to_history("手動廣播", custom_text)
+                
                 engine.add_log("手動全員廣播完成")
-                st.toast("✅ 已送達所有好友")
+                st.toast("✅ 已送達並完成歸檔")
             except Exception as line_err:
                 st.error(f"連線異常: {str(line_err)[:20]}")
 
@@ -160,7 +202,6 @@ if st.button("✨ 啟動 AI 廣播"):
         model = genai.GenerativeModel(model_name="gemini-2.5-flash")
         persona_map = {"暖心": "溫柔牧者。", "專業": "分析師。", "KITT": "KITT，稱呼Brett。"}
         
-        # 修正 1：手動 AI 智慧廣播 Prompt 同步改為三行全新結構
         if content_type == "聖經經文":
             prompt = (
                 f"{persona_map[persona]} 針對『{mood_input if mood_input else '信仰'}』精選一段聖經經文，並給予深度的反思與領受。\n\n"
@@ -190,11 +231,65 @@ if st.button("✨ 啟動 AI 廣播"):
             safe_text_manual = str(res.text).strip()
             header = "【AI經文推送】" if content_type == "聖經經文" else "【AI詩歌推薦】"
             line_api.broadcast(TextSendMessage(text=f"{header}\n\n{safe_text_manual}"))
+            
+            # 功能 1 追加：AI智慧廣播資料歸檔保存
+            save_to_history("AI智慧廣播", f"{header}\n{safe_text_manual}")
+            
             engine.add_log(f"手動觸發 AI {content_type[:2]}成功")
-            st.toast("✨ 廣播完成")
+            st.toast("✨ 廣播並完成歸檔")
     except Exception as e:
         st.error(f"衛星對接失敗: {str(e)[:40]}")
         engine.add_log(f"AI廣播失敗: {str(e)[:35]}")
+
+st.markdown("---")
+
+# --- 功能 1 & 2 追加：歷史經文管理艙 (按年月日列出與本地下載) ---
+st.subheader("📚 歷史經文典藏管理庫")
+
+history_data = []
+if os.path.exists(DB_FILE):
+    try:
+        with open(DB_FILE, "r", encoding="utf-8") as f:
+            history_data = json.load(f)
+    except:
+        history_data = []
+
+if history_data:
+    # 建立下載專用的格式化文字 (TXT)
+    download_lines = []
+    for h in history_data:
+        download_lines.append(f"========================================\n日期時間: {h['date']} {h['time']}\n分類標籤: {h['category']}\n----------------------------------------\n{h['content']}\n========================================\n\n")
+    download_string = "".join(download_lines)
+    
+    # 本地電腦下載按鈕
+    st.download_button(
+        label="📥 下載完整歷史經文到本地電腦 (.txt)",
+        data=download_string,
+        file_name=f"bible_history_export_{datetime.now(TZ_TW).strftime('%Y%m%d')}.txt",
+        mime="text/plain"
+    )
+    
+    # 篩選分類小工具
+    filter_type = st.selectbox("🔍 按推送類型過濾顯示：", ["全部", "定時推送", "手動廣播", "AI智慧廣播"])
+    
+    # 逐條按 年月日 列出
+    for item in history_data:
+        if filter_type != "全部" and item['category'] != filter_type:
+            continue
+            
+        tag_class = "type-tag-auto"
+        if item['category'] == "手動廣播": tag_class = "type-tag-manual"
+        elif item['category'] == "AI智慧廣播": tag_class = "type-tag-ai"
+        
+        st.markdown(f"""
+        <div class="history-card">
+            <strong>📅 {item['date']} &nbsp;&nbsp; ⏰ {item['time']}</strong> &nbsp;&nbsp; 
+            <span class="{tag_class}">{item['category']}</span>
+            <pre style="white-space: pre-wrap; font-family: sans-serif; background: transparent; border: none; padding: 0; margin-top: 8px; color: #B0BEC5; font-size: 0.8rem;">{item['content']}</pre>
+        </div>
+        """, unsafe_allow_html=True)
+else:
+    st.info("💡 儲存艙目前尚無歷史保存紀錄，等待首次點火推送。")
 
 st.markdown("---")
 with engine.lock:
