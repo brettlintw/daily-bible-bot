@@ -7,8 +7,8 @@ import threading
 import json
 import os
 
-# --- 1. 頁面配置 (旗艦一頁式) ---
-st.set_page_config(page_title="聖經控制台 V16.0", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
+# --- 1. 頁面配置 ---
+st.set_page_config(page_title="聖經控制台 V16.5", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
@@ -35,7 +35,7 @@ def get_cfg(key, fallback):
 
 GEMINI_API_KEY = get_cfg("GEMINI_API_KEY", "")
 LINE_TOKEN = get_cfg("LINE_ACCESS_TOKEN", "")
-TRIGGER_KEY = get_cfg("TRIGGER_KEY", "KITT_SECURE_KEY_2026") # 安全安全密鑰，防止外人亂戳網址
+TRIGGER_KEY = get_cfg("TRIGGER_KEY", "KITT_SECURE_KEY_2026")
 TZ_TW = timezone(timedelta(hours=8))
 
 from linebot import LineBotApi
@@ -44,8 +44,20 @@ line_api = LineBotApi(LINE_TOKEN)
 
 genai.configure(api_key=GEMINI_API_KEY)
 DB_FILE = "bible_history.json"
+CONFIG_FILE = "engine_config.json" # 用於永久保存您在網頁上隨意更改的時間表
 
-# --- 3. 典藏庫資料核心控制 ---
+# --- 3. 配置與典藏庫核心讀寫 ---
+def load_engine_config():
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f: return json.load(f)
+        except: pass
+    return {"schedule": "09:00"} # 預設初始值
+
+def save_engine_config(config_data):
+    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+        json.dump(config_data, f, ensure_ascii=False, indent=4)
+
 def save_to_history(category, content):
     now_tw = datetime.now(TZ_TW)
     date_str = now_tw.strftime("%Y-%m-%d")
@@ -70,73 +82,81 @@ def save_to_history(category, content):
         with open(DB_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
 
-# --- 4. 經文發射核心邏輯 (內建斷字智慧偵測盾) ---
-def execute_ai_bible_generation(source_label="自動排程"):
+# --- 4. 經文生成發射核心 (斷字防禦偵測) ---
+def execute_ai_bible_generation():
     model = genai.GenerativeModel(model_name="gemini-2.5-flash")
     
+    now_hour = datetime.now(TZ_TW).hour
+    if 5 <= now_hour < 11: time_context = "開啟美好一天的早晨時分"
+    elif 11 <= now_hour < 16: time_context = "忙碌過後的正午/下午舒壓時分"
+    else: time_context = "沉靜安穩的夜晚/睡前時分"
+        
     prompt = (
-        "你是溫柔牧者，請精選一段聖經經文，並給予深度的反思與領受。\n\n"
+        f"現在是 {time_context}。你是溫柔牧者，請為這個特定的時刻精選一段聖經經文，並給予深度的反思與領受。\n\n"
         "【輸出嚴格格式要求】：\n"
-        "1. 第一行必須明確寫出【經文章節】，例如：(約翰福音 3:16) 或 (詩篇 23:1)\n"
+        "1. 第一行必須明確寫出【經文章節】，例如：(約翰福音 3:16)\n"
         "2. 第二行寫出完整的【經文內容】\n"
         "3. 第三行寫出【今日反思與領受】，字數控制在200-300字內，精煉且深刻。\n"
         "4. 直接輸出純文字，不要使用任何 ** 粗體符號或 # 標題符號。\n"
         "5. 【關鍵安全防線】：全文必須字句完整，最後一個字必須在一個完整的「句號」或「右括號」處優雅結束，絕對不可在句子中途斷掉。"
     )
     
-    # 進行最多 3 次重新點火嘗試，防止斷句幽靈
     for attempt in range(3):
-        res = model.generate_content(
-            prompt,
-            generation_config=genai.types.GenerationConfig(
-                temperature=0.70, top_p=0.85, max_output_tokens=1000
-            )
-        )
+        res = model.generate_content(prompt, generation_config=genai.types.GenerationConfig(temperature=0.70, top_p=0.85, max_output_tokens=1000))
         if res and res.text:
             text = str(res.text).strip()
-            # 偵測結尾是否合法（防止斷字）
             if text.endswith('。') or text.endswith('」') or text.endswith(')') or text.endswith('）'):
                 return text
-            else:
-                time.sleep(1) # 稍微冷卻，重新向衛星要一次
-    
-    # 如果真的不幸3次都斷掉，做保底強制修正補上句號
+            time.sleep(1)
     return str(res.text).strip() + " (阿們。)"
 
-# --- 5. 網頁外部鉤子接收器 (解決九點定時失敗) ---
-# 透過 Streamlit 的網頁 URL 參數機制，讓 GitHub Actions 從外部一鍵點火
+# --- 5. 永動機高速外部鉤子比對引擎 ---
 query_params = st.query_params
 if "action" in query_params and "key" in query_params:
     if query_params["action"] == "trigger_push" and query_params["key"] == TRIGGER_KEY:
-        # 執行鋼鐵時間鎖，防止 GitHub 多次重複戳
-        date_today = datetime.now(TZ_TW).strftime("%Y-%m-%d")
+        now_tw = datetime.now(TZ_TW)
+        now_str = now_tw.strftime("%H:%M")
+        date_today = now_tw.strftime("%Y-%m-%d")
         
-        # 讀取今天是否發過
-        history_data = []
-        if os.path.exists(DB_FILE):
-            try:
-                with open(DB_FILE, "r", encoding="utf-8") as f: history_data = json.load(f)
-            except: pass
+        # 讀取 Brett 在網頁端儲存的最新時間表
+        cfg = load_engine_config()
+        active_schedules = [s.strip() for s in cfg.get("schedule", "09:00").split(",")]
         
-        already_pushed = any(h['date'] == date_today and h['category'] == "定時推送" for h in history_data)
-        
-        if not already_pushed:
-            safe_text = execute_ai_bible_generation(source_label="自動排程")
-            line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{safe_text}"))
-            save_to_history("定時推送", safe_text)
-            st.success("🛰️ GitHub 外部鉤子點火成功，經文已完美發射！")
-        else:
-            st.warning("🛡️ 時間鎖防禦：今日定時推送已存在，拒絕重複發射。")
+        # 檢查當前這一分鐘，是否在 Brett 設定的排程內
+        if now_str in active_schedules:
+            # 安全防線：檢查今天這分鐘是否已經發過，防止短時間重複戳
+            history_data = []
+            if os.path.exists(DB_FILE):
+                try:
+                    with open(DB_FILE, "r", encoding="utf-8") as f: history_data = json.load(f)
+                except: pass
+            
+            # 如果這個時段今天還沒發過，立刻點火
+            already_pushed = any(h['date'] == date_today and now_str in h.get('time', '') and h['category'] == "定時推送" for h in history_data)
+            
+            if not already_pushed:
+                safe_text = execute_ai_bible_generation()
+                line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{safe_text}"))
+                save_to_history("定時推送", safe_text)
+                st.success(f"⚡ 當前時間 {now_str} 吻合，動態發射成功！")
         st.stop()
 
 # --- 6. UI 佈局 ---
-st.markdown(f"<h1>🛡️ 聖經任務控制台 V16.0 <span class='status-tag'>🛰️ 斷字修復盾就位</span></h1>", unsafe_allow_html=True)
-st.caption(f"📅 {datetime.now(TZ_TW).strftime('%Y/%m/%d')} | 🚀 外部 GitHub 聯航對接版")
+st.markdown(f"<h1>🛡️ 聖經任務控制台 V16.5 <span class='status-tag'>🛰️ 雲端自由定錨</span></h1>", unsafe_allow_html=True)
+st.caption(f"📅 {datetime.now(TZ_TW).strftime('%Y/%m/%d %H:%M')} | 🚀 全動態排程接管版")
 
-# ⏰ 排程管理（提示改為外部接管）
-with st.expander("⏰ 排程航線狀態", expanded=False):
-    st.info("💡 系統已升級至 V16.0！內部計時 Thread 已由更穩固的 GitHub Actions 外部排程器接管，免除 Uptime 第三方軟體冬眠魔咒。")
-    st.code(f"網頁點火專屬 URL 鉤子：\nhttps://YOUR_APP_URL/?action=trigger_push&key={TRIGGER_KEY}")
+# ⏰ 動態排程管理 (功能解鎖：隨意修改、增加、減少時間點，免修代碼)
+cfg = load_engine_config()
+with st.expander("⏰ 全動態自訂排程管理中心", expanded=True):
+    st.markdown("<small style='color:#90A4AE;'>請使用英文逗號 `,` 分隔多個時段。例如：`09:00, 12:30, 15:00, 21:00`</small>", unsafe_allow_html=True)
+    user_schedule = st.text_input("目前動態巡航時段：", value=cfg.get("schedule", "09:00"))
+    
+    if st.button("💾 保存並即時生效動態排程"):
+        # 校準格式，去除多餘空格
+        cleaned_schedule = ",".join([s.strip() for s in user_schedule.split(",") if s.strip()])
+        save_engine_config({"schedule": cleaned_schedule})
+        st.toast(f"✅ 成功定錨全新時段：{cleaned_schedule}")
+        st.rerun()
 
 # ✍️ 手動廣播
 st.subheader("✍️ 手動全員廣播")
@@ -164,7 +184,7 @@ if st.button("✨ 啟動 AI 廣播"):
     try:
         if content_type == "聖經經文":
             with st.spinner("✨ 斷字防禦盾正在校準經文字句完整度..."):
-                safe_text_manual = execute_ai_bible_generation(source_label="AI智慧廣播")
+                safe_text_manual = execute_ai_bible_generation()
             header = "【AI經文推送】"
             line_api.broadcast(TextSendMessage(text=f"{header}\n\n{safe_text_manual}"))
             save_to_history("AI智慧廣播", f"{header}\n{safe_text_manual}")
@@ -172,29 +192,24 @@ if st.button("✨ 啟動 AI 廣播"):
         else:
             model = genai.GenerativeModel(model_name="gemini-2.5-flash")
             persona_map = {"暖心": "溫柔牧者。", "專業": "分析師。", "KITT": "KITT，稱呼Brett。"}
-            prompt = (
-                f"{persona_map[persona]} 針對用戶『{mood_input if mood_input else '疲累'}』的心情推薦基督教詩歌(含歌名歌詞)。\n"
-                f"結構必須絕對完整結尾，直接輸出純文字，不要使用粗體或標題符號。"
-            )
+            prompt = ( f"{persona_map[persona]} 針對用戶『{mood_input if mood_input else '疲累'}』的心情推薦基督教詩歌(含歌名歌詞)。結構必須絕對完整結尾，直接輸出純文字。" )
             res = model.generate_content(prompt)
             if res and res.text:
                 safe_text_song = str(res.text).strip()
-                header = "【AI詩歌推薦】"
-                line_api.broadcast(TextSendMessage(text=f"{header}\n\n{safe_text_song}"))
-                save_to_history("AI智慧廣播", f"{header}\n{safe_text_song}")
+                line_api.broadcast(TextSendMessage(text=f"【AI詩歌推薦】\n\n{safe_text_song}"))
+                save_to_history("AI智慧廣播", f"【AI詩歌推薦】\n{safe_text_song}")
                 st.toast("✨ 詩歌廣播完成")
-    except Exception as e:
-        st.error(f"對接失敗: {str(e)[:40]}")
+    except Exception as e: st.error(f"對接失敗: {str(e)[:40]}")
 
 st.markdown("---")
 
-# 歷史經文管理艙
+# 📚 歷史經文典藏管理庫
 st.subheader("📚 歷史經文典藏管理庫")
 history_data = []
 if os.path.exists(DB_FILE):
     try:
         with open(DB_FILE, "r", encoding="utf-8") as f: history_data = json.load(f)
-    except: history_data = []
+    except: pass
 
 if history_data:
     download_lines = [f"========================================\n日期時間: {h['date']} {h['time']}\n分類標籤: {h['category']}\n----------------------------------------\n{h['content']}\n========================================\n\n" for h in history_data]
