@@ -1,15 +1,15 @@
-name: 每日九點聖經自動點火排程
+name: 永動雷達全動態自訂排程點火器
 
 on:
   schedule:
-    # 國際標準時間 (UTC) 01:00 等於台灣時間 (UTC+8) 09:00 準時點火
-    - cron: '0 1 * * *'
-  workflow_dispatch: # 允許您在 GitHub 後台手動測試點火
+    # 每 5 分鐘發射一次巡邏電波，自動戳醒網頁，網頁大腦會自己比對您設定的時間
+    - cron: '*/5 * * * *'
+  workflow_dispatch: # 保留手動測試
 
 jobs:
-  trigger_streamlit:
+  patrol_and_trigger:
     runs-on: ubuntu-latest
     steps:
-      - name: 發射外部網網頁鉤子喚醒並發送經文
+      - name: 發射巡邏電波檢查動態排程
         run: |
-          curl -L "https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/?action=trigger_push&key=KITT_SECURE_KEY_2026"
+          curl -L "https://daily-bible-bot-icgnhs3fy6gvynbbeifuyk.streamlit.app/?action=trigger_push&key=KITT_SECURE_KEY_2026"
