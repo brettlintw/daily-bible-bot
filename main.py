@@ -7,8 +7,8 @@ import threading
 import json
 import os
 
-# --- 1. 頁面配置 ---
-st.set_page_config(page_title="聖經控制台 V16.5", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
+# --- 1. 頁面配置 (旗艦一頁式) ---
+st.set_page_config(page_title="聖經控制台 V16.6", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
@@ -44,7 +44,7 @@ line_api = LineBotApi(LINE_TOKEN)
 
 genai.configure(api_key=GEMINI_API_KEY)
 DB_FILE = "bible_history.json"
-CONFIG_FILE = "engine_config.json" # 用於永久保存您在網頁上隨意更改的時間表
+CONFIG_FILE = "engine_config.json"
 
 # --- 3. 配置與典藏庫核心讀寫 ---
 def load_engine_config():
@@ -52,7 +52,7 @@ def load_engine_config():
         try:
             with open(CONFIG_FILE, "r", encoding="utf-8") as f: return json.load(f)
         except: pass
-    return {"schedule": "09:00"} # 預設初始值
+    return {"schedule": "09:00"}
 
 def save_engine_config(config_data):
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
@@ -82,33 +82,42 @@ def save_to_history(category, content):
         with open(DB_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
 
-# --- 4. 經文生成發射核心 (斷字防禦偵測) ---
-def execute_ai_bible_generation():
+# --- 4. 經文生成發射核心 (V16.6 三階格式鐵律與斷字防禦盾) ---
+def execute_ai_bible_generation(custom_mood=None, custom_persona="暖心"):
     model = genai.GenerativeModel(model_name="gemini-2.5-flash")
     
     now_hour = datetime.now(TZ_TW).hour
     if 5 <= now_hour < 11: time_context = "開啟美好一天的早晨時分"
     elif 11 <= now_hour < 16: time_context = "忙碌過後的正午/下午舒壓時分"
     else: time_context = "沉靜安穩的夜晚/睡前時分"
+    
+    persona_intro = "你是溫柔牧者。"
+    if custom_persona == "專業": persona_intro = "你是業界專業分析師。"
+    elif custom_persona == "KITT": persona_intro = "你是KITT，稱呼Brett。"
         
+    mood_context = f"針對主題或心情『{custom_mood}』" if custom_mood else f"針對{time_context}"
+    
     prompt = (
-        f"現在是 {time_context}。你是溫柔牧者，請為這個特定的時刻精選一段聖經經文，並給予深度的反思與領受。\n\n"
-        "【輸出嚴格格式要求】：\n"
-        "1. 第一行必須明確寫出【經文章節】，例如：(約翰福音 3:16)\n"
-        "2. 第二行寫出完整的【經文內容】\n"
-        "3. 第三行寫出【今日反思與領受】，字數控制在200-300字內，精煉且深刻。\n"
-        "4. 直接輸出純文字，不要使用任何 ** 粗體符號或 # 標題符號。\n"
-        "5. 【關鍵安全防線】：全文必須字句完整，最後一個字必須在一個完整的「句號」或「右括號」處優雅結束，絕對不可在句子中途斷掉。"
+        f"{persona_intro} 請{mood_context}精選一段聖經經文，並給予深度、溫暖的反思與領受。\n\n"
+        "【輸出極其嚴格的格式順序要求】：\n"
+        "你必須『只』輸出以下三行結構，每行中間空一行，嚴禁輸出額外的任何文字：\n\n"
+        "第一行：【經文章節】。例如：(詩篇 4:8) 或 (約翰福音 3:16)\n"
+        "第二行：【經文內容】。注意：必須在該段經文內容的最後面，手動加上「 (阿們。)」，例如：我必安然躺下睡覺，因為獨有你—耶和華使我安然 (阿們。)\n"
+        "第三行：【今日反思與領受】。請提供一段200-300字的靈修反思，引導讀者生活實踐。\n\n"
+        "【關鍵安全防線】：\n"
+        "1. 直接輸出純文字，絕對不要使用任何 ** 粗體符號或 # 標題符號。\n"
+        "2. 全文必須字句完整，第三行的最後一個字必須在一個完整的「句號」或「右括號」處優雅結束，絕對不可在句子中途斷掉。"
     )
     
     for attempt in range(3):
-        res = model.generate_content(prompt, generation_config=genai.types.GenerationConfig(temperature=0.70, top_p=0.85, max_output_tokens=1000))
+        res = model.generate_content(prompt, generation_config=genai.types.GenerationConfig(temperature=0.70, top_p=0.85, max_output_tokens=1200))
         if res and res.text:
             text = str(res.text).strip()
+            # 偵測結尾是否合法（防止斷字）
             if text.endswith('。') or text.endswith('」') or text.endswith(')') or text.endswith('）'):
                 return text
             time.sleep(1)
-    return str(res.text).strip() + " (阿們。)"
+    return str(res.text).strip()
 
 # --- 5. 永動機高速外部鉤子比對引擎 ---
 query_params = st.query_params
@@ -118,41 +127,35 @@ if "action" in query_params and "key" in query_params:
         now_str = now_tw.strftime("%H:%M")
         date_today = now_tw.strftime("%Y-%m-%d")
         
-        # 讀取 Brett 在網頁端儲存的最新時間表
         cfg = load_engine_config()
         active_schedules = [s.strip() for s in cfg.get("schedule", "09:00").split(",")]
         
-        # 檢查當前這一分鐘，是否在 Brett 設定的排程內
         if now_str in active_schedules:
-            # 安全防線：檢查今天這分鐘是否已經發過，防止短時間重複戳
             history_data = []
             if os.path.exists(DB_FILE):
                 try:
                     with open(DB_FILE, "r", encoding="utf-8") as f: history_data = json.load(f)
                 except: pass
             
-            # 如果這個時段今天還沒發過，立刻點火
             already_pushed = any(h['date'] == date_today and now_str in h.get('time', '') and h['category'] == "定時推送" for h in history_data)
             
             if not already_pushed:
                 safe_text = execute_ai_bible_generation()
                 line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{safe_text}"))
                 save_to_history("定時推送", safe_text)
-                st.success(f"⚡ 當前時間 {now_str} 吻合，動態發射成功！")
+                st.success(f"⚡ 當前時間 {now_str} 吻合，格式校準發射成功！")
         st.stop()
 
 # --- 6. UI 佈局 ---
-st.markdown(f"<h1>🛡️ 聖經任務控制台 V16.5 <span class='status-tag'>🛰️ 雲端自由定錨</span></h1>", unsafe_allow_html=True)
-st.caption(f"📅 {datetime.now(TZ_TW).strftime('%Y/%m/%d %H:%M')} | 🚀 全動態排程接管版")
+st.markdown(f"<h1>🛡️ 聖經任務控制台 V16.6 <span class='status-tag'>🛰️ 三階鐵律就位</span></h1>", unsafe_allow_html=True)
+st.caption(f"📅 {datetime.now(TZ_TW).strftime('%Y/%m/%d %H:%M')} | 🚀 經文格式完全規範版")
 
-# ⏰ 動態排程管理 (功能解鎖：隨意修改、增加、減少時間點，免修代碼)
+# ⏰ 動態排程管理
 cfg = load_engine_config()
-with st.expander("⏰ 全動態自訂排程管理中心", expanded=True):
-    st.markdown("<small style='color:#90A4AE;'>請使用英文逗號 `,` 分隔多個時段。例如：`09:00, 12:30, 15:00, 21:00`</small>", unsafe_allow_html=True)
+with st.expander("⏰ 全動態自訂排程管理中心", expanded=False):
+    st.markdown("<small style='color:#90A4AE;'>請使用英文逗號 `,` 分隔多個時段。例如：`09:00, 21:00`</small>", unsafe_allow_html=True)
     user_schedule = st.text_input("目前動態巡航時段：", value=cfg.get("schedule", "09:00"))
-    
     if st.button("💾 保存並即時生效動態排程"):
-        # 校準格式，去除多餘空格
         cleaned_schedule = ",".join([s.strip() for s in user_schedule.split(",") if s.strip()])
         save_engine_config({"schedule": cleaned_schedule})
         st.toast(f"✅ 成功定錨全新時段：{cleaned_schedule}")
@@ -173,26 +176,26 @@ with st.form("manual_form", clear_on_submit=False):
 
 st.markdown("---")
 
-# 🤖 AI 智慧廣播
+# 🤖 AI 智慧廣播 (全面對接三階鐵律)
 st.subheader("🤖 AI 智慧廣播")
 c1, c2, c3 = st.columns([1, 1, 1])
-with c1: mood_input = st.text_input("心情：", placeholder="心情...", label_visibility="collapsed")
-with c2: persona = st.selectbox("風格：", ["暖心", "專業", "KITT"], label_visibility="collapsed")
-with c3: content_type = st.selectbox("內容：", ["聖經經文", "推薦詩歌"], label_visibility="collapsed")
+with c1: mood_input = st.text_input("心情主題：", placeholder="心情主題...", label_visibility="collapsed")
+with c2: persona = st.selectbox("演繹風格：", ["暖心", "專業", "KITT"], label_visibility="collapsed")
+with c3: content_type = st.selectbox("內容格式：", ["聖經經文", "推薦詩歌"], label_visibility="collapsed")
 
 if st.button("✨ 啟動 AI 廣播"):
     try:
         if content_type == "聖經經文":
-            with st.spinner("✨ 斷字防禦盾正在校準經文字句完整度..."):
-                safe_text_manual = execute_ai_bible_generation()
+            with st.spinner("✨ 格式鐵律與斷字防禦盾正在同步校準中..."):
+                safe_text_manual = execute_ai_bible_generation(custom_mood=mood_input, custom_persona=persona)
             header = "【AI經文推送】"
             line_api.broadcast(TextSendMessage(text=f"{header}\n\n{safe_text_manual}"))
             save_to_history("AI智慧廣播", f"{header}\n{safe_text_manual}")
-            st.toast("✨ 廣播並完成歸檔")
+            st.toast("✨ 經文廣播並完成歸檔")
         else:
             model = genai.GenerativeModel(model_name="gemini-2.5-flash")
             persona_map = {"暖心": "溫柔牧者。", "專業": "分析師。", "KITT": "KITT，稱呼Brett。"}
-            prompt = ( f"{persona_map[persona]} 針對用戶『{mood_input if mood_input else '疲累'}』的心情推薦基督教詩歌(含歌名歌詞)。結構必須絕對完整結尾，直接輸出純文字。" )
+            prompt = ( f"{persona_map[persona]} 針對用戶『{mood_input if mood_input else '疲累'}』的心情推薦基督教詩歌(含歌名歌詞)。結構必須絕對完整結尾，直接輸出純文字，不要使用粗體符號。" )
             res = model.generate_content(prompt)
             if res and res.text:
                 safe_text_song = str(res.text).strip()
