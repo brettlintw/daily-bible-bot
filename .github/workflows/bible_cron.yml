@@ -2,7 +2,7 @@ name: 永動雷達全動態自訂排程點火器
 
 on:
   schedule:
-    # 每 5 分鐘發射一次巡邏電波，自動戳醒網頁，網頁大腦會自己比對您設定的時間
+    # 每 5 分鐘發射一次巡邏電波
     - cron: '*/5 * * * *'
   workflow_dispatch: # 保留手動測試
 
@@ -10,6 +10,7 @@ jobs:
   patrol_and_trigger:
     runs-on: ubuntu-latest
     steps:
-      - name: 發射巡邏電波檢查動態排程
+      - name: 發射巡邏電波檢查動態排程 (抗重導向震盪版)
         run: |
-          curl -L "https://daily-bible-bot-icgnhs3fy6gvynbbeifuyk.streamlit.app/?action=trigger_push&key=KITT_SECURE_KEY_2026"
+          # 使用 wget 替代 curl，並放寬重新導向限制至 100 次，加入 30 秒超時保護
+          wget --max-redirect=100 --timeout=30 --tries=2 "https://daily-bible-bot-icgnhs3fy6gvynbbeifuyk.streamlit.app/?action=trigger_push&key=KITT_SECURE_KEY_2026" -O /dev/null || true
