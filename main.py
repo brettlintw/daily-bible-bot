@@ -7,8 +7,8 @@ import threading
 import json
 import os
 
-# --- 1. 頁面配置 ---
-st.set_page_config(page_title="聖經控制台 V18.2", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
+# --- 1. 頁面配置 (旗艦一頁式) ---
+st.set_page_config(page_title="聖經控制台 V18.3", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
@@ -118,16 +118,18 @@ def execute_ai_bible_generation(custom_mood=None, custom_persona="暖心"):
         return raw_text
     return "🚀 (通訊模組對接異常，請重新啟動。)"
 
-# --- 5. 永動機外部排程鉤子 (強制獨立轉換時區比對) ---
+# --- 5. 永動機外部排程鉤子 (V18.3 智慧補零防禦型大腦) ---
 query_params = st.query_params
 if "action" in query_params and "key" in query_params:
     if query_params["action"] == "trigger_push" and query_params["key"] == TRIGGER_KEY:
         current_tw = datetime.now(timezone.utc).astimezone(TZ_TW)
-        now_hour_str = current_tw.strftime("%H")
+        now_hour_str = current_tw.strftime("%H") # 台北時間兩位數小時，例如 "09"、"16"
         date_today = current_tw.strftime("%Y-%m-%d")
         
         cfg = load_engine_config()
-        active_hours = [s.strip().split(":")[0] for s in cfg.get("schedule", "09:00").split(",")]
+        # V18.3 關鍵優化：主動將 Brett 輸入的排程進行去空格、自動補滿兩位數前導零。
+        # 即使輸入 "9:00" 也會被智慧大腦自動對齊成 "09"，確保與外部巡邏車 100% 契合
+        active_hours = [s.strip().split(":")[0].zfill(2) for s in cfg.get("schedule", "09:00").split(",")]
         
         if now_hour_str in active_hours:
             history_data = []
@@ -145,14 +147,14 @@ if "action" in query_params and "key" in query_params:
         st.stop()
 
 # --- 6. UI 佈局 (時區內嵌局部自癒設計) ---
-# 原地直接取得當下最新台北時間，徹底破除 NameError 變數消失死鎖
 local_render_tw = datetime.now(timezone.utc).astimezone(TZ_TW)
 
-st.markdown(f"<h1>🛡️ 聖經任務控制台 V18.2 <span class='status-tag'>🛰️ 局部自癒裝甲</span></h1>", unsafe_allow_html=True)
-st.caption(f"📅 台北標準時間：{local_render_tw.strftime('%Y/%m/%d %H:%M')} | 🚀 記憶體硬化與非同步自癒版")
+st.markdown(f"<h1>🛡️ 聖經任務控制台 V18.3 <span class='status-tag'>🛰️ 智慧容錯完全體</span></h1>", unsafe_allow_html=True)
+st.caption(f"📅 台北標準時間：{local_render_tw.strftime('%Y/%m/%d %H:%M')} | 🚀 格式智慧對齊與排程無痛漫遊版")
 
 cfg = load_engine_config()
 with st.expander("⏰ 全動態自訂排程管理中心", expanded=False):
+    st.markdown("<small style='color:#90A4AE;'>支援智慧對齊：不論輸入 09:00 或 9:00 系統皆能完美識別點火。</small>", unsafe_allow_html=True)
     user_schedule = st.text_input("目前動態巡航時段：", value=cfg.get("schedule", "09:00"))
     if st.button("💾 保存並即時生效動態排程"):
         cleaned_schedule = ",".join([s.strip() for s in user_schedule.split(",") if s.strip()])
