@@ -8,7 +8,7 @@ import json
 import os
 
 # --- 1. 頁面配置 (旗艦一頁式) ---
-st.set_page_config(page_title="聖經控制台 V18.3", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="聖經控制台 V18.4", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
@@ -118,25 +118,26 @@ def execute_ai_bible_generation(custom_mood=None, custom_persona="暖心"):
         return raw_text
     return "🚀 (通訊模組對接異常，請重新啟動。)"
 
-# --- 5. 永動機外部排程鉤子 (V18.3 智慧補零防禦型大腦) ---
+# --- 5. 永動機外部排程鉤子 (V18.4 語法縮排修正版) ---
 query_params = st.query_params
 if "action" in query_params and "key" in query_params:
     if query_params["action"] == "trigger_push" and query_params["key"] == TRIGGER_KEY:
         current_tw = datetime.now(timezone.utc).astimezone(TZ_TW)
-        now_hour_str = current_tw.strftime("%H") # 台北時間兩位數小時，例如 "09"、"16"
+        now_hour_str = current_tw.strftime("%H")
         date_today = current_tw.strftime("%Y-%m-%d")
         
         cfg = load_engine_config()
-        # V18.3 關鍵優化：主動將 Brett 輸入的排程進行去空格、自動補滿兩位數前導零。
-        # 即使輸入 "9:00" 也會被智慧大腦自動對齊成 "09"，確保與外部巡邏車 100% 契合
         active_hours = [s.strip().split(":")[0].zfill(2) for s in cfg.get("schedule", "09:00").split(",")]
         
         if now_hour_str in active_hours:
             history_data = []
             if os.path.exists(DB_FILE):
+                # 【核心語法修正：徹底排齊 With 與 Try 區塊】
                 try:
-                    with open(DB_FILE, "r", encoding="utf-8") as f: history_data = json.load(f)
-                except: pass
+                    with open(DB_FILE, "r", encoding="utf-8") as f:
+                        history_data = json.load(f)
+                except:
+                    pass
             
             already_pushed = any(h['date'] == date_today and h.get('time', '').startswith(now_hour_str) and h['category'] == "定時推送" for h in history_data)
             
@@ -149,8 +150,8 @@ if "action" in query_params and "key" in query_params:
 # --- 6. UI 佈局 (時區內嵌局部自癒設計) ---
 local_render_tw = datetime.now(timezone.utc).astimezone(TZ_TW)
 
-st.markdown(f"<h1>🛡️ 聖經任務控制台 V18.3 <span class='status-tag'>🛰️ 智慧容錯完全體</span></h1>", unsafe_allow_html=True)
-st.caption(f"📅 台北標準時間：{local_render_tw.strftime('%Y/%m/%d %H:%M')} | 🚀 格式智慧對齊與排程無痛漫遊版")
+st.markdown(f"<h1>🛡️ 聖經任務控制台 V18.4 <span class='status-tag'>🛰️ 巡航防線全線通航</span></h1>", unsafe_allow_html=True)
+st.caption(f"📅 台北標準時間：{local_render_tw.strftime('%Y/%m/%d %H:%M')} | 🚀 語法硬化修正・全天候永動雷達巡航版")
 
 cfg = load_engine_config()
 with st.expander("⏰ 全動態自訂排程管理中心", expanded=False):
