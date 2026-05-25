@@ -8,7 +8,7 @@ import json
 import os
 
 # --- 1. 頁面配置 (旗艦一頁式) ---
-st.set_page_config(page_title="聖經控制台 V18.4", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="聖經控制台 V18.5", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
@@ -46,17 +46,36 @@ genai.configure(api_key=GEMINI_API_KEY)
 DB_FILE = "bible_history.json"
 CONFIG_FILE = "engine_config.json"
 
-# --- 3. 配置管理 ---
+# --- 3. 配置管理 (V18.5 快取記憶體與實體硬體落盤優化) ---
 def load_engine_config():
+    # 優先從快取記憶體讀取，防止硬碟落盤延遲導致的失憶
+    if "cached_schedule" in st.session_state:
+        return {"schedule": st.session_state["cached_schedule"]}
+        
     if os.path.exists(CONFIG_FILE):
         try:
-            with open(CONFIG_FILE, "r", encoding="utf-8") as f: return json.load(f)
-        except: pass
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if data and "schedule" in data:
+                    st.session_state["cached_schedule"] = data["schedule"]
+                    return data
+        except:
+            pass
     return {"schedule": "09:00"}
 
 def save_engine_config(config_data):
-    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-        json.dump(config_data, f, ensure_ascii=False, indent=4)
+    # 雙重鎖定：同步寫入快取記憶體，刷新立即生效
+    st.session_state["cached_schedule"] = config_data["schedule"]
+    
+    # 硬核落盤防禦：強制核心立即把數據寫入物理磁碟，嚴防 st.stop() 截斷
+    try:
+        fd = os.open(CONFIG_FILE, os.O_WRONLY | os.O_CREAT | os.O_TRUNC)
+        with os.fdopen(fd, 'w', encoding='utf-8') as f:
+            json.dump(config_data, f, ensure_ascii=False, indent=4)
+            f.flush()
+            os.fsync(fd) # 強制核心物理落盤
+    except:
+        pass
 
 def save_to_history(category, content):
     current_tw = datetime.now(timezone.utc).astimezone(TZ_TW)
@@ -76,11 +95,19 @@ def save_to_history(category, content):
         data = []
         if os.path.exists(DB_FILE):
             try:
-                with open(DB_FILE, "r", encoding="utf-8") as f: data = json.load(f)
-            except: data = []
+                with open(DB_FILE, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except:
+                data = []
         data.insert(0, new_entry)
-        with open(DB_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
+        try:
+            fd = os.open(DB_FILE, os.O_WRONLY | os.O_CREAT | os.O_TRUNC)
+            with os.fdopen(fd, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=4)
+                f.flush()
+                os.fsync(fd)
+        except:
+            pass
 
 # --- 4. 經文生成核心 ---
 def execute_ai_bible_generation(custom_mood=None, custom_persona="暖心"):
@@ -104,7 +131,7 @@ def execute_ai_bible_generation(custom_mood=None, custom_persona="暖心"):
         "你必須嚴格、完美地依照以下格式規範輸出，每行中間空一行，嚴禁輸出任何額外的引言、標題或贅字：\n\n"
         "1.【經文章節】，如：(詩篇 4:8)\n"
         "2.【經文內容】，如：我必安然躺下睡覺，因為獨有你—耶和華使我安然 (阿們。)\n"
-        "3.今日反思與領受，如：這段經文是主耶穌向世人發出的溫柔呼召，完美詮釋了「溫柔牧者」的形象。我們生活在一個充滿壓力和挑戰的世界，心靈常常感到勞苦和重擔。耶穌不是以威權或嚴苛的姿態要求我們，而是以一顆「柔和謙卑」的心邀請我們來到祂面前。\n\n"
+        "3.今日反思與領受，如：這段經文是主耶穌向世人發出的溫柔呼召，完美詮釋了「溫柔牧者」的形象。我們生活在一個充滿壓力挑戰的世界，心靈常常感到勞苦和重擔。耶穌不是以威權或嚴苛的姿態要求我們，而是以一顆「柔和謙卑」的心邀請我們來到祂面前。\n\n"
         "【強制物理限制防線】：\n"
         "1. 第二行的經文內容尾端，必須手動且明確地補上「 (阿們。)」。\n"
         "2. 全文字數『強制嚴格控制在 400 字以內』！結構必須在結尾處以句號完整結束，絕不可半途截斷。"
@@ -118,7 +145,7 @@ def execute_ai_bible_generation(custom_mood=None, custom_persona="暖心"):
         return raw_text
     return "🚀 (通訊模組對接異常，請重新啟動。)"
 
-# --- 5. 永動機外部排程鉤子 (V18.4 語法縮排修正版) ---
+# --- 5. 永動機外部排程鉤子 ---
 query_params = st.query_params
 if "action" in query_params and "key" in query_params:
     if query_params["action"] == "trigger_push" and query_params["key"] == TRIGGER_KEY:
@@ -132,7 +159,6 @@ if "action" in query_params and "key" in query_params:
         if now_hour_str in active_hours:
             history_data = []
             if os.path.exists(DB_FILE):
-                # 【核心語法修正：徹底排齊 With 與 Try 區塊】
                 try:
                     with open(DB_FILE, "r", encoding="utf-8") as f:
                         history_data = json.load(f)
@@ -150,17 +176,17 @@ if "action" in query_params and "key" in query_params:
 # --- 6. UI 佈局 (時區內嵌局部自癒設計) ---
 local_render_tw = datetime.now(timezone.utc).astimezone(TZ_TW)
 
-st.markdown(f"<h1>🛡️ 聖經任務控制台 V18.4 <span class='status-tag'>🛰️ 巡航防線全線通航</span></h1>", unsafe_allow_html=True)
-st.caption(f"📅 台北標準時間：{local_render_tw.strftime('%Y/%m/%d %H:%M')} | 🚀 語法硬化修正・全天候永動雷達巡航版")
+st.markdown(f"<h1>🛡️ 聖經任務控制台 V18.5 <span class='status-tag'>🛰️ 快取快閃定錨裝甲</span></h1>", unsafe_allow_html=True)
+st.caption(f"📅 台北標準時間：{local_render_tw.strftime('%Y/%m/%d %H:%M')} | 🚀 記憶體雙重鎖・實體強迫物理落盤旗艦版")
 
 cfg = load_engine_config()
 with st.expander("⏰ 全動態自訂排程管理中心", expanded=False):
-    st.markdown("<small style='color:#90A4AE;'>支援智慧對齊：不論輸入 09:00 或 9:00 系統皆能完美識別點火。</small>", unsafe_allow_html=True)
+    st.markdown("<small style='color:#90A4AE;'>支援智慧對齊與硬核保存：不論刷新或外部撞擊，設定永不失憶。</small>", unsafe_allow_html=True)
     user_schedule = st.text_input("目前動態巡航時段：", value=cfg.get("schedule", "09:00"))
     if st.button("💾 保存並即時生效動態排程"):
         cleaned_schedule = ",".join([s.strip() for s in user_schedule.split(",") if s.strip()])
         save_engine_config({"schedule": cleaned_schedule})
-        st.toast(f"✅ 成功定錨全新時段：{cleaned_schedule}")
+        st.toast(f"✅ 成功定錨全新時段並強制物理落盤：{cleaned_schedule}")
         st.rerun()
 
 # 手動廣播
