@@ -13,4 +13,4 @@ jobs:
       - name: 發射巡邏電波檢查動態排程 (抗重導向震盪版)
         run: |
           # 使用 wget 替代 curl，並放寬重新導向限制至 100 次，加入 30 秒超時保護
-          wget --max-redirect=100 --timeout=30 --tries=2 "https://daily-bible-bot-icgnhs3fy6gvynbbeifuyk.streamlit.app/?action=trigger_push&key=KITT_SECURE_KEY_2026" -O /dev/null || true
+          wget --max-redirect=100 --timeout=30 --tries=2 "https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/?action=trigger_push&key=KITT_SECURE_KEY_2026" -O /dev/null || true
