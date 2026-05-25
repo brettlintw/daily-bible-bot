@@ -10,7 +10,7 @@ jobs:
   patrol_and_trigger:
     runs-on: ubuntu-latest
     steps:
-      - name: 發射巡邏電波檢查動態排程 (抗重導向震盪版)
+      - name: 發射巡邏電波檢查動態排程 (對接 Brett 最終新網址)
         run: |
-          # 使用 wget 替代 curl，並放寬重新導向限制至 100 次，加入 30 秒超時保護
+          # 核心關鍵：網址後方必須精準帶上安全密鑰參數，基地大腦才會攔截並發射經文！
           wget --max-redirect=100 --timeout=30 --tries=2 "https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/?action=trigger_push&key=KITT_SECURE_KEY_2026" -O /dev/null || true
