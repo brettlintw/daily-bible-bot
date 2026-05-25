@@ -1,16 +1,17 @@
-name: 永動雷達全動態自訂排程點火器
+name: 永動雷達全動態自訂排程點火器 (24H 全天候巡邏版)
 
 on:
   schedule:
-    # 每 5 分鐘發射一次巡邏電波
+    # 這是標準的軍規全天候雷達：每 5 分鐘自動跨海發射一次電波戳醒網頁
+    # 網頁大腦（V18.0）收到後，會自動對齊您在網頁上打的任何時間（如 15:00）
     - cron: '*/5 * * * *'
-  workflow_dispatch: # 保留手動測試
+  workflow_dispatch: # 保留手動測試按鈕，隨時可在 GitHub 後台手動點火
 
 jobs:
   patrol_and_trigger:
     runs-on: ubuntu-latest
     steps:
-      - name: 發射巡邏電波檢查動態排程 (對接 Brett 最終新網址)
+      - name: 發射巡邏電波強行通電基地台 (對接 Brett V18.0 最終新網址)
         run: |
-          # 核心關鍵：網址後方必須精準帶上安全密鑰參數，基地大腦才會攔截並發射經文！
+          # 採用 wget 帶著安全晶片參數，強行戳向您目前最新通電的 A5 基地台
           wget --max-redirect=100 --timeout=30 --tries=2 "https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/?action=trigger_push&key=KITT_SECURE_KEY_2026" -O /dev/null || true
