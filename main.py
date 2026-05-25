@@ -7,8 +7,8 @@ import threading
 import json
 import os
 
-# --- 1. 頁面配置 (旗艦一頁式) ---
-st.set_page_config(page_title="聖經控制台 V17.1", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
+# --- 1. 頁面配置 (一頁式極簡極客風) ---
+st.set_page_config(page_title="聖經控制台 V17.6", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
@@ -28,7 +28,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. 核心配置 ---
+# --- 2. 核心密鑰配置 ---
 def get_cfg(key, fallback):
     try: return st.secrets.get(key, fallback) or fallback
     except: return fallback
@@ -46,7 +46,7 @@ genai.configure(api_key=GEMINI_API_KEY)
 DB_FILE = "bible_history.json"
 CONFIG_FILE = "engine_config.json"
 
-# --- 3. 核心配置與歷史紀錄控制 ---
+# --- 3. 配置與歷史紀錄核心控制 ---
 def load_engine_config():
     if os.path.exists(CONFIG_FILE):
         try:
@@ -82,7 +82,7 @@ def save_to_history(category, content):
         with open(DB_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
 
-# --- 4. 經文生成發射核心 (V17.1 350字物理熔斷與三階格式鐵律) ---
+# --- 4. 經文生成核心 (V17.6 物理強制 400 字熔斷機制) ---
 def execute_ai_bible_generation(custom_mood=None, custom_persona="暖心"):
     model = genai.GenerativeModel(model_name="gemini-2.5-flash")
     
@@ -100,42 +100,39 @@ def execute_ai_bible_generation(custom_mood=None, custom_persona="暖心"):
     prompt = (
         f"{persona_intro} 請{mood_context}精選一段聖經經文，並給予深度、溫暖的反思與領受。\n\n"
         "【輸出極其嚴格的格式順序要求】：\n"
-        "你必須『只』輸出以下三行結構，每行中間空一行，嚴禁輸出任何標題或額外文字：\n\n"
+        "你必須完整輸出以下三行結構，每行中間空一行，嚴禁輸出任何標題或額外文字：\n\n"
         "1.【經文章節】，如：(詩篇 4:8)\n"
         "2.【經文內容】，如：我必安然躺下睡覺，因為獨有你—耶和華使我安然 (阿們。)\n"
-        "3.今日反思與領受，如：這段經文是主耶穌向世人發出的溫柔呼召...\n\n"
+        "3.今日反思與領受，如：這段經文是主耶穌向世人發出的溫柔呼召，完美詮釋了...\n\n"
         "【強制規格防線】：\n"
         "1. 第二行的經文內容尾端，必須手動補上「 (阿們。)」。\n"
-        "2. 【核心字數物理熔斷】：全文字數（含章節、經文、反思說明）『強制嚴格控制在 350 字以內』！這是硬性防線！請用精煉、深刻的語句進行反思說明。\n"
+        "2. 第三行請提供完整、深刻且溫暖的靈修反思說明，將文章結構完美寫完，不要爛尾。\n"
         "3. 直接輸出純文字，絕對不要使用任何 ** 粗體符號或 # 標題符號。\n"
-        "4. 全文必須完整，最後一個字必須是正常的「句號」或「右括號」，絕不可中途斷掉。"
+        "4. 全文必須結構完整，最後一個字必須是正常的「句號」結束。"
     )
     
-    # 進行最多 5 次極限校準重試，強制扣在 350 字內且結尾完美
-    for attempt in range(5):
-        res = model.generate_content(prompt, generation_config=genai.types.GenerationConfig(temperature=0.70, top_p=0.85, max_output_tokens=650))
-        if res and res.text:
-            text = str(res.text).strip()
-            total_chars = len(text)
-            
-            # 修正：檢查字數放寬至 350 字，並確保結尾完整
-            if total_chars <= 350:
-                if text.endswith('。') or text.endswith('」') or text.endswith(')') or text.endswith('）'):
-                    return text
-        time.sleep(1)
+    # 擴大 Token 緩衝至 1200，徹底解放 AI 大腦，讓它毫無顧忌地完整寫完三階內容
+    res = model.generate_content(prompt, generation_config=genai.types.GenerationConfig(temperature=0.75, top_p=0.85, max_output_tokens=1200))
+    
+    if res and res.text:
+        raw_text = str(res.text).strip()
         
-    # 保底硬截斷防禦（防止意外）
-    final_text = str(res.text).strip()
-    if len(final_text) > 350:
-        final_text = final_text[:345] + "..."
-    return final_text
+        # 【核心設計：Python 物理 400 字硬切斷防護罩】
+        # 如果整篇生成的文字總長度衝破 400 字，由 Python 程式在出艙前暴力截斷，保證順暢通過 LINE 頻寬
+        if len(raw_text) > 400:
+            # 物理強拆至安全區間，並由程式為結尾無縫補上完整句號
+            safe_text = raw_text[:380] + "...(精煉字數，完整反思請見典藏庫)。"
+            return safe_text
+        return raw_text
+        
+    return "🚀 (發射塔連線異常，請重新點火。)"
 
 # --- 5. 永動機高速外部鉤子比對引擎 (小時級模糊時間容錯鎖) ---
 query_params = st.query_params
 if "action" in query_params and "key" in query_params:
     if query_params["action"] == "trigger_push" and query_params["key"] == TRIGGER_KEY:
         now_tw = datetime.now(TZ_TW)
-        now_hour_str = now_tw.strftime("%H") # 只抓小時
+        now_hour_str = now_tw.strftime("%H")
         date_today = now_tw.strftime("%Y-%m-%d")
         
         cfg = load_engine_config()
@@ -154,17 +151,16 @@ if "action" in query_params and "key" in query_params:
                 safe_text = execute_ai_bible_generation()
                 line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{safe_text}"))
                 save_to_history("定時推送", safe_text)
-                st.success(f"⚡ 外部巡航解鎖！小時 {now_hour_str} 吻合且在 350 字防線內，發射成功！")
+                st.success(f"⚡ 外部巡航解鎖，發射成功！")
         st.stop()
 
 # --- 6. UI 佈局 ---
-st.markdown(f"<h1>🛡️ 聖經任務控制台 V17.1 <span class='status-tag'>🛰️ 350字極限控制</span></h1>", unsafe_allow_html=True)
-st.caption(f"📅 {datetime.now(TZ_TW).strftime('%Y/%m/%d %H:%M')} | 🚀 延遲容錯與 350 字長度防禦版")
+st.markdown(f"<h1>🛡️ 聖經任務控制台 V17.6 <span class='status-tag'>🛰️ 400字物理熔斷</span></h1>", unsafe_allow_html=True)
+st.caption(f"📅 {datetime.now(TZ_TW).strftime('%Y/%m/%d %H:%M')} | 🚀 延遲容錯與 400 字極限硬拆防禦版")
 
-# ⏰ 動態排程管理
+# ⏰ 動態排程管理中心
 cfg = load_engine_config()
 with st.expander("⏰ 全動態自訂排程管理中心", expanded=False):
-    st.markdown("<small style='color:#90A4AE;'>請使用英文逗號 `,` 分隔多個時段。例如：`09:00, 21:00`</small>", unsafe_allow_html=True)
     user_schedule = st.text_input("目前動態巡航時段：", value=cfg.get("schedule", "09:00"))
     if st.button("💾 保存並即時生效動態排程"):
         cleaned_schedule = ",".join([s.strip() for s in user_schedule.split(",") if s.strip()])
@@ -182,8 +178,7 @@ with st.form("manual_form", clear_on_submit=False):
                 line_api.broadcast(TextSendMessage(text=f"【手動推送】\n\n{custom_text}"))
                 save_to_history("手動廣播", custom_text)
                 st.toast("✅ 已送達並完成歸檔")
-            except Exception as line_err:
-                st.error(f"連線異常: {str(line_err)[:20]}")
+            except Exception as line_err: st.error(f"連線異常: {str(line_err)[:20]}")
 
 st.markdown("---")
 
@@ -197,7 +192,7 @@ with c3: content_type = st.selectbox("內容格式：", ["聖經經文", "推薦
 if st.button("✨ 啟動 AI 廣播"):
     try:
         if content_type == "聖經經文":
-            with st.spinner("✨ 350字嚴格限制與格式盾同步校準中..."):
+            with st.spinner("✨ 400字物理截斷防禦裝甲同步校準中..."):
                 safe_text_manual = execute_ai_bible_generation(custom_mood=mood_input, custom_persona=persona)
             header = "【AI經文推送】"
             line_api.broadcast(TextSendMessage(text=f"{header}\n\n{safe_text_manual}"))
@@ -206,11 +201,11 @@ if st.button("✨ 啟動 AI 廣播"):
         else:
             model = genai.GenerativeModel(model_name="gemini-2.5-flash")
             persona_map = {"暖心": "溫柔牧者。", "專業": "分析師。", "KITT": "KITT，稱呼Brett。"}
-            prompt = ( f"{persona_map[persona]} 針對用戶『{mood_input if mood_input else '疲累'}』的心情推薦基督教詩歌(含歌名歌詞)。控制在350字內，結構完整結尾。" )
+            prompt = ( f"{persona_map[persona]} 針對用戶『{mood_input if mood_input else '疲累'}』的心情推薦基督教詩歌(含歌名歌詞)。結構完整結尾，控制在400字內。" )
             res = model.generate_content(prompt)
             if res and res.text:
                 safe_text_song = str(res.text).strip()
-                if len(safe_text_song) > 350: safe_text_song = safe_text_song[:345] + "..."
+                if len(safe_text_song) > 400: safe_text_song = safe_text_song[:380] + "...。"
                 line_api.broadcast(TextSendMessage(text=f"【AI詩歌推薦】\n\n{safe_text_song}"))
                 save_to_history("AI智慧廣播", f"【AI詩歌推薦】\n{safe_text_song}")
                 st.toast("✨ 詩歌廣播完成")
@@ -235,5 +230,4 @@ if history_data:
         if filter_type != "全部" and item['category'] != filter_type: continue
         tag_class = "type-tag-auto" if item['category'] == "定時推送" else ("type-tag-manual" if item['category'] == "手動廣播" else "type-tag-ai")
         st.markdown(f'<div class="history-card"><strong>📅 {item["date"]} &nbsp;&nbsp; ⏰ {item["time"]}</strong> &nbsp;&nbsp; <span class="{tag_class}">{item["category"]}</span><pre style="white-space: pre-wrap; font-family: sans-serif; background: transparent; border: none; padding: 0; margin-top: 8px; color: #B0BEC5; font-size: 0.8rem;">{item["content"]}</pre></div>', unsafe_allow_html=True)
-else:
-    st.info("💡 儲存艙目前尚無歷史保存紀錄。")
+else: st.info("💡 儲存艙目前尚無歷史保存紀錄。")
