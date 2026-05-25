@@ -8,7 +8,7 @@ import json
 import os
 
 # --- 1. 頁面配置 ---
-st.set_page_config(page_title="聖經控制台 V18.1", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="聖經控制台 V18.2", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
@@ -21,13 +21,14 @@ st.markdown("""
     .status-tag { font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; background: #2E7D32; color: white; margin-left: 10px; }
     .history-card { background: #1E1E1E; padding: 10px; border-radius: 8px; border-left: 5px solid #0288D1; margin-bottom: 8px; color: #E0E0E0; }
     .type-tag-auto { background: #2E7D32; color: white; padding: 1px 6px; border-radius: 4px; font-size: 0.65rem; }
+    .type-tag-manual { background: #C62828; color: white; padding: 1px 6px; border-radius: 4px; font-size: 0.65rem; }
+    .type-tag-ai { background: #1565C0; color: white; padding: 1px 6px; border-radius: 4px; font-size: 0.65rem; }
     [data-testid="stHeader"], footer, #MainMenu { visibility: hidden; height: 0; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. 核心時區配置 (強制宣告 100% 台北時間) ---
+# --- 2. 核心時區常量配置 ---
 TZ_TW = timezone(timedelta(hours=8))
-now_tw = datetime.now(timezone.utc).astimezone(TZ_TW) # 終極修正：先取 UTC 再強制外掛轉台北
 
 def get_cfg(key, fallback):
     try: return st.secrets.get(key, fallback) or fallback
@@ -117,12 +118,12 @@ def execute_ai_bible_generation(custom_mood=None, custom_persona="暖心"):
         return raw_text
     return "🚀 (通訊模組對接異常，請重新啟動。)"
 
-# --- 5. 永動機外部鉤子 (強制時區雙重鎖定) ---
+# --- 5. 永動機外部排程鉤子 (強制獨立轉換時區比對) ---
 query_params = st.query_params
 if "action" in query_params and "key" in query_params:
     if query_params["action"] == "trigger_push" and query_params["key"] == TRIGGER_KEY:
         current_tw = datetime.now(timezone.utc).astimezone(TZ_TW)
-        now_hour_str = current_tw.strftime("%H") # 這裏將強制拿到台北時間的「16」
+        now_hour_str = current_tw.strftime("%H")
         date_today = current_tw.strftime("%Y-%m-%d")
         
         cfg = load_engine_config()
@@ -131,7 +132,8 @@ if "action" in query_params and "key" in query_params:
         if now_hour_str in active_hours:
             history_data = []
             if os.path.exists(DB_FILE):
-                try: with open(DB_FILE, "r", encoding="utf-8") as f: history_data = json.load(f)
+                try:
+                    with open(DB_FILE, "r", encoding="utf-8") as f: history_data = json.load(f)
                 except: pass
             
             already_pushed = any(h['date'] == date_today and h.get('time', '').startswith(now_hour_str) and h['category'] == "定時推送" for h in history_data)
@@ -142,10 +144,12 @@ if "action" in query_params and "key" in query_params:
                 save_to_history("定時推送", output_payload)
         st.stop()
 
-# --- 6. UI 佈局 (頂部時間顯示全面修正) ---
-st.markdown(f"<h1>🛡️ 聖經任務控制台 V18.1 <span class='status-tag'>🛰️ 台北時區雙重防禦鎖</span></h1>", unsafe_allow_html=True)
-# 這裡用強制的台北時間渲染網頁頂端，絕不再顯示錯誤的 08:10！
-st.caption(f"📅 台北標準時間：{now_tw.strftime('%Y/%m/%d %H:%M')} | 🚀 執行緒安全與時區校準旗艦版")
+# --- 6. UI 佈局 (時區內嵌局部自癒設計) ---
+# 原地直接取得當下最新台北時間，徹底破除 NameError 變數消失死鎖
+local_render_tw = datetime.now(timezone.utc).astimezone(TZ_TW)
+
+st.markdown(f"<h1>🛡️ 聖經任務控制台 V18.2 <span class='status-tag'>🛰️ 局部自癒裝甲</span></h1>", unsafe_allow_html=True)
+st.caption(f"📅 台北標準時間：{local_render_tw.strftime('%Y/%m/%d %H:%M')} | 🚀 記憶體硬化與非同步自癒版")
 
 cfg = load_engine_config()
 with st.expander("⏰ 全動態自訂排程管理中心", expanded=False):
