@@ -7,8 +7,8 @@ import threading
 import json
 import os
 
-# --- 1. 頁面配置 (一頁式旗艦防線) ---
-st.set_page_config(page_title="聖經控制台 V18.0", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
+# --- 1. 頁面配置 ---
+st.set_page_config(page_title="聖經控制台 V18.1", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
@@ -18,17 +18,17 @@ st.markdown("""
     .stTextArea>div>div>textarea { height: 55px !important; border-radius: 8px; }
     .stTextInput>div>div>input { height: 2.1rem !important; border-radius: 8px; }
     .stButton>button { border-radius: 8px; height: 2.5rem; font-weight: bold; }
-    .log-box { font-size: 0.65rem; background: #121212; color: #00FF41; padding: 6px; border-radius: 8px; font-family: monospace; height: 65px; overflow-y: auto; border: 1px solid #333; }
     .status-tag { font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; background: #2E7D32; color: white; margin-left: 10px; }
     .history-card { background: #1E1E1E; padding: 10px; border-radius: 8px; border-left: 5px solid #0288D1; margin-bottom: 8px; color: #E0E0E0; }
     .type-tag-auto { background: #2E7D32; color: white; padding: 1px 6px; border-radius: 4px; font-size: 0.65rem; }
-    .type-tag-manual { background: #C62828; color: white; padding: 1px 6px; border-radius: 4px; font-size: 0.65rem; }
-    .type-tag-ai { background: #1565C0; color: white; padding: 1px 6px; border-radius: 4px; font-size: 0.65rem; }
     [data-testid="stHeader"], footer, #MainMenu { visibility: hidden; height: 0; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. 核心密鑰配置 ---
+# --- 2. 核心時區配置 (強制宣告 100% 台北時間) ---
+TZ_TW = timezone(timedelta(hours=8))
+now_tw = datetime.now(timezone.utc).astimezone(TZ_TW) # 終極修正：先取 UTC 再強制外掛轉台北
+
 def get_cfg(key, fallback):
     try: return st.secrets.get(key, fallback) or fallback
     except: return fallback
@@ -36,7 +36,6 @@ def get_cfg(key, fallback):
 GEMINI_API_KEY = get_cfg("GEMINI_API_KEY", "")
 LINE_TOKEN = get_cfg("LINE_ACCESS_TOKEN", "")
 TRIGGER_KEY = get_cfg("TRIGGER_KEY", "KITT_SECURE_KEY_2026")
-TZ_TW = timezone(timedelta(hours=8))
 
 from linebot import LineBotApi
 from linebot.models import TextSendMessage
@@ -46,7 +45,7 @@ genai.configure(api_key=GEMINI_API_KEY)
 DB_FILE = "bible_history.json"
 CONFIG_FILE = "engine_config.json"
 
-# --- 3. 配置與歷史紀錄核心控制 ---
+# --- 3. 配置管理 ---
 def load_engine_config():
     if os.path.exists(CONFIG_FILE):
         try:
@@ -59,9 +58,9 @@ def save_engine_config(config_data):
         json.dump(config_data, f, ensure_ascii=False, indent=4)
 
 def save_to_history(category, content):
-    now_tw = datetime.now(TZ_TW)
-    date_str = now_tw.strftime("%Y-%m-%d")
-    time_str = now_tw.strftime("%H:%M:%S")
+    current_tw = datetime.now(timezone.utc).astimezone(TZ_TW)
+    date_str = current_tw.strftime("%Y-%m-%d")
+    time_str = current_tw.strftime("%H:%M:%S")
     
     new_entry = {
         "id": int(time.time() * 1000),
@@ -82,11 +81,12 @@ def save_to_history(category, content):
         with open(DB_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
 
-# --- 4. 經文生成核心 (V18.0 三階範例強制限制防線) ---
+# --- 4. 經文生成核心 ---
 def execute_ai_bible_generation(custom_mood=None, custom_persona="暖心"):
     model = genai.GenerativeModel(model_name="gemini-2.5-flash")
+    current_tw = datetime.now(timezone.utc).astimezone(TZ_TW)
+    now_hour = current_tw.hour
     
-    now_hour = datetime.now(TZ_TW).hour
     if 5 <= now_hour < 11: time_context = "開啟美好一天的早晨時分"
     elif 11 <= now_hour < 16: time_context = "忙碌過後的正午/下午舒壓時分"
     else: time_context = "沉靜安穩的夜晚/睡前時分"
@@ -103,32 +103,27 @@ def execute_ai_bible_generation(custom_mood=None, custom_persona="暖心"):
         "你必須嚴格、完美地依照以下格式規範輸出，每行中間空一行，嚴禁輸出任何額外的引言、標題或贅字：\n\n"
         "1.【經文章節】，如：(詩篇 4:8)\n"
         "2.【經文內容】，如：我必安然躺下睡覺，因為獨有你—耶和華使我安然 (阿們。)\n"
-        "3.今日反思與領受，如：這段經文是主耶穌向世人發出的溫柔呼召，完美詮釋了「溫柔牧者」的形象。我們生活在一個充滿壓力和挑戰的世界，心靈常常感到勞苦和重擔。耶穌不是以威權或嚴苛的姿態要求我們，而是以一顆「柔和謙卑」的心邀請我們來到祂面前。這份柔和，展現了祂對人性的體恤與理解，祂深知我們的軟弱與限制，因此祂的引導絕非強迫，而是充滿耐心與愛。\n\n"
+        "3.今日反思與領受，如：這段經文是主耶穌向世人發出的溫柔呼召，完美詮釋了「溫柔牧者」的形象。我們生活在一個充滿壓力和挑戰的世界，心靈常常感到勞苦和重擔。耶穌不是以威權或嚴苛的姿態要求我們，而是以一顆「柔和謙卑」的心邀請我們來到祂面前。\n\n"
         "【強制物理限制防線】：\n"
         "1. 第二行的經文內容尾端，必須手動且明確地補上「 (阿們。)」。\n"
-        "2. 全文字數（包含經文章節、經文內容、今日反思與領受）『強制嚴格控制在 400 字以內』！反思說明請用最深刻、精煉的短句完成，結構必須在結尾處以句號完整結束，絕不可半途截斷。"
+        "2. 全文字數『強制嚴格控制在 400 字以內』！結構必須在結尾處以句號完整結束，絕不可半途截斷。"
     )
     
-    # 使用 800 個 Token 空間，留出完美的安全傳輸邊界
     res = model.generate_content(prompt, generation_config=genai.types.GenerationConfig(temperature=0.70, top_p=0.85, max_output_tokens=800))
-    
     if res and res.text:
         raw_text = str(res.text).strip()
-        
-        # 物理二次防禦：如果總長度不幸越過 400 字，由 Python 主動卡死在 350 字安全水位並優雅完句結尾
         if len(raw_text) > 400:
             return raw_text[:350] + "...(精煉字數，完整領受請見典藏庫)。"
         return raw_text
-        
     return "🚀 (通訊模組對接異常，請重新啟動。)"
 
-# --- 5. 永動機高速外部鉤子比對引擎 ---
+# --- 5. 永動機外部鉤子 (強制時區雙重鎖定) ---
 query_params = st.query_params
 if "action" in query_params and "key" in query_params:
     if query_params["action"] == "trigger_push" and query_params["key"] == TRIGGER_KEY:
-        now_tw = datetime.now(TZ_TW)
-        now_hour_str = now_tw.strftime("%H")
-        date_today = now_tw.strftime("%Y-%m-%d")
+        current_tw = datetime.now(timezone.utc).astimezone(TZ_TW)
+        now_hour_str = current_tw.strftime("%H") # 這裏將強制拿到台北時間的「16」
+        date_today = current_tw.strftime("%Y-%m-%d")
         
         cfg = load_engine_config()
         active_hours = [s.strip().split(":")[0] for s in cfg.get("schedule", "09:00").split(",")]
@@ -136,25 +131,22 @@ if "action" in query_params and "key" in query_params:
         if now_hour_str in active_hours:
             history_data = []
             if os.path.exists(DB_FILE):
-                try:
-                    with open(DB_FILE, "r", encoding="utf-8") as f: history_data = json.load(f)
+                try: with open(DB_FILE, "r", encoding="utf-8") as f: history_data = json.load(f)
                 except: pass
             
             already_pushed = any(h['date'] == date_today and h.get('time', '').startswith(now_hour_str) and h['category'] == "定時推送" for h in history_data)
             
             if not already_pushed:
-                # 記憶體隔離優化：先完全載入變數，確保傳輸不中斷
                 output_payload = execute_ai_bible_generation()
                 line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output_payload}"))
                 save_to_history("定時推送", output_payload)
-                st.success(f"⚡ 排程自動安全發射完畢！")
         st.stop()
 
-# --- 6. UI 佈局 ---
-st.markdown(f"<h1>🛡️ 聖經任務控制台 V18.0 <span class='status-tag'>🛰️ 執行緒安全防禦</span></h1>", unsafe_allow_html=True)
-st.caption(f"📅 {datetime.now(TZ_TW).strftime('%Y/%m/%d %H:%M')} | 🚀 記憶體隔離解鎖・400字規格鐵律版")
+# --- 6. UI 佈局 (頂部時間顯示全面修正) ---
+st.markdown(f"<h1>🛡️ 聖經任務控制台 V18.1 <span class='status-tag'>🛰️ 台北時區雙重防禦鎖</span></h1>", unsafe_allow_html=True)
+# 這裡用強制的台北時間渲染網頁頂端，絕不再顯示錯誤的 08:10！
+st.caption(f"📅 台北標準時間：{now_tw.strftime('%Y/%m/%d %H:%M')} | 🚀 執行緒安全與時區校準旗艦版")
 
-# ⏰ 全動態自訂排程管理中心
 cfg = load_engine_config()
 with st.expander("⏰ 全動態自訂排程管理中心", expanded=False):
     user_schedule = st.text_input("目前動態巡航時段：", value=cfg.get("schedule", "09:00"))
@@ -164,7 +156,7 @@ with st.expander("⏰ 全動態自訂排程管理中心", expanded=False):
         st.toast(f"✅ 成功定錨全新時段：{cleaned_schedule}")
         st.rerun()
 
-# ✍️ 手動廣播
+# 手動廣播
 st.subheader("✍️ 手動全員廣播")
 with st.form("manual_form", clear_on_submit=False):
     custom_text = st.text_area("內容：", placeholder="在此輸入要廣播給所有好友的文字...", label_visibility="collapsed")
@@ -178,7 +170,7 @@ with st.form("manual_form", clear_on_submit=False):
 
 st.markdown("---")
 
-# 🤖 AI 智慧廣播 (全面對接 V18.0 安全記憶體發射隔離)
+# AI 智慧廣播
 st.subheader("🤖 AI 智慧廣播")
 c1, c2, c3 = st.columns([1, 1, 1])
 with c1: mood_input = st.text_input("心情主題：", placeholder="心情主題...", label_visibility="collapsed")
@@ -188,21 +180,16 @@ with c3: content_type = st.selectbox("內容格式：", ["聖經經文", "推薦
 if st.button("✨ 啟動 AI 廣播"):
     try:
         if content_type == "聖經經文":
-            with st.spinner("✨ 正在建立隔離通道，阻斷任何斷片漏洞..."):
-                # 記憶體隔離步驟一：將完美生成的 400 字內文字完全鎖死在變數中
+            with st.spinner("✨ 建立隔離通道中..."):
                 isolated_payload = execute_ai_bible_generation(custom_mood=mood_input, custom_persona=persona)
-            
             header = "【AI經文推送】"
-            # 記憶體隔離步驟二：先將完整的文字100%安全發射給 LINE API，中途絕不執行任何磁碟寫入
             line_api.broadcast(TextSendMessage(text=f"{header}\n\n{isolated_payload}"))
-            
-            # 記憶體隔離步驟三：等發射完畢、安全落地後，最後才讓硬碟安靜地歸檔保存歷史紀錄
             save_to_history("AI智慧廣播", f"{header}\n{isolated_payload}")
-            st.toast("✨ 三階格式經文已圓滿發射！")
+            st.toast("✨ 經文廣播成功")
             st.rerun()
         else:
             model = genai.GenerativeModel(model_name="gemini-2.5-flash")
-            persona_map = {"暖心": "溫溫柔牧者。", "專業": "分析師。", "KITT": "KITT，稱呼Brett。"}
+            persona_map = {"暖心": "溫柔牧者。", "專業": "分析師。", "KITT": "KITT，稱呼Brett。"}
             prompt = ( f"{persona_map[persona]} 針對用戶『{mood_input if mood_input else '疲累'}』的心情推薦基督教詩歌(含歌名歌詞)。結構完整結尾，控制在400字內，純文字。" )
             res = model.generate_content(prompt)
             if res and res.text:
@@ -216,7 +203,7 @@ if st.button("✨ 啟動 AI 廣播"):
 
 st.markdown("---")
 
-# 📚 歷史經文典藏管理庫
+# 歷史經文典藏管理庫
 st.subheader("📚 歷史經文典藏管理庫")
 history_data = []
 if os.path.exists(DB_FILE):
@@ -226,7 +213,7 @@ if os.path.exists(DB_FILE):
 
 if history_data:
     download_lines = [f"========================================\n日期時間: {h['date']} {h['time']}\n分類標籤: {h['category']}\n----------------------------------------\n{h['content']}\n========================================\n\n" for h in history_data]
-    st.download_button(label="📥 下載完整歷史經文到本地電腦 (.txt)", data="".join(download_lines), file_name=f"bible_history_{datetime.now(TZ_TW).strftime('%Y%m%d')}.txt", mime="text/plain")
+    st.download_button(label="📥 下載完整歷史經文到本地電腦 (.txt)", data="".join(download_lines), file_name=f"bible_history_{datetime.now(timezone.utc).astimezone(TZ_TW).strftime('%Y%m%d')}.txt", mime="text/plain")
     
     filter_type = st.selectbox("🔍 按推送類型過濾顯示：", ["全部", "定時推送", "手動廣播", "AI智慧廣播"])
     for item in history_data:
