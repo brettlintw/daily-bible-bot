@@ -7,8 +7,8 @@ import threading
 import json
 import os
 
-# --- 1. 頁面配置 (旗艦一頁式) ---
-st.set_page_config(page_title="聖經控制台 V18.5", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
+# --- 1. 頁面配置 (旗艦一頁式極簡美學) ---
+st.set_page_config(page_title="聖經控制台 V20.0", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
@@ -18,16 +18,17 @@ st.markdown("""
     .stTextArea>div>div>textarea { height: 55px !important; border-radius: 8px; }
     .stTextInput>div>div>input { height: 2.1rem !important; border-radius: 8px; }
     .stButton>button { border-radius: 8px; height: 2.5rem; font-weight: bold; }
-    .status-tag { font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; background: #2E7D32; color: white; margin-left: 10px; }
-    .history-card { background: #1E1E1E; padding: 10px; border-radius: 8px; border-left: 5px solid #0288D1; margin-bottom: 8px; color: #E0E0E0; }
+    .status-tag { font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; background: #00E676; color: black; margin-left: 10px; }
+    .history-card { background: #1E1E1E; padding: 10px; border-radius: 8px; border-left: 5px solid #00E676; margin-bottom: 8px; color: #E0E0E0; }
     .type-tag-auto { background: #2E7D32; color: white; padding: 1px 6px; border-radius: 4px; font-size: 0.65rem; }
     .type-tag-manual { background: #C62828; color: white; padding: 1px 6px; border-radius: 4px; font-size: 0.65rem; }
     .type-tag-ai { background: #1565C0; color: white; padding: 1px 6px; border-radius: 4px; font-size: 0.65rem; }
+    .radar-tag { background: #1A237E; color: #00E676; padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; font-family: monospace; font-weight: bold; margin-right: 6px; border: 1px solid #00E676; display: inline-block; }
     [data-testid="stHeader"], footer, #MainMenu { visibility: hidden; height: 0; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. 核心時區常量配置 ---
+# --- 2. 核心時區與常量配置 ---
 TZ_TW = timezone(timedelta(hours=8))
 
 def get_cfg(key, fallback):
@@ -46,12 +47,10 @@ genai.configure(api_key=GEMINI_API_KEY)
 DB_FILE = "bible_history.json"
 CONFIG_FILE = "engine_config.json"
 
-# --- 3. 配置管理 (V18.5 快取記憶體與實體硬體落盤優化) ---
+# --- 3. 配置管理 ---
 def load_engine_config():
-    # 優先從快取記憶體讀取，防止硬碟落盤延遲導致的失憶
     if "cached_schedule" in st.session_state:
         return {"schedule": st.session_state["cached_schedule"]}
-        
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
@@ -64,52 +63,37 @@ def load_engine_config():
     return {"schedule": "09:00"}
 
 def save_engine_config(config_data):
-    # 雙重鎖定：同步寫入快取記憶體，刷新立即生效
     st.session_state["cached_schedule"] = config_data["schedule"]
-    
-    # 硬核落盤防禦：強制核心立即把數據寫入物理磁碟，嚴防 st.stop() 截斷
     try:
-        fd = os.open(CONFIG_FILE, os.O_WRONLY | os.O_CREAT | os.O_TRUNC)
-        with os.fdopen(fd, 'w', encoding='utf-8') as f:
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(config_data, f, ensure_ascii=False, indent=4)
-            f.flush()
-            os.fsync(fd) # 強制核心物理落盤
     except:
         pass
 
 def save_to_history(category, content):
     current_tw = datetime.now(timezone.utc).astimezone(TZ_TW)
-    date_str = current_tw.strftime("%Y-%m-%d")
-    time_str = current_tw.strftime("%H:%M:%S")
-    
     new_entry = {
         "id": int(time.time() * 1000),
-        "date": date_str,
-        "time": time_str,
+        "date": current_tw.strftime("%Y-%m-%d"),
+        "time": current_tw.strftime("%H:%M:%S"),
         "category": category,
         "content": content
     }
-    
     lock = threading.Lock()
     with lock:
         data = []
         if os.path.exists(DB_FILE):
             try:
-                with open(DB_FILE, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-            except:
-                data = []
+                with open(DB_FILE, "r", encoding="utf-8") as f: data = json.load(f)
+            except: data = []
         data.insert(0, new_entry)
         try:
-            fd = os.open(DB_FILE, os.O_WRONLY | os.O_CREAT | os.O_TRUNC)
-            with os.fdopen(fd, 'w', encoding='utf-8') as f:
+            with open(DB_FILE, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=4)
-                f.flush()
-                os.fsync(fd)
         except:
             pass
 
-# --- 4. 經文生成核心 ---
+# --- 4. 經文生成核心 (恆定 V19.0 完句無瑕防線) ---
 def execute_ai_bible_generation(custom_mood=None, custom_persona="暖心"):
     model = genai.GenerativeModel(model_name="gemini-2.5-flash")
     current_tw = datetime.now(timezone.utc).astimezone(TZ_TW)
@@ -128,65 +112,119 @@ def execute_ai_bible_generation(custom_mood=None, custom_persona="暖心"):
     prompt = (
         f"{persona_intro} 請{mood_context}精選一段聖經經文，並給予深度反思與領受。\n\n"
         "【輸出順序格式三階鐵律】：\n"
-        "你必須嚴格、完美地依照以下格式規範輸出，每行中間空一行，嚴禁輸出任何額外的引言、標題或贅字：\n\n"
+        "你必須嚴格、完美地依照以下格式規範輸出，每行中間空一行，嚴禁輸出任何額外的引言、標題 or 贅字：\n\n"
         "1.【經文章節】，如：(詩篇 4:8)\n"
         "2.【經文內容】，如：我必安然躺下睡覺，因為獨有你—耶和華使我安然 (阿們。)\n"
-        "3.今日反思與領受，如：這段經文是主耶穌向世人發出的溫柔呼召，完美詮釋了「溫柔牧者」的形象。我們生活在一個充滿壓力挑戰的世界，心靈常常感到勞苦和重擔。耶穌不是以威權或嚴苛的姿態要求我們，而是以一顆「柔和謙卑」的心邀請我們來到祂面前。\n\n"
-        "【強制物理限制防線】：\n"
+        "3.今日反思與領受，如：這段經文是主耶穌向世人發出的溫柔呼召。我們生活在一個充滿壓力的世界，心靈常常感到勞苦和重擔。耶穌以一顆柔和謙卑的心邀請我們來到祂面前。\n\n"
+        "【強制規格防線】：\n"
         "1. 第二行的經文內容尾端，必須手動且明確地補上「 (阿們。)」。\n"
-        "2. 全文字數『強制嚴格控制在 400 字以內』！結構必須在結尾處以句號完整結束，絕不可半途截斷。"
+        "2. 今日反思與領受請控制在 150 到 200 字之間，全文字數強制完美控制在 300 字左右。\n"
+        "3. 全文結構必須非常完整，結尾最後一個字必須是正常的「句號」結束，絕對不允許未完句中斷！"
     )
     
-    res = model.generate_content(prompt, generation_config=genai.types.GenerationConfig(temperature=0.70, top_p=0.85, max_output_tokens=800))
-    if res and res.text:
-        raw_text = str(res.text).strip()
-        if len(raw_text) > 400:
-            return raw_text[:350] + "...(精煉字數，完整領受請見典藏庫)。"
-        return raw_text
-    return "🚀 (通訊模組對接異常，請重新啟動。)"
+    for attempt in range(3):
+        res = model.generate_content(
+            prompt, 
+            generation_config=genai.types.GenerationConfig(
+                temperature=0.70, 
+                top_p=0.85, 
+                max_output_tokens=700
+            )
+        )
+        if res and res.text:
+            text_payload = str(res.text).strip()
+            total_chars = len(text_payload)
+            if total_chars <= 400 and (text_payload.endswith('。') or text_payload.endswith(')') or text_payload.endswith('）')):
+                return text_payload
+        time.sleep(1)
+        
+    final_text = str(res.text).strip()
+    if len(final_text) > 390:
+        final_text = final_text[:370] + "...(精煉字數，完整反思請見典藏庫)。"
+    return final_text
 
-# --- 5. 永動機外部排程鉤子 ---
+# --- 5. 永動機外部排程鉤子 (V20.0 雙軌時分絕對硬熔斷閘門) ---
 query_params = st.query_params
 if "action" in query_params and "key" in query_params:
     if query_params["action"] == "trigger_push" and query_params["key"] == TRIGGER_KEY:
         current_tw = datetime.now(timezone.utc).astimezone(TZ_TW)
-        now_hour_str = current_tw.strftime("%H")
         date_today = current_tw.strftime("%Y-%m-%d")
         
         cfg = load_engine_config()
-        active_hours = [s.strip().split(":")[0].zfill(2) for s in cfg.get("schedule", "09:00").split(",")]
-        
-        if now_hour_str in active_hours:
-            history_data = []
-            if os.path.exists(DB_FILE):
-                try:
-                    with open(DB_FILE, "r", encoding="utf-8") as f:
-                        history_data = json.load(f)
-                except:
-                    pass
+        # 100% 強制格式化為標準兩位數結構，例如 ["09:00", "16:45"]
+        active_schedules = []
+        for s in cfg.get("schedule", "09:00").split(","):
+            if ":" in s:
+                h_part, m_part = s.strip().split(":")
+                active_schedules.append(f"{h_part.zfill(2)}:{m_part.zfill(2)}")
+
+        # 讀取典藏庫歷史紀錄
+        history_data = []
+        if os.path.exists(DB_FILE):
+            try:
+                with open(DB_FILE, "r", encoding="utf-8") as f: history_data = json.load(f)
+            except: pass
+
+        # 核心雙軌比對演算法：遍歷設定的每一個排程時間點
+        for sched in active_schedules:
+            sched_h, sched_m = map(int, sched.split(":"))
+            target_time = current_tw.replace(hour=sched_h, minute=sched_m, second=0, microsecond=0)
             
-            already_pushed = any(h['date'] == date_today and h.get('time', '').startswith(now_hour_str) and h['category'] == "定時推送" for h in history_data)
-            
-            if not already_pushed:
-                output_payload = execute_ai_bible_generation()
-                line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output_payload}"))
-                save_to_history("定時推送", output_payload)
+            # 【15分鐘高速模糊容錯緩衝】：只要 GitHub 巡邏車在目標時間起的 15 分鐘之內抵達，即視為命中窗口
+            if target_time <= current_tw <= (target_time + timedelta(minutes=15)):
+                
+                # 【V20.0 核心修正】：徹底拋棄模糊的小時判定，改用精準的「時分區間比對防重盾」
+                specific_pushed = False
+                for h in history_data:
+                    if h['date'] == date_today and h['category'] == "定時推送":
+                        # 解析歷史發射成功的時、分
+                        h_time_parts = h.get('time', '00:00:00').split(":")
+                        if len(h_time_parts) >= 2:
+                            h_h = int(h_time_parts[0])
+                            h_m = int(h_time_parts[1])
+                            # 如果小時相同，且發射時間與設定排程誤差在 20 分鐘內，判定此檔次已發射完畢
+                            if h_h == sched_h and abs(h_m - sched_m) < 20:
+                                specific_pushed = True
+                                break
+
+                # 若確認今天、此確切排程時段「從未發射過」，立刻解鎖開火！
+                if not specific_pushed:
+                    output_payload = execute_ai_bible_generation()
+                    line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output_payload}"))
+                    save_to_history("定時推送", output_payload)
+                    break # 成功擊發一檔後乾淨退場
         st.stop()
 
-# --- 6. UI 佈局 (時區內嵌局部自癒設計) ---
+# --- 6. UI 佈局 ---
 local_render_tw = datetime.now(timezone.utc).astimezone(TZ_TW)
 
-st.markdown(f"<h1>🛡️ 聖經任務控制台 V18.5 <span class='status-tag'>🛰️ 快取快閃定錨裝甲</span></h1>", unsafe_allow_html=True)
-st.caption(f"📅 台北標準時間：{local_render_tw.strftime('%Y/%m/%d %H:%M')} | 🚀 記憶體雙重鎖・實體強迫物理落盤旗艦版")
+st.markdown(f"<h1>🛡️ 聖經任務控制台 V20.0 <span class='status-tag'>🛰️ 世紀封頂終極版</span></h1>", unsafe_allow_html=True)
+st.caption(f"📅 台北標準時間：{local_render_tw.strftime('%Y/%m/%d %H:%M')} | 🚀 雙軌時分定錨・多時段完全漫遊版")
 
 cfg = load_engine_config()
-with st.expander("⏰ 全動態自訂排程管理中心", expanded=False):
-    st.markdown("<small style='color:#90A4AE;'>支援智慧對齊與硬核保存：不論刷新或外部撞擊，設定永不失憶。</small>", unsafe_allow_html=True)
-    user_schedule = st.text_input("目前動態巡航時段：", value=cfg.get("schedule", "09:00"))
+current_schedules = []
+for s in cfg.get("schedule", "09:00").split(","):
+    if ":" in s:
+        hp, mp = s.strip().split(":")
+        current_schedules.append(f"{hp.zfill(2)}:{mp.zfill(2)}")
+
+with st.expander("⏰ 全動態自訂排程管理中心 (支援隨時多時段追加)", expanded=True):
+    st.markdown("<small style='color:#90A4AE;'>💡 <b>設定教學：</b>請使用半形逗號 <code>,</code> 分隔多個時段。支援同小時內設定多個時段（如 <code>16:00,16:45</code>）。</small>", unsafe_allow_html=True)
+    
+    st.markdown("### 🛰️ 當前雷達鎖定點火時段：")
+    if current_schedules:
+        tag_html = "".join([f'<span class="radar-tag">📡 {sched}</span>' for sched in current_schedules])
+        st.markdown(tag_html, unsafe_allow_html=True)
+    else:
+        st.warning("⚠️ 目前無任何排程時間！")
+        
+    st.markdown("<br>", unsafe_allow_html=True)
+    user_schedule = st.text_input("隨時修改/追加排程時段：", value=cfg.get("schedule", "09:00"))
+    
     if st.button("💾 保存並即時生效動態排程"):
         cleaned_schedule = ",".join([s.strip() for s in user_schedule.split(",") if s.strip()])
         save_engine_config({"schedule": cleaned_schedule})
-        st.toast(f"✅ 成功定錨全新時段並強制物理落盤：{cleaned_schedule}")
+        st.toast(f"✅ 成功定錨全新排程時段！")
         st.rerun()
 
 # 手動廣播
@@ -199,6 +237,7 @@ with st.form("manual_form", clear_on_submit=False):
                 line_api.broadcast(TextSendMessage(text=f"【手動推送】\n\n{custom_text}"))
                 save_to_history("手動廣播", custom_text)
                 st.toast("✅ 已送達並完成歸檔")
+                st.rerun()
             except Exception as line_err: st.error(f"連線異常: {str(line_err)[:20]}")
 
 st.markdown("---")
@@ -223,11 +262,10 @@ if st.button("✨ 啟動 AI 廣播"):
         else:
             model = genai.GenerativeModel(model_name="gemini-2.5-flash")
             persona_map = {"暖心": "溫柔牧者。", "專業": "分析師。", "KITT": "KITT，稱呼Brett。"}
-            prompt = ( f"{persona_map[persona]} 針對用戶『{mood_input if mood_input else '疲累'}』的心情推薦基督教詩歌(含歌名歌詞)。結構完整結尾，控制在400字內，純文字。" )
-            res = model.generate_content(prompt)
+            prompt = ( f"{persona_map[persona]} 針對用戶『{mood_input if mood_input else '疲累'}』的心情推薦基督教詩歌(含歌名歌詞)。結構完整結尾，控制在300字內，純文字。" )
+            res = model.generate_content(prompt, generation_config=genai.types.GenerationConfig(max_output_tokens=450))
             if res and res.text:
                 safe_text_song = str(res.text).strip()
-                if len(safe_text_song) > 400: safe_text_song = safe_text_song[:370] + "...。"
                 line_api.broadcast(TextSendMessage(text=f"【AI詩歌推薦】\n\n{safe_text_song}"))
                 save_to_history("AI智慧廣播", f"【AI詩歌推薦】\n{safe_text_song}")
                 st.toast("✨ 詩歌廣播完成")
@@ -253,4 +291,4 @@ if history_data:
         if filter_type != "全部" and item['category'] != filter_type: continue
         tag_class = "type-tag-auto" if item['category'] == "定時推送" else ("type-tag-manual" if item['category'] == "手動廣播" else "type-tag-ai")
         st.markdown(f'<div class="history-card"><strong>📅 {item["date"]} &nbsp;&nbsp; ⏰ {item["time"]}</strong> &nbsp;&nbsp; <span class="{tag_class}">{item["category"]}</span><pre style="white-space: pre-wrap; font-family: sans-serif; background: transparent; border: none; padding: 0; margin-top: 8px; color: #B0BEC5; font-size: 0.8rem;">{item["content"]}</pre></div>', unsafe_allow_html=True)
-else: st.info("💡 儲存艙目前尚無歷史保存紀錄。")
+else: st.info("⚠️ 儲存艙目前尚無歷史保存紀錄。")
