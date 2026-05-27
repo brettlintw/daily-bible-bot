@@ -8,7 +8,7 @@ import json
 import os
 
 # --- 0. 系統版本宣告 (主程式與後台核心定錨) ---
-SYSTEM_VERSION = "V41.3.3"
+SYSTEM_VERSION = "V41.3.4"
 
 # --- 1. 頁面配置 (旗艦一頁式極簡美學 ── 強裝標題絕對不折行盔甲) ---
 st.set_page_config(page_title=f"聖經控制台 {SYSTEM_VERSION}", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
@@ -44,7 +44,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. 核心時區與全域時間常量配置 ---
+# --- 2. 核心時區與全域時間配置 ---
 TZ_TW = timezone(timedelta(hours=8))
 local_render_tw = datetime.now(timezone.utc).astimezone(TZ_TW)
 
@@ -245,7 +245,7 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
         
     return final_text
 
-# --- 6. 永動機外部排程與 Webhook 雙軌中樞 ---
+# --- 6. 永動機外部排程與 Webhook 雙軌中樞 (V41.3.4 全時自癒硬化模組) ---
 query_params = st.query_params
 
 if "incoming_uid" in query_params:
@@ -262,6 +262,7 @@ if "incoming_uid" in query_params:
 
 if "action" in query_params and "key" in query_params:
     if query_params["action"] == "trigger_push" and query_params["key"] == TRIGGER_KEY:
+        # 🛡️ 鋼鐵自癒防線 1：強制執行最高優先級之 UTC 轉台灣時區定錨
         current_tw = datetime.now(timezone.utc).astimezone(TZ_TW)
         date_today = current_tw.strftime("%Y-%m-%d")
         
@@ -296,7 +297,8 @@ if "action" in query_params and "key" in query_params:
             sched_h, sched_m = map(int, [task["hour"], task["minute"]])
             target_time = current_tw.replace(hour=sched_h, minute=sched_m, second=0, microsecond=0)
             
-            if target_time <= current_tw and current_tw <= (target_time + timedelta(minutes=20)):
+            # 🛡️ 鋼鐵自癒防線 2：放寬至 25 分鐘補發防禦窗口，消滅外部網路延遲造成的啞火
+            if target_time <= current_tw and current_tw <= (target_time + timedelta(minutes=25)):
                 specific_pushed = False
                 for h in history_data:
                     if h['date'] == date_today and h['category'] == "排程推送":
@@ -304,7 +306,8 @@ if "action" in query_params and "key" in query_params:
                         if len(h_time_parts) >= 2:
                             h_h = int(h_time_parts[0])
                             h_m = int(h_time_parts[1])
-                            if h_h == sched_h and abs(h_m - sched_m) < 25:
+                            # 如果 25 分鐘窗口內已經發送過，就跳過，絕不重複打擾
+                            if h_h == sched_h and abs(h_m - sched_m) < 28:
                                 specific_pushed = True
                                 break
 
@@ -328,29 +331,32 @@ if "action" in query_params and "key" in query_params:
         st.write("CRON_PROCESSED")
         st.stop()
 
-# --- 7. UI 佈局 (確認牆智導同步渲染) ---
-st.markdown(f"<h1>🛡️ 聖經任務控制台 {SYSTEM_VERSION} <span class='status-tag'>🛰️ 聯邦制導</span><span class='status-tag' style='background:#00E676; color:black;'>微米開關完全體</span></h1>", unsafe_allow_html=True)
-st.caption(f"📅 台北標準時間：{local_render_tw.strftime('%Y/%m/%d %H:%M')} | 🚀 子航線開關縮進修復版 [當前版本: {SYSTEM_VERSION}]")
+# --- 7. UI 佈局 ---
+st.markdown(f"<h1>🛡️ 聖經任務控制台 {SYSTEM_VERSION} <span class='status-tag'>🛰️ 聯邦制導</span><span class='status-tag' style='background:#00E676; color:black;'>全時自動巡航體</span></h1>", unsafe_allow_html=True)
+st.caption(f"📅 台北標準時間：{local_render_tw.strftime('%Y/%m/%d %H:%M')} | 🚀 25分鐘補發自癒加固版 [當前版本: {SYSTEM_VERSION}]")
 
 cfg = load_engine_config()
+daily_enabled = cfg.get("daily_enabled", True)
+daily_show = cfg.get("daily_schedule", "09:00,15:30,21:00")
+specific_enabled = cfg.get("specific_enabled", True)
+specific_date_show = cfg.get("specific_date", "")
+specific_time_show = cfg.get("specific_schedule", "09:00,15:30,21:00")
 
-# 智能編譯確認牆每日循環字串
 daily_active_list = []
-d_times = cfg.get("daily_schedule", "09:00,15:30,21:00").split(",")
-if cfg.get("daily_enabled", True):
+d_times = daily_show.split(",")
+if daily_enabled:
     if cfg.get("daily_t1_enabled", True) and len(d_times) > 0: daily_active_list.append(d_times[0].strip())
     if cfg.get("daily_t2_enabled", True) and len(d_times) > 1: daily_active_list.append(d_times[1].strip())
     if cfg.get("daily_t3_enabled", True) and len(d_times) > 2: daily_active_list.append(d_times[2].strip())
 daily_final_show = ",".join(daily_active_list) if daily_active_list else "🚫 已無啟用時段"
 
-# 智能編譯確認牆單日狙擊字串
 spec_active_list = []
-s_times = cfg.get("specific_schedule", "09:00,15:30,21:00").split(",")
-if cfg.get("specific_enabled", True):
+s_times = specific_time_show.split(",")
+if specific_enabled:
     if cfg.get("specific_t1_enabled", True) and len(s_times) > 0: spec_active_list.append(s_times[0].strip())
     if cfg.get("specific_t2_enabled", True) and len(s_times) > 1: spec_active_list.append(s_times[1].strip())
     if cfg.get("specific_t3_enabled", True) and len(s_times) > 2: spec_active_list.append(s_times[2].strip())
-spec_final_show = f"📅 {cfg.get('specific_date', '')} ── ⏰ " + ",".join(spec_active_list) if spec_active_list else "🚫 已無啟用時段"
+spec_final_show = f"📅 {specific_date_show} ── ⏰ " + ",".join(spec_active_list) if spec_active_list else "🚫 已無啟用時段"
 
 st.markdown(f"""
 <div class="schedule-radar-box">
@@ -404,7 +410,7 @@ if CURRENT_KEY_VAL:
 
 st.markdown("---")
 
-# --- ⏰ 3. 自動巡航排程設定面板 (微米級分流開關) ---
+# --- ⏰ 3. 自動巡航排程設定面板 ---
 st.markdown("### ⏰ 3. 自動巡航排程設定面板")
 
 # 舊配置還原
@@ -445,7 +451,6 @@ with tab_specific:
     target_date_obj = st.date_input("📅 選擇精準狙擊日期：", value=saved_date_obj, key="ui_s_date", disabled=not ui_specific_enabled)
     st.markdown("---")
     
-    # 🟩 完美對齊修正線：徹底物理清除造成第 455 行 IndentationError 的多餘縮進與前導空格
     c_s1, c_s2 = st.columns([1, 2])
     with c_s1: ui_s_t1_en = st.toggle("🔌 狙擊點火 1 狀態", value=cfg.get("specific_t1_enabled", True), key="ui_st1_en", disabled=not ui_specific_enabled)
     with c_s2: spec_t1 = st.time_input("選擇時間 (狙擊1)：", value=s_t1, key="ui_s_t1", disabled=not (ui_specific_enabled and ui_s_t1_en), label_visibility="collapsed")
@@ -460,7 +465,7 @@ with tab_specific:
 
 st.markdown("<div style='margin-top:5px;'></div>", unsafe_allow_html=True)
 
-if st.button("💾 保存雙模式平行共存排程設定", key="SAVE_V41_3_3"):
+if st.button("💾 保存雙模式平行共存排程設定", key="SAVE_V41_3_4"):
     final_daily_str = f"{daily_t1.strftime('%H:%M')},{daily_t2.strftime('%H:%M')},{daily_t3.strftime('%H:%M')}"
     final_spec_str = f"{spec_t1.strftime('%H:%M')},{spec_t2.strftime('%H:%M')},{spec_t3.strftime('%H:%M')}"
     
@@ -482,7 +487,7 @@ if st.button("💾 保存雙模式平行共存排程設定", key="SAVE_V41_3_3")
         "fixed_model_id": CURRENT_MODEL_ID,
         "fixed_key_val": CURRENT_KEY_VAL
     })
-    st.toast(f"✅ 縮進瑕疵修復完成！微米級子開關已完美存儲定錨。")
+    st.toast(f"<b>[巡航自癒加固成功]</b> 配置已鎖定落盤！")
     st.rerun()
 
 # --- 手動精準推送中樞 ---
@@ -575,7 +580,6 @@ if os.path.exists(DB_FILE):
     except: pass
 
 if history_data:
-    # --- 緊湊型無縫 A4 印刷級排版盾 ---
     html_report_content = """
     <html>
     <head>
