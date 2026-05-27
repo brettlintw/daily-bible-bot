@@ -7,24 +7,25 @@ import threading
 import json
 import os
 
-# --- 1. 頁面配置 (旗艦一頁式極簡美學 ── V41.1 強裝行動端視覺自適應防線) ---
-st.set_page_config(page_title="聖經控制台 V41.1", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
+# --- 1. 頁面配置 (旗艦一頁式極簡美學 ── V41.2 強裝標題絕對不折行盔甲) ---
+st.set_page_config(page_title="聖經控制台 V41.2", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
     .main .block-container { max-width: 80% !important; padding: 0.3rem 1rem !important; }
     @media (max-width: 1023px) { 
         .main .block-container { max-width: 100% !important; padding: 0.2rem 0.5rem !important; } 
-        h1 { font-size: 1.05rem !important; }
+        h1 { font-size: 0.95rem !important; white-space: nowrap !important; display: flex !important; align-items: center !important; flex-wrap: nowrap !important; }
+        .status-tag { font-size: 0.6rem !important; padding: 1px 4px !important; margin-left: 4px !important; white-space: nowrap !important; }
         .schedule-radar-box { padding: 8px !important; }
         .schedule-radar-box code { font-size: 0.95rem !important; }
         .api-active-tag { display: inline-block; margin-top: 4px; padding: 4px 6px !important; font-size: 0.7rem !important; line-height: 1.2 !important; }
     }
-    h1 { font-size: 1.15rem !important; margin: 0 !important; line-height: 1.1 !important; color: #E0E0E0; }
+    h1 { font-size: 1.15rem !important; margin: 0 !important; line-height: 1.1 !important; color: #E0E0E0; white-space: nowrap !important; }
     .stTextArea>div>div>textarea { height: 55px !important; border-radius: 8px; }
     .stTextInput>div>div>input { height: 2.1rem !important; border-radius: 8px; }
     .stButton>button { border-radius: 8px; height: 2.5rem; font-weight: bold; }
-    .status-tag { font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; background: #00E676; color: black; margin-left: 10px; }
+    .status-tag { font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; background: #00E676; color: black; margin-left: 10px; white-space: nowrap !important; display: inline-block !important; }
     .history-card { background: #1E1E1E; padding: 10px; border-radius: 8px; border-left: 5px solid #00E676; margin-bottom: 8px; color: #E0E0E0; }
     .type-tag-auto { background: #2E7D32; color: white; padding: 1px 6px; border-radius: 4px; font-size: 0.65rem; }
     .type-tag-manual { background: #C62828; color: white; padding: 1px 6px; border-radius: 4px; font-size: 0.65rem; }
@@ -307,9 +308,9 @@ if "action" in query_params and "key" in query_params:
         st.write("CRON_PROCESSED")
         st.stop()
 
-# --- 7. UI 佈局 ---
-st.markdown(f"<h1>🛡️ 聖經任務控制台 V41.1 <span class='status-tag'>🛰️ 聯邦制導世紀封頂完全體</span></h1>", unsafe_allow_html=True)
-st.caption(f"📅 台北標準時間：{local_render_tw.strftime('%Y/%m/%d %H:%M')} | 🚀 500字硬熔斷・行動端自適應視覺硬化版")
+# --- 7. UI 佈局 (V41.2：導入標題非斷行彈性包裝 ── 完美消滅紅圈擠壓) ---
+st.markdown(f"<h1>🛡️ 聖經任務控制台 V41.2 <span class='status-tag'>🛰️ 聯邦制導</span><span class='status-tag' style='background:#1565C0; color:white;'>世紀封頂完全體</span></h1>", unsafe_allow_html=True)
+st.caption(f"📅 台北標準時間：{local_render_tw.strftime('%Y/%m/%d %H:%M')} | 🚀 行動端標題與勳章絕對對齊版")
 
 cfg = load_engine_config()
 confirmed_schedules = cfg.get("schedule", "09:00")
@@ -392,7 +393,7 @@ target_mode = st.radio(
     key="制導維度切換器"
 )
 
-with st.form("manual_制導form_v41_1", clear_on_submit=False):
+with st.form("manual_制導form_v41_2", clear_on_submit=False):
     target_uids = ""
     if target_mode == "單人/多人精準推送 (Multicast)":
         target_uids = st.text_input(
