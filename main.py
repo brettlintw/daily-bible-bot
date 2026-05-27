@@ -8,7 +8,7 @@ import json
 import os
 
 # --- 0. 系統版本宣告 (主程式與後台核心定錨) ---
-SYSTEM_VERSION = "V41.2.7"
+SYSTEM_VERSION = "V41.3.1"
 
 # --- 1. 頁面配置 (旗艦一頁式極簡美學 ── 強裝標題絕對不折行盔甲) ---
 st.set_page_config(page_title=f"聖經控制台 {SYSTEM_VERSION}", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
@@ -122,18 +122,18 @@ def discover_supported_models(target_key):
         discovered_options["🚀 gemini-2.5-flash ── [免費版] 系統防護保底核心"] = {"model_id": "gemini-2.5-flash", "billing": "免費版"}
     return discovered_options
 
-# --- 4. 配置管理 (支援每日/單日雙模共存 3 點火架構) ---
+# --- 4. 配置管理 (升級新增開關持久化存儲) ---
 def load_engine_config():
     default_config = {
+        "daily_enabled": True,
         "daily_schedule": "09:00,15:30,21:00",
+        "specific_enabled": True,
         "specific_schedule": "09:00,15:30,21:00",
         "specific_date": datetime.now(TZ_TW).strftime("%Y-%m-%d"),
         "fixed_key_label": list(KEY_POOL.keys())[0] if KEY_POOL else "",
         "fixed_model_id": "gemini-2.5-flash",
         "fixed_key_val": ""
     }
-    
-    # 舊版本向下相容性遷移橋接
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
@@ -237,7 +237,7 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
         
     return final_text
 
-# --- 6. 永動機外部排程與 Webhook 雙軌中樞 (雙模式平行共存判定核心) ---
+# --- 6. 永動機外部排程與 Webhook 雙軌中樞 (引進開關實體阻斷機制) ---
 query_params = st.query_params
 
 if "incoming_uid" in query_params:
@@ -258,22 +258,21 @@ if "action" in query_params and "key" in query_params:
         date_today = current_tw.strftime("%Y-%m-%d")
         
         cron_cfg = load_engine_config()
-        
-        # 蒐集雙軌共存的所有合法時間點
         target_schedules = []
         
-        # 軌道 A：每日循環時間點
-        for s in cron_cfg.get("daily_schedule", "09:00,15:30,21:00").split(","):
-            if ":" in s.strip():
-                h, m = s.strip().split(":")
-                target_schedules.append({"hour": h.zfill(2), "minute": m.zfill(2), "desc": "每日排程"})
+        # 軌道 A：每日循環時間點 (必須 daily_enabled 開關為啟動狀態才裝載)
+        if cron_cfg.get("daily_enabled", True):
+            for s in cron_cfg.get("daily_schedule", "09:00,15:30,21:00").split(","):
+                if ":" in s.strip():
+                    h, m = s.strip().split(":")
+                    target_schedules.append({"hour": h.zfill(2), "minute": m.zfill(2)})
                 
-        # 軌道 B：特定單日時間點 (僅在今天日期相符時解鎖注入)
-        if cron_cfg.get("specific_date", "") == date_today:
+        # 軌道 B：特定單日時間點 (必須 specific_enabled 開關啟動，且日期與今天完美對齊才注入)
+        if cron_cfg.get("specific_enabled", True) and cron_cfg.get("specific_date", "") == date_today:
             for s in cron_cfg.get("specific_schedule", "09:00,15:30,21:00").split(","):
                 if ":" in s.strip():
                     h, m = s.strip().split(":")
-                    target_schedules.append({"hour": h.zfill(2), "minute": m.zfill(2), "desc": "特定單日排程"})
+                    target_schedules.append({"hour": h.zfill(2), "minute": m.zfill(2)})
 
         history_data = []
         if os.path.exists(DB_FILE):
@@ -285,7 +284,6 @@ if "action" in query_params and "key" in query_params:
             sched_h, sched_m = map(int, [task["hour"], task["minute"]])
             target_time = current_tw.replace(hour=sched_h, minute=sched_m, second=0, microsecond=0)
             
-            # 20分鐘防禦擊發窗口
             if target_time <= current_tw and current_tw <= (target_time + timedelta(minutes=20)):
                 specific_pushed = False
                 for h in history_data:
@@ -318,21 +316,26 @@ if "action" in query_params and "key" in query_params:
         st.write("CRON_PROCESSED")
         st.stop()
 
-# --- 7. UI 佈局 (雙模共存確認牆) ---
-st.markdown(f"<h1>🛡️ 聖經任務控制台 {SYSTEM_VERSION} <span class='status-tag'>🛰️ 聯邦制導</span><span class='status-tag' style='background:#00E676; color:black;'>雙模三軌體</span></h1>", unsafe_allow_html=True)
-st.caption(f"📅 台北標準時間：{local_render_tw.strftime('%Y/%m/%d %H:%M')} | 🚀 雙模平行存儲與三軌點火面板 [當前版本: {SYSTEM_VERSION}]")
+# --- 7. UI 佈局 (雙開關動態連動稽核牆) ---
+st.markdown(f"<h1>🛡️ 聖經任務控制台 {SYSTEM_VERSION} <span class='status-tag'>🛰️ 聯邦制導</span><span class='status-tag' style='background:#00E676; color:black;'>開關定錨體</span></h1>", unsafe_allow_html=True)
+st.caption(f"📅 台北標準時間：{local_render_tw.strftime('%Y/%m/%d %H:%M')} | 🚀 雙軌獨立中斷開關加固版 [當前版本: {SYSTEM_VERSION}]")
 
 cfg = load_engine_config()
+daily_enabled = cfg.get("daily_enabled", True)
 daily_show = cfg.get("daily_schedule", "09:00,15:30,21:00")
+specific_enabled = cfg.get("specific_enabled", True)
 specific_date_show = cfg.get("specific_date", "")
 specific_time_show = cfg.get("specific_schedule", "09:00,15:30,21:00")
 
+# 確認牆動態渲染開關狀態
+daily_status_text = f"<code>{daily_show}</code>" if daily_enabled else "<span style='color:#FF1744; font-weight:bold;'>🚫 已關閉中斷</span>"
+specific_status_text = f"<code>📅 {specific_date_show} ── ⏰ {specific_time_show}</code>" if specific_enabled else "<span style='color:#FF1744; font-weight:bold;'>🚫 已關閉中斷</span>"
+
 st.markdown(f"""
 <div class="schedule-radar-box">
-    ⏰ <b>[自動巡航雙模共存確認牆]</b> 目前系統已平行鎖定之排程為：<br>
-    <span style='color:#00E676; font-weight:bold;'>🔄 每日循環點火線：</span><code>{daily_show}</code><br>
-    <span style='color:#FF9100; font-weight:bold;'>🎯 單日狙擊點火線：</span><code>📅 {specific_date_show} ── ⏰ {specific_time_show}</code><br>
-    <span style="color:#B0BEC5; font-size:0.75rem;">💡 提示：兩套模式平行獨立運作，只要時間觸發符合任一規格，即自動擊發。</span>
+    ⏰ <b>[自動巡航雙模共存確認牆]</b> 目前核心平行鎖定排程：<br>
+    <span style='color:#00E676; font-weight:bold;'>🔄 每日循環：</span>{daily_status_text}<br>
+    <span style='color:#FF9100; font-weight:bold;'>🎯 單日狙擊：</span>{specific_status_text}
 </div>
 """, unsafe_allow_html=True)
 
@@ -343,9 +346,7 @@ if os.path.exists(RADAR_TRACK_FILE):
             if track and "last_seen_uid" in track:
                 st.markdown(f"""
                 <div class="self-radar-box">
-                    📡 <b>[雷達即時偵測]</b> 剛剛在手機 LINE 傳送訊息說話的用戶根座標為：<br>
-                    <code style="color:#00E676; font-size:1rem; font-weight:bold; break-all !important;">{track['last_seen_uid']}</code><br>
-                    <span style="color:#90A4AE; font-size:0.75rem;">💡 提示：這串就是您本人的 User ID！</span>
+                    📡 <b>[雷達即時偵測]</b> 用戶根座標：<code>{track['last_seen_uid']}</code>
                 </div>
                 """, unsafe_allow_html=True)
     except: pass
@@ -378,16 +379,14 @@ st.session_state["active_snapshot_key"] = CURRENT_KEY_VAL
 
 if CURRENT_KEY_VAL:
     color_class = "billing-paid" if CURRENT_BILLING_STATUS == "付費版" else "billing-free"
-    st.markdown(f"<div style='margin-top:5px; line-height:1.4;'>定錨狀態：<span class='api-active-tag'>🔒 內部 API KEY 與模型已完美隔離鎖定：{CURRENT_MODEL_ID} (<b class='{color_class}'>{CURRENT_BILLING_STATUS}</b>)</span></div>", unsafe_allow_html=True)
-else:
-    st.markdown("<span class='api-active-tag' style='background:#FFEBEE; color:#C62828;'>🔴 警報：金鑰未配置，請檢查 Secrets</span>", unsafe_allow_html=True)
+    st.markdown(f"<div style='margin-top:5px; line-height:1.4;'>定錨狀態：<span class='api-active-tag'>🔒 內部 API 完美鎖定：{CURRENT_MODEL_ID} (<b class='{color_class}'>{CURRENT_BILLING_STATUS}</b>)</span></div>", unsafe_allow_html=True)
 
 st.markdown("---")
 
-# --- ⏰ 3. 自動巡航排程設定面板 (雙模分流共存 + 三軌點火) ---
-st.subheader("⏰ 3. 自動巡航排程設定面板")
+# --- ⏰ 3. 自動巡航排程設定面板 (導入獨立防禦切換開關) ---
+st.markdown("### ⏰ 3. 自動巡航排程設定面板")
 
-# 解析每日預設時間
+# 時間元件初始化解析
 try:
     d_parts = daily_show.split(",")
     d_t1 = datetime.now(TZ_TW).replace(hour=int(d_parts[0].split(":")[0]), minute=int(d_parts[0].split(":")[1])).time()
@@ -396,7 +395,6 @@ try:
 except:
     d_t1, d_t2, d_t3 = datetime.now(TZ_TW).replace(hour=9, minute=0).time(), datetime.now(TZ_TW).replace(hour=15, minute=30).time(), datetime.now(TZ_TW).replace(hour=21, minute=0).time()
 
-# 解析單日預設時間與日期
 try:
     s_parts = specific_time_show.split(",")
     s_t1 = datetime.now(TZ_TW).replace(hour=int(s_parts[0].split(":")[0]), minute=int(s_parts[0].split(":")[1])).time()
@@ -407,39 +405,46 @@ except:
     s_t1, s_t2, s_t3 = datetime.now(TZ_TW).replace(hour=9, minute=0).time(), datetime.now(TZ_TW).replace(hour=15, minute=30).time(), datetime.now(TZ_TW).replace(hour=21, minute=0).time()
     saved_date_obj = datetime.now(TZ_TW).date()
 
-# 渲染介面 A：每一天固定循環推送區
-st.markdown("#### 🔄 每一天固定循環推送設定")
-col_d1, col_d2, col_d3 = st.columns([1, 1, 1])
-with col_d1: daily_t1 = st.time_input("⏰ 每日 ── 第一段點火：", value=d_t1, key="d_t1")
-with col_d2: daily_t2 = st.time_input("⏰ 每日 ── 第二段點火：", value=d_t2, key="d_t2")
-with col_d3: daily_t3 = st.time_input("⏰ 每日 ── 第三段點火：", value=d_t3, key="d_t3")
+tab_daily, tab_specific = st.tabs(["🔄 每一天固定循環推送設定", "🎯 僅在特定年月日發送設定"])
 
-st.markdown("<div style='margin-top:15px;'></div>", unsafe_allow_html=True)
+with tab_daily:
+    st.markdown("<div style='padding:5px;'></div>", unsafe_allow_html=True)
+    # 🔌 每日推送實體阻斷開關
+    ui_daily_enabled = st.toggle("🟩 啟用此模式自動點火 (每日固定循環)", value=daily_enabled, key="ui_daily_toggle")
+    
+    c_d1, c_d2, c_d3 = st.columns([1, 1, 1])
+    with c_d1: daily_t1 = st.time_input("⏰ 第一段點火：", value=d_t1, key="ui_d_t1", disabled=not ui_daily_enabled)
+    with c_d2: daily_t2 = st.time_input("⏰ 第二段點火：", value=d_t2, key="ui_d_t2", disabled=not ui_daily_enabled)
+    with c_d3: daily_t3 = st.time_input("⏰ 第三段點火：", value=d_t3, key="ui_d_t3", disabled=not ui_daily_enabled)
 
-# 渲染介面 B：特定單日精準狙擊區
-st.markdown("#### 🎯 僅在特定年月日發送設定 (精準狙擊模式)")
-col_s_date, col_s1, col_s2, col_s3 = st.columns([1.2, 1, 1, 1])
-with col_s_date: target_date_obj = st.date_input("📅 選擇精準狙擊日期：", value=saved_date_obj, key="s_date")
-with col_s1: spec_t1 = st.time_input("⏰ 單日 ── 第一段點火：", value=s_t1, key="s_t1")
-with col_s2: spec_t2 = st.time_input("⏰ 單日 ── 第二段點火：", value=s_t2, key="s_t2")
-with col_s3: spec_t3 = st.time_input("⏰ 單日 ── 第三段點火：", value=s_t3, key="s_t3")
+with tab_specific:
+    st.markdown("<div style='padding:5px;'></div>", unsafe_allow_html=True)
+    # 🔌 特定單日推送實體阻斷開關
+    ui_specific_enabled = st.toggle("🟨 啟用此模式自動點火 (特定單日狙擊)", value=specific_enabled, key="ui_spec_toggle")
+    
+    target_date_obj = st.date_input("📅 選擇精準狙擊日期：", value=saved_date_obj, key="ui_s_date", disabled=not ui_specific_enabled)
+    c_s1, c_s2, c_s3 = st.columns([1, 1, 1])
+    with c_s1: spec_t1 = st.time_input("⏰ 狙擊點火 1：", value=s_t1, key="ui_s_t1", disabled=not ui_specific_enabled)
+    with c_s2: spec_t2 = st.time_input("⏰ 狙擊點火 2：", value=s_t2, key="ui_s_t2", disabled=not ui_specific_enabled)
+    with c_s3: spec_t3 = st.time_input("⏰ 狙擊點火 3：", value=s_t3, key="ui_s_t3", disabled=not ui_specific_enabled)
 
-st.markdown("<div style='margin-top:10px;'></div>", unsafe_allow_html=True)
+st.markdown("<div style='margin-top:5px;'></div>", unsafe_allow_html=True)
 
-if st.button("💾 保存雙模式平行共存排程設定", key="SAVE_V41_2_7"):
-    # 全自動序列化打包，完美消除任何手動打字污染
+if st.button("💾 保存雙模式平行共存排程設定", key="SAVE_V41_3_1"):
     final_daily_str = f"{daily_t1.strftime('%H:%M')},{daily_t2.strftime('%H:%M')},{daily_t3.strftime('%H:%M')}"
     final_spec_str = f"{spec_t1.strftime('%H:%M')},{spec_t2.strftime('%H:%M')},{spec_t3.strftime('%H:%M')}"
     
     save_engine_config({
+        "daily_enabled": ui_daily_enabled,
         "daily_schedule": final_daily_str,
+        "specific_enabled": ui_specific_enabled,
         "specific_schedule": final_spec_str,
         "specific_date": target_date_obj.strftime("%Y-%m-%d"),
         "fixed_key_label": chosen_key_label,
         "fixed_model_id": CURRENT_MODEL_ID,
         "fixed_key_val": CURRENT_KEY_VAL
     })
-    st.toast(f"✅ 雙模共存晶片已就位！三軌時間點已對齊更新牆！")
+    st.toast(f"✅ 開關定錨完成！最新阻斷狀態已完美落盤寫入。")
     st.rerun()
 
 # --- 手動精準推送中樞 ---
