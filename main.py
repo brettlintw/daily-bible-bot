@@ -8,7 +8,7 @@ import json
 import os
 
 # --- 1. 頁面配置 (旗艦一頁式極簡美學) ---
-st.set_page_config(page_title="聖經控制台 V31.1", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="聖經控制台 V34.0", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
@@ -49,7 +49,7 @@ line_api = LineBotApi(LINE_TOKEN)
 DB_FILE = "bible_history.json"
 CONFIG_FILE = "engine_config.json"
 
-# --- 3. 雙向解耦金鑰與模型動態探測機制 (V31.1：擴裝資費配額動態探針) ---
+# --- 3. 金鑰與模型動態探測中樞 ---
 def scan_secret_keys():
     key_names = ["GEMINI_API_KEY", "GEMINI_API_KEY_2", "GEMINI_API_KEY_3", "GEMINI_API_KEY_4", "GEMINI_API_KEY_5"]
     pool = {}
@@ -81,31 +81,21 @@ def discover_supported_models(target_key):
         genai.configure(api_key=target_key)
         online_models = genai.list_models()
         
-        # 建立線上模型清單與配額限制字典
         model_quota_map = {}
         for m in online_models:
             m_short_id = m.name.split('/')[-1]
-            # 透過 Google 官方回報的每分鐘呼叫頻率限制 (RPM) 進行資費硬體辨識
-            rpm_limit = getattr(m, "input_token_limit", 0) # 讀取硬體參數作為輔助特徵
-            
-            # 保底特徵比對：免費版通常在描述中或限制上具有低階配額特質
             is_free_tier = True
             if "generateContent" in m.supported_generation_methods:
-                # 免費核心通常包含低於標準商業線路的權限配額
                 if hasattr(m, "text_to_image_count_limit") or m.name.endswith("-search") or "lite" in m.name:
                     is_free_tier = True
                 else:
-                    is_free_tier = False # 具備標準生產力規格則判定為付費級別
+                    is_free_tier = False
                 model_quota_map[m_short_id] = "免費版" if is_free_tier else "付費版"
         
         match_count = 0
         for m_id, desc in util_registry.items():
-            # 交叉驗證該模型是否包含在授權清單內
             if any(m_id in m.name for m in genai.list_models()) and match_count < 5:
-                # 判定資費狀態標籤
                 tier_status = model_quota_map.get(m_id, "付費版")
-                
-                # 如果 Brett 使用的主要環境未特別限制，或屬於常規金鑰，此處進行最工整的標示加註
                 label = f"🚀 {m_id} ── [{tier_status}] {desc}"
                 discovered_options[label] = {
                     "model_id": m_id,
@@ -173,7 +163,7 @@ def save_to_history(category, content):
                 json.dump(data, f, ensure_ascii=False, indent=4)
         except: pass
 
-# --- 5. 終極生成核心 (恆定 900 Token 完句防斷片盾牌) ---
+# --- 5. 終極生成核心 (V34.0：上限字數精準校準為 500 字，超字完美以 "(省略)" 完句焊接) ---
 def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經文", custom_mood=None, custom_persona="暖心"):
     if not target_api_key:
         return "錯誤：當前配置之 API KEY 燃料短缺，發射中止。"
@@ -182,7 +172,7 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
     model = genai.GenerativeModel(model_name=target_model_id)
     
     persona_intro = "你是溫柔牧者。"
-    if custom_persona == "專業": persona_intro = "你是具備20年資資歷的業界資深 AI 策略分析師，請用高度冷靜、專業、精準、條理分明的口吻演繹。"
+    if custom_persona == "專業": persona_intro = "你是具備20年資歷的業界資深 AI 策略分析師，請用高度冷靜、專業、精準、條理分明的口吻演繹。"
     elif custom_persona == "KITT": persona_intro = "你是 K.I.T.T.，請用《霹靂車》影集那般充滿人性智慧、冷靜、理性，且帶有一點冷幽默感的口吻演繹，並稱呼使用者為 Brett。"
         
     if mode == "聖經經文":
@@ -199,7 +189,7 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
             "【領受與感悟】\n"
             "（在此寫下深度的領受與反思內容。）\n\n"
             "【強制規格字數防線】:\n"
-            "1. 全文字數請嚴格、精準地控制在 420 個中文字左右！不得過多或過少，這是核心指標。\n"
+            "1. 全文字數請嚴格、精準地控制在 500 個中文字之內！不得過多，這是最核心的指標。\n"
             "2. 全文結構必須非常完整，結尾最後一個字必須是正常的「句號」結束，絕對不允許未完句中斷！"
         )
     else:
@@ -209,26 +199,35 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
             f"{mood_context}推薦基督教詩歌(含歌名與精選歌詞)。\n\n"
             "【輸出規範】:\n"
             "1. 必須包含歌名與歌詞，並給予深度的溫暖勉勵與感悟。\n"
-            "2. 全文字數嚴格控制在 420 個中文字左右。\n"
+            "2. 全文字數嚴格控制在 500 個中文字之內。\n"
             "3. 結尾最後一個字必須是正常的「句號」結束，絕對不允許半途截斷！"
         )
     
+    # 核心安全探針主迴路 (Token 頻寬維持 1024 滿載，交由 Python 探針精準控字)
     for attempt in range(3):
         try:
             res = model.generate_content(
                 prompt, 
-                generation_config=genai.types.GenerationConfig(temperature=0.75, top_p=0.85, max_output_tokens=1024)
+                generation_config=genai.types.GenerationConfig(temperature=0.72, top_p=0.85, max_output_tokens=1024)
             )
             if res and res.text:
                 text_payload = str(res.text).strip()
-                if len(text_payload) <= 600 and (text_payload.endswith('。') or text_payload.endswith(')') or text_payload.endswith('）')):
-                    return text_payload
+                if text_payload.endswith('。') or text_payload.endswith(')') or text_payload.endswith('）'):
+                    if len(text_payload) <= 500: # 100% 滿足 500 字硬壁鎖
+                        return text_payload
         except: pass
         time.sleep(1)
         
-    try: final_text = str(res.text).strip()
-    except: final_text = "核心動力連線適配中，請稍後..."
-    if len(final_text) > 440: final_text = final_text[:440] + "...。"
+    # --- V34.0 500字邊界智慧型自癒清洗器 ── 「省略」熔斷盾 ---
+    try: 
+        final_text = str(res.text).strip()
+    except: 
+        return "核心動力連線適配中，請稍後..."
+        
+    # 【100% 滿足更正鐵律】：如果文本因換行或長篇反思衝破 500 中文字，精準切下前 494 個字，並強行以 " (省略)" 工整收尾！
+    if len(final_text) > 500:
+        final_text = final_text[:494] + " (省略)"
+        
     return final_text
 
 # --- 6. 永動機外部排程鉤子 ---
@@ -291,9 +290,9 @@ if "action" in query_params and "key" in query_params:
                     break 
         st.stop()
 
-# --- 7. UI 佈局 (雙選單完全自癒隔離中心) ---
-st.markdown(f"<h1>🛡️ 聖經任務控制台 V31.1 <span class='status-tag'>🛰️ 資費動態識別版</span></h1>", unsafe_allow_html=True)
-st.caption(f"📅 台北標準時間：{local_render_tw.strftime('%Y/%m/%d %H:%M')} | 🚀 自動辨識免費/付費版權限線路")
+# --- 7. UI 佈局 ---
+st.markdown(f"<h1>🛡️ 聖經任務控制台 V34.0 <span class='status-tag'>🛰️ 500字「省略」完全體</span></h1>", unsafe_allow_html=True)
+st.caption(f"📅 台北標準時間：{local_render_tw.strftime('%Y/%m/%d %H:%M')} | 🚀 上限 500 字硬熔斷・資費雙選單動態漫遊版")
 
 cfg = load_engine_config()
 available_keys = list(KEY_POOL.keys())
@@ -340,7 +339,7 @@ with st.expander("⏰ 全動態自訂排程管理中心 (支援隨時多時段�
     if current_schedules:
         tag_html = "".join([f'<span class="radar-tag">📡 {sched}</span>' for sched in current_schedules])
         st.markdown(tag_html, unsafe_allow_html=True)
-    else: st.warning("⚠️ 目前無任何排程時間！")
+    else: st.warning("⚠️ 目前無 any 排程時間！")
         
     st.markdown("<br>", unsafe_allow_html=True)
     user_schedule = st.text_input("隨時修改/追加排程時段：", value=cfg.get("schedule", "09:00"))
