@@ -227,7 +227,6 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
     try: final_text = str(res.text).strip()
     except: return "核心動力連線適配中，請稍後..."
         
-    # 【900字自癒省略防線】：字數超標時，精準在 894 字切斷並強制補齊 ”(省略)” 完句結束，絕不斷片
     if len(final_text) > 900:
         final_text = final_text[:894] + " (省略)"
         
@@ -464,7 +463,7 @@ if st.button("✨ 啟動 AI 廣播"):
 
 st.markdown("---")
 
-# --- 歷史經文典藏管理庫 (精準分頁印刷級 PDF 輸出模組) ---
+# --- 歷史經文典藏管理庫 (首頁空白徹底修復版) ---
 st.subheader("📚 歷史經文典藏管理庫")
 history_data = []
 if os.path.exists(DB_FILE):
@@ -473,29 +472,29 @@ if os.path.exists(DB_FILE):
     except: pass
 
 if history_data:
-    # --- V41.2.1 物理級 PDF A4 嚴整咬合排版盾 ---
+    # --- V41.2.2 緊湊型無縫 A4 印刷級排版盾 ---
     html_report_content = """
     <html>
     <head>
         <meta charset='utf-8'>
         <title>每日聖經經文歷史典藏稽核報告</title>
         <style>
-            @page { size: A4; margin: 20mm 15mm; }
-            body { font-family: 'Microsoft JhengHei', 'Heiti TC', sans-serif; padding: 0; margin: 0; color: #333333; line-height: 1.6; background: #ffffff; }
-            h2 { text-align: center; color: #1A237E; border-bottom: 2px solid #1A237E; padding-bottom: 12px; margin-top: 10px; margin-bottom: 25px; font-size: 22px; letter-spacing: 1px; }
-            .card { background: #ffffff; padding: 18px; border: 1px solid #e0e0e0; border-left: 6px solid #1A237E; border-radius: 4px; margin-bottom: 20px; box-sizing: border-box; position: relative; page-break-inside: avoid !important; break-inside: avoid !important; }
+            @page { size: A4; margin: 15mm 15mm; }
+            body { font-family: 'Microsoft JhengHei', 'Heiti TC', sans-serif; padding: 0; margin: 0; color: #333333; line-height: 1.5; background: #ffffff; }
+            h2 { text-align: center; color: #1A237E; border-bottom: 2px solid #1A237E; padding-bottom: 8px; margin-top: 5px; margin-bottom: 20px; font-size: 20px; letter-spacing: 1px; }
+            .card { background: #ffffff; padding: 15px; border: 1px solid #e0e0e0; border-left: 6px solid #1A237E; border-radius: 4px; margin-bottom: 15px; box-sizing: border-box; position: relative; page-break-inside: avoid !important; break-inside: avoid !important; }
             .card-auto { border-left-color: #2E7D32; }
             .card-ai { border-left-color: #1565C0; }
             .card-manual { border-left-color: #C62828; }
             .card-multicast { border-left-color: #E65100; }
-            .meta { font-size: 13px; color: #555555; margin-bottom: 12px; font-weight: bold; border-bottom: 1px dashed #e0e0e0; padding-bottom: 8px; }
-            .badge { padding: 3px 8px; border-radius: 4px; color: #ffffff; font-size: 11px; margin-left: 6px; font-weight: bold; display: inline-block; vertical-align: middle; }
+            .meta { font-size: 12px; color: #555555; margin-bottom: 10px; font-weight: bold; border-bottom: 1px dashed #e0e0e0; padding-bottom: 6px; }
+            .badge { padding: 2px 6px; border-radius: 4px; color: #ffffff; font-size: 10px; margin-left: 6px; font-weight: bold; display: inline-block; vertical-align: middle; }
             .badge-auto { background: #2E7D32; }
             .badge-ai { background: #1565C0; }
             .badge-manual { background: #C62828; }
             .badge-multicast { background: #E65100; }
-            .content-box { white-space: pre-wrap; word-wrap: break-word; font-family: 'Microsoft JhengHei', sans-serif; font-size: 14px; margin: 0; color: #222222; line-height: 1.7; text-align: justify; }
-            b { color: #1A237E; font-size: 14.5px; }
+            .content-box { white-space: pre-wrap; word-wrap: break-word; font-family: 'Microsoft JhengHei', sans-serif; font-size: 13.5px; margin: 0; color: #222222; line-height: 1.6; text-align: justify; }
+            b { color: #1A237E; font-size: 14px; }
         </style>
     </head>
     <body>
@@ -512,9 +511,10 @@ if history_data:
         else:
             std_cat = "手動全員廣播"; css_class = "card-manual"; badge_class = "badge-manual"
             
-        formatted_content = h['content'].replace('【', '<br><b>【').replace('】', '】</b><br>').strip()
-        if formatted_content.startswith('<br>'):
-            formatted_content = formatted_content[4:]
+        # 核心修復點：將全域首字替換為加粗標籤，完全移除造成首頁向下擠壓的頭部 <br>
+        formatted_content = h['content'].replace('【', '<b>【').replace('】', '】</b><br>').strip()
+        # 清洗連續換行漏洞，避免撐破 A4 邊界
+        formatted_content = formatted_content.replace('<br><br>', '<br>')
             
         html_report_content += f"""
         <div class='card {css_class}'>
