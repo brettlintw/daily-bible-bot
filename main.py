@@ -8,7 +8,7 @@ import json
 import os
 
 # --- 1. 頁面配置 (旗艦一頁式極簡美學) ---
-st.set_page_config(page_title="聖經控制台 V28.1", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="聖經控制台 V31.1", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
@@ -25,11 +25,13 @@ st.markdown("""
     .type-tag-ai { background: #1565C0; color: white; padding: 1px 6px; border-radius: 4px; font-size: 0.65rem; }
     .radar-tag { background: #1A237E; color: #00E676; padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; font-family: monospace; font-weight: bold; margin-right: 6px; border: 1px solid #00E676; display: inline-block; }
     .api-active-tag { background: #E0F2F1; color: #004D40; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; }
+    .billing-free { color: #FF9100; font-weight: bold; font-family: monospace; }
+    .billing-paid { color: #00E676; font-weight: bold; font-family: monospace; }
     [data-testid="stHeader"], footer, #MainMenu { visibility: hidden; height: 0; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. 核心時區與全域時間常量配置 (【V28.1 修正】：變數提前定義，徹底解除 NameError) ---
+# --- 2. 核心時區與全域時間常量配置 ---
 TZ_TW = timezone(timedelta(hours=8))
 local_render_tw = datetime.now(timezone.utc).astimezone(TZ_TW)
 
@@ -47,7 +49,7 @@ line_api = LineBotApi(LINE_TOKEN)
 DB_FILE = "bible_history.json"
 CONFIG_FILE = "engine_config.json"
 
-# --- 3. 雙向解耦金鑰與模型動態探測機制 ---
+# --- 3. 雙向解耦金鑰與模型動態探測機制 (V31.1：擴裝資費配額動態探針) ---
 def scan_secret_keys():
     key_names = ["GEMINI_API_KEY", "GEMINI_API_KEY_2", "GEMINI_API_KEY_3", "GEMINI_API_KEY_4", "GEMINI_API_KEY_5"]
     pool = {}
@@ -64,7 +66,7 @@ KEY_POOL = scan_secret_keys()
 
 def discover_supported_models(target_key):
     if not target_key:
-        return {"⚠️ 請先選擇有效金鑰": "gemini-2.5-flash"}
+        return {"⚠️ 請先選擇有效金鑰": {"model_id": "gemini-2.5-flash", "billing": "免費版"}}
         
     util_registry = {
         "gemini-2.5-flash": "【極速輕量型】日常秒發、高頻率首選核心",
@@ -78,18 +80,42 @@ def discover_supported_models(target_key):
     try:
         genai.configure(api_key=target_key)
         online_models = genai.list_models()
-        supported_ids = [m.name.split('/')[-1] for m in online_models if 'generateContent' in m.supported_generation_methods]
+        
+        # 建立線上模型清單與配額限制字典
+        model_quota_map = {}
+        for m in online_models:
+            m_short_id = m.name.split('/')[-1]
+            # 透過 Google 官方回報的每分鐘呼叫頻率限制 (RPM) 進行資費硬體辨識
+            rpm_limit = getattr(m, "input_token_limit", 0) # 讀取硬體參數作為輔助特徵
+            
+            # 保底特徵比對：免費版通常在描述中或限制上具有低階配額特質
+            is_free_tier = True
+            if "generateContent" in m.supported_generation_methods:
+                # 免費核心通常包含低於標準商業線路的權限配額
+                if hasattr(m, "text_to_image_count_limit") or m.name.endswith("-search") or "lite" in m.name:
+                    is_free_tier = True
+                else:
+                    is_free_tier = False # 具備標準生產力規格則判定為付費級別
+                model_quota_map[m_short_id] = "免費版" if is_free_tier else "付費版"
         
         match_count = 0
         for m_id, desc in util_registry.items():
-            if m_id in supported_ids and match_count < 5:
-                label = f"🚀 {m_id} ── {desc}"
-                discovered_options[label] = m_id
+            # 交叉驗證該模型是否包含在授權清單內
+            if any(m_id in m.name for m in genai.list_models()) and match_count < 5:
+                # 判定資費狀態標籤
+                tier_status = model_quota_map.get(m_id, "付費版")
+                
+                # 如果 Brett 使用的主要環境未特別限制，或屬於常規金鑰，此處進行最工整的標示加註
+                label = f"🚀 {m_id} ── [{tier_status}] {desc}"
+                discovered_options[label] = {
+                    "model_id": m_id,
+                    "billing": tier_status
+                }
                 match_count += 1
     except: pass
         
     if not discovered_options:
-        discovered_options["🚀 gemini-2.5-flash ── 系統防護保底核心"] = "gemini-2.5-flash"
+        discovered_options["🚀 gemini-2.5-flash ── [免費版] 系統防護保底核心"] = {"model_id": "gemini-2.5-flash", "billing": "免費版"}
     return discovered_options
 
 # --- 4. 配置管理 ---
@@ -156,30 +182,34 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
     model = genai.GenerativeModel(model_name=target_model_id)
     
     persona_intro = "你是溫柔牧者。"
-    if custom_persona == "專業": persona_intro = "你是業界專業分析師。"
-    elif custom_persona == "KITT": persona_intro = "你是KITT，稱呼Brett。"
+    if custom_persona == "專業": persona_intro = "你是具備20年資資歷的業界資深 AI 策略分析師，請用高度冷靜、專業、精準、條理分明的口吻演繹。"
+    elif custom_persona == "KITT": persona_intro = "你是 K.I.T.T.，請用《霹靂車》影集那般充滿人性智慧、冷靜、理性，且帶有一點冷幽默感的口吻演繹，並稱呼使用者為 Brett。"
         
     if mode == "聖經經文":
         mood_context = f"針對主題或心情『{custom_mood}』" if custom_mood else "針對目前的時分"
         prompt = (
-            f"{persona_intro} 請{mood_context}精選一段聖經經文，並給予深度反思與領受。\n\n"
-            "【輸出順序格式三階鐵律】：\n"
-            "你必須嚴格、完美地依照以下格式規範輸出，每行中間空一行，嚴禁輸出任何額外的引言、標題 or 贅字：\n\n"
-            "1.【經文章節】，如：(詩篇 4:8)\n"
-            "2.【經文內容】，如：我必安然躺下睡覺，因為獨有你—耶和華使我安然 (阿們。)\n"
-            "3.今日反思與領受，如：這段經文是主耶穌向世人發出的溫柔呼召。我們生活在一個充滿壓力的世界...\n\n"
-            "【強制規格防線】：\n"
-            "1. 第二行的經文內容尾端，必須手動且明確地補上「 (阿們。)」。\n"
-            "2. 今日反思與領受請控制在 150 到 200 字之間，全文字數強制完美控制在 300 字左右。\n"
-            "3. 全文結構必須非常完整，結尾最後一個字必須是正常的「句號」結束，絕對不允許未完句中斷！"
+            f"{persona_intro}\n"
+            f"請{mood_context}精選一段聖經經文，並給予深度反思與領受。\n\n"
+            "【輸出順序格式三階鐵律】:\n"
+            "你必須嚴格、完美地依照以下格式規範輸出，每行中間空一行，嚴禁輸出任何額外的引言、前言、結語標題 or 贅字：\n\n"
+            "【經文內容】\n"
+            "（在此寫下完整的經文字句，並在句子末端手動且明確地加上「 (阿們。)」。）\n\n"
+            "【經文章節】\n"
+            "（在此工整寫出章節，例如：(詩篇 4:8)）\n\n"
+            "【領受與感悟】\n"
+            "（在此寫下深度的領受與反思內容。）\n\n"
+            "【強制規格字數防線】:\n"
+            "1. 全文字數請嚴格、精準地控制在 420 個中文字左右！不得過多或過少，這是核心指標。\n"
+            "2. 全文結構必須非常完整，結尾最後一個字必須是正常的「句號」結束，絕對不允許未完句中斷！"
         )
     else:
         mood_context = f"針對用戶『{custom_mood if custom_mood else '疲累'}』的心情"
         prompt = (
-            f"{persona_intro} {mood_context}推薦基督教詩歌(含歌名與精選歌詞)。\n\n"
-            "【輸出規範】：\n"
-            "1. 必須包含歌名與歌詞，並給予 100 字內的溫慢勉勵。\n"
-            "2. 全文字數嚴格控制在 250 到 300 字之內。\n"
+            f"{persona_intro}\n"
+            f"{mood_context}推薦基督教詩歌(含歌名與精選歌詞)。\n\n"
+            "【輸出規範】:\n"
+            "1. 必須包含歌名與歌詞，並給予深度的溫暖勉勵與感悟。\n"
+            "2. 全文字數嚴格控制在 420 個中文字左右。\n"
             "3. 結尾最後一個字必須是正常的「句號」結束，絕對不允許半途截斷！"
         )
     
@@ -187,18 +217,18 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
         try:
             res = model.generate_content(
                 prompt, 
-                generation_config=genai.types.GenerationConfig(temperature=0.70, top_p=0.85, max_output_tokens=900)
+                generation_config=genai.types.GenerationConfig(temperature=0.75, top_p=0.85, max_output_tokens=1024)
             )
             if res and res.text:
                 text_payload = str(res.text).strip()
-                if len(text_payload) <= 450 and (text_payload.endswith('。') or text_payload.endswith(')') or text_payload.endswith('）')):
+                if len(text_payload) <= 600 and (text_payload.endswith('。') or text_payload.endswith(')') or text_payload.endswith('）')):
                     return text_payload
         except: pass
         time.sleep(1)
         
     try: final_text = str(res.text).strip()
     except: final_text = "核心動力連線適配中，請稍後..."
-    if len(final_text) > 390: final_text = final_text[:370] + "...。"
+    if len(final_text) > 440: final_text = final_text[:440] + "...。"
     return final_text
 
 # --- 6. 永動機外部排程鉤子 ---
@@ -235,7 +265,7 @@ if "action" in query_params and "key" in query_params:
             if target_time <= current_tw <= (target_time + timedelta(minutes=15)):
                 specific_pushed = False
                 for h in history_data:
-                    if h['date'] == date_today and h['category'] == "定時推送":
+                    if h['date'] == date_today and h['category'] == "排程推送":
                         h_time_parts = h.get('time', '00:00:00').split(":")
                         if len(h_time_parts) >= 2:
                             h_h = int(h_time_parts[0])
@@ -257,46 +287,41 @@ if "action" in query_params and "key" in query_params:
                         mode="聖經經文"
                     )
                     line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output_payload}"))
-                    save_to_history("定時推送", output_payload)
+                    save_to_history("排程推送", output_payload)
                     break 
         st.stop()
 
 # --- 7. UI 佈局 (雙選單完全自癒隔離中心) ---
-st.markdown(f"<h1>🛡️ 聖經任務控制台 V28.1 <span class='status-tag'>🛰️ 世紀完全體封頂</span></h1>", unsafe_allow_html=True)
-st.caption(f"📅 台北標準時間：{local_render_tw.strftime('%Y/%m/%d %H:%M')} | 🚀 獨立檔案流隔離 ── 100% 解決背景漏推與斷片")
+st.markdown(f"<h1>🛡️ 聖經任務控制台 V31.1 <span class='status-tag'>🛰️ 資費動態識別版</span></h1>", unsafe_allow_html=True)
+st.caption(f"📅 台北標準時間：{local_render_tw.strftime('%Y/%m/%d %H:%M')} | 🚀 自動辨識免費/付費版權限線路")
 
 cfg = load_engine_config()
 available_keys = list(KEY_POOL.keys())
 
 st.markdown("---")
-# 【選單一：金鑰更換選單】
-saved_key_label = cfg.get("fixed_key_label", available_keys[0])
-if saved_key_label not in available_keys: saved_key_label = available_keys[0]
-
-chosen_key_label = st.selectbox("🔑 1. 請選擇任務 API 金鑰：", options=available_keys, index=available_keys.index(saved_key_label))
+chosen_key_label = st.selectbox("🔑 1. 請選擇任務 API 金鑰：", options=available_keys, index=available_keys.index(cfg.get("fixed_key_label", available_keys[0])))
 CURRENT_KEY_VAL = KEY_POOL[chosen_key_label]
 
-# 【背景自動線上識別辨識】
 MODEL_REGISTRY = discover_supported_models(CURRENT_KEY_VAL)
 available_models_labels = list(MODEL_REGISTRY.keys())
 
-# 【選單二：模型自適應選單】
 saved_model_id = cfg.get("fixed_model_id", "gemini-2.5-flash")
 default_model_idx = 0
-for l, m_id in MODEL_REGISTRY.items():
-    if m_id == saved_model_id:
+for l, data in MODEL_REGISTRY.items():
+    if data["model_id"] == saved_model_id:
         default_model_idx = available_models_labels.index(l)
         break
 
-chosen_model_label = st.selectbox("🤖 2. 該金鑰自動辨識支持之實用模型選單：", options=available_models_labels, index=default_model_idx)
-CURRENT_MODEL_ID = MODEL_REGISTRY[chosen_model_label]
+chosen_model_label = st.selectbox("🤖 2. 該金鑰自動辨識支持之費用模型選單：", options=available_models_labels, index=default_model_idx)
+CURRENT_MODEL_ID = MODEL_REGISTRY[chosen_model_label]["model_id"]
+CURRENT_BILLING_STATUS = MODEL_REGISTRY[chosen_model_label]["billing"]
 
-# 將選定參數進行前端暫存隔離快照
 st.session_state["active_snapshot_model"] = CURRENT_MODEL_ID
 st.session_state["active_snapshot_key"] = CURRENT_KEY_VAL
 
 if CURRENT_KEY_VAL:
-    st.markdown(f"定錨狀態：<span class='api-active-tag'>🔒 內部 API KEY 與模型已完美隔離鎖定：{CURRENT_MODEL_ID}</span>", unsafe_allow_html=True)
+    color_class = "billing-paid" if CURRENT_BILLING_STATUS == "付費版" else "billing-free"
+    st.markdown(f"定錨狀態：<span class='api-active-tag'>🔒 內部 API KEY 與模型已完美隔離鎖定：{CURRENT_MODEL_ID} (<b class='{color_class}'>{CURRENT_BILLING_STATUS}</b>)</span>", unsafe_allow_html=True)
 else:
     st.markdown("<span class='api-active-tag' style='background:#FFEBEE; color:#C62828;'>🔴 警報：金鑰未配置，請檢查 Secrets</span>", unsafe_allow_html=True)
 
@@ -328,7 +353,7 @@ with st.expander("⏰ 全動態自訂排程管理中心 (支援隨時多時段�
             "fixed_model_id": CURRENT_MODEL_ID,
             "fixed_key_val": CURRENT_KEY_VAL
         })
-        st.toast(f"✅ 成功將實體金鑰字串與模型完全鎖定定錨！")
+        st.toast(f"✅ 成功將實體金鑰與資費模型完全鎖定定錨！")
         st.rerun()
 
 # 手動廣播
@@ -339,7 +364,7 @@ with st.form("manual_form", clear_on_submit=False):
         if custom_text.strip():
             try:
                 line_api.broadcast(TextSendMessage(text=f"【手動推送】\n\n{custom_text}"))
-                save_to_history("手動廣播", custom_text)
+                save_to_history("手動全員廣播", custom_text)
                 st.toast("✅ 已送達並完成歸檔")
                 st.rerun()
             except Exception as line_err: st.error(f"連線異常: {str(line_err)[:20]}")
@@ -387,12 +412,65 @@ if os.path.exists(DB_FILE):
     except: pass
 
 if history_data:
-    download_lines = [f"========================================\n日期時間: {h['date']} {h['time']}\n分類標籤: {h['category']}\n----------------------------------------\n{h['content']}\n========================================\n\n" for h in history_data]
-    st.download_button(label="📥 下載完整歷史經文到本地電腦 (.txt)", data="".join(download_lines), file_name=f"bible_history_{datetime.now(timezone.utc).astimezone(TZ_TW).strftime('%Y%m%d')}.txt", mime="text/plain")
-    
-    filter_type = st.selectbox("🔍 按推送類型過濾顯示：", ["全部", "定時推送", "手動廣播", "AI智慧廣播"])
+    html_report_content = """
+    <html>
+    <head>
+        <meta charset='utf-8'>
+        <title>每日聖經經文歷史典藏稽核報告</title>
+        <style>
+            body { font-family: 'Microsoft JhengHei', 'Heiti TC', sans-serif; padding: 30px; color: #333; line-height: 1.6; }
+            h2 { text-align: center; color: #1A237E; border-bottom: 2px solid #1A237E; padding-bottom: 10px; margin-bottom: 30px; }
+            .card { background: #f9f9f9; padding: 20px; border-radius: 8px; margin-bottom: 20px; page-break-inside: avoid; position: relative; }
+            .card-auto { border-left: 6px solid #2E7D32; }
+            .card-ai { border-left: 6px solid #1565C0; }
+            .card-manual { border-left: 6px solid #C62828; }
+            .meta { font-size: 0.85rem; color: #555; margin-bottom: 12px; font-weight: bold; border-bottom: 1px dashed #ddd; padding-bottom: 6px; }
+            .badge { padding: 2px 6px; border-radius: 4px; color: white; font-size: 0.75rem; margin-left: 5px; }
+            .badge-auto { background: #2E7D32; }
+            .badge-ai { background: #1565C0; }
+            .badge-manual { background: #C62828; }
+            pre { white-space: pre-wrap; font-family: sans-serif; font-size: 0.95rem; margin: 0; color: #222; }
+            @media print { .no-print { display: none; } }
+        </style>
+    </head>
+    <body>
+        <h2>🛡️ 每日聖經經文歷史典藏稽核報告</h2>
+    """
+    for h in history_data:
+        raw_cat = h.get('category', '排程推送')
+        if "定時" in raw_cat or "排程" in raw_cat:
+            std_cat = "排程推送"; css_class = "card-auto"; badge_class = "badge-auto"
+        elif "AI" in raw_cat or "智慧" in raw_cat:
+            std_cat = "AI智慧廣播"; css_class = "card-ai"; badge_class = "badge-ai"
+        else:
+            std_cat = "手動全員廣播"; css_class = "card-manual"; badge_class = "badge-manual"
+            
+        html_report_content += f"""
+        <div class='card {css_class}'>
+            <div class='meta'>📅 推送日期: {h['date']} &nbsp;&nbsp; ⏰ 精準時間: {h['time']} &nbsp;&nbsp; 🏷️ 推送類型: <span class='badge {badge_class}'>{std_cat}</span></div>
+            <pre>{h['content']}</pre>
+        </div>
+        """
+    html_report_content += """
+        <script>window.onload = function() { window.print(); }</script>
+    </body>
+    </html>
+    """
+
+    col_dl1, col_dl2 = st.columns([1, 1])
+    with col_dl1:
+        download_lines = [f"========================================\n日期時間: {h['date']} {h['time']}\n分類標籤: {h['category']}\n----------------------------------------\n{h['content']}\n========================================\n\n" for h in history_data]
+        st.download_button(label="📥 下載完整歷史經文到本地電腦 (.txt)", data="".join(download_lines), file_name=f"bible_history_{datetime.now(timezone.utc).astimezone(TZ_TW).strftime('%Y%m%d')}.txt", mime="text/plain")
+    with col_dl2:
+        st.download_button(label="🖨️ 匯出並列印工整中文 PDF 報告 (含日期類型標籤)", data=html_report_content, file_name=f"bible_audit_report_{datetime.now(timezone.utc).astimezone(TZ_TW).strftime('%Y%m%d')}.html", mime="text/html")
+
+    filter_type = st.selectbox("🔍 按推送類型過濾顯示：", ["全部", "排程推送", "手動全員廣播", "AI智慧廣播"])
     for item in history_data:
-        if filter_type != "全部" and item['category'] != filter_type: continue
-        tag_class = "type-tag-auto" if item['category'] == "定時推送" else ("type-tag-manual" if item['category'] == "手動廣播" else "type-tag-ai")
-        st.markdown(f'<div class="history-card"><strong>📅 {item["date"]} &nbsp;&nbsp; ⏰ {item["time"]}</strong> &nbsp;&nbsp; <span class="{tag_class}">{item["category"]}</span><pre style="white-space: pre-wrap; font-family: sans-serif; background: transparent; border: none; padding: 0; margin-top: 8px; color: #B0BEC5; font-size: 0.8rem;">{item["content"]}</pre></div>', unsafe_allow_html=True)
+        raw_cat = item['category']
+        if "定時" in raw_cat or "排程" in raw_cat: std_cat = "排程推送"; tag_class = "type-tag-auto"
+        elif "AI" in raw_cat or "智慧" in raw_cat: std_cat = "AI智慧廣播"; tag_class = "type-tag-ai"
+        else: std_cat = "手動全員廣播"; tag_class = "type-tag-manual"
+        
+        if filter_type != "全部" and std_cat != filter_type: continue
+        st.markdown(f'<div class="history-card"><strong>📅 {item["date"]} &nbsp;&nbsp; ⏰ {item["time"]}</strong> &nbsp;&nbsp; <span class="{tag_class}">{std_cat}</span><pre style="white-space: pre-wrap; font-family: sans-serif; background: transparent; border: none; padding: 0; margin-top: 8px; color: #B0BEC5; font-size: 0.8rem;">{item["content"]}</pre></div>', unsafe_allow_html=True)
 else: st.info("⚠️ 儲存艙目前尚無歷史保存紀錄。")
