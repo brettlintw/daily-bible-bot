@@ -8,7 +8,7 @@ import json
 import os
 
 # --- 1. 頁面配置 (旗艦一頁式極簡美學) ---
-st.set_page_config(page_title="聖經控制台 V20.0", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="聖經控制台 V28.0", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
@@ -24,6 +24,7 @@ st.markdown("""
     .type-tag-manual { background: #C62828; color: white; padding: 1px 6px; border-radius: 4px; font-size: 0.65rem; }
     .type-tag-ai { background: #1565C0; color: white; padding: 1px 6px; border-radius: 4px; font-size: 0.65rem; }
     .radar-tag { background: #1A237E; color: #00E676; padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; font-family: monospace; font-weight: bold; margin-right: 6px; border: 1px solid #00E676; display: inline-block; }
+    .api-active-tag { background: #E0F2F1; color: #004D40; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; }
     [data-testid="stHeader"], footer, #MainMenu { visibility: hidden; height: 0; }
     </style>
     """, unsafe_allow_html=True)
@@ -35,7 +36,6 @@ def get_cfg(key, fallback):
     try: return st.secrets.get(key, fallback) or fallback
     except: return fallback
 
-GEMINI_API_KEY = get_cfg("GEMINI_API_KEY", "")
 LINE_TOKEN = get_cfg("LINE_ACCESS_TOKEN", "")
 TRIGGER_KEY = get_cfg("TRIGGER_KEY", "KITT_SECURE_KEY_2026")
 
@@ -43,32 +43,87 @@ from linebot import LineBotApi
 from linebot.models import TextSendMessage
 line_api = LineBotApi(LINE_TOKEN)
 
-genai.configure(api_key=GEMINI_API_KEY)
 DB_FILE = "bible_history.json"
 CONFIG_FILE = "engine_config.json"
 
-# --- 3. 配置管理 ---
+# --- 3. 雙向解耦金鑰與模型動態探測機制 ---
+def scan_secret_keys():
+    key_names = ["GEMINI_API_KEY", "GEMINI_API_KEY_2", "GEMINI_API_KEY_3", "GEMINI_API_KEY_4", "GEMINI_API_KEY_5"]
+    pool = {}
+    for idx, name in enumerate(key_names, start=1):
+        v = get_cfg(name, "")
+        if v and len(v) > 5:
+            masked_key = f"***{v[-4:]}"
+            pool[f"🔑 金鑰密鑰順位 #{idx} ({masked_key})"] = v
+    if not pool:
+        pool["⚠️ 未偵測到任何 Key (請檢查 Secrets)"] = ""
+    return pool
+
+KEY_POOL = scan_secret_keys()
+
+def discover_supported_models(target_key):
+    if not target_key:
+        return {"⚠️ 請先選擇有效金鑰": "gemini-2.5-flash"}
+        
+    util_registry = {
+        "gemini-2.5-flash": "【極速輕量型】日常秒發、高頻率首選核心",
+        "gemini-2.5-pro":   "【深度推理型】適合複雜語意、長篇靈修反思",
+        "gemini-1.5-pro":   "【百萬文本型】具備超長記憶，適合大篇幅卷軸分析",
+        "gemini-1.5-flash": "【穩健平衡型】經典速度型核心，兼顧穩定度",
+        "gemma-2-27b-it":   "【敏捷極客型】適合超精煉短句與嚴格字數控制"
+    }
+    
+    discovered_options = {}
+    try:
+        genai.configure(api_key=target_key)
+        online_models = genai.list_models()
+        supported_ids = [m.name.split('/')[-1] for m in online_models if 'generateContent' in m.supported_generation_methods]
+        
+        match_count = 0
+        for m_id, desc in util_registry.items():
+            if m_id in supported_ids and match_count < 5:
+                label = f"🚀 {m_id} ── {desc}"
+                discovered_options[label] = m_id
+                match_count += 1
+    except: pass
+        
+    if not discovered_options:
+        discovered_options["🚀 gemini-2.5-flash ── 系統防護保底核心"] = "gemini-2.5-flash"
+    return discovered_options
+
+# --- 4. 配置管理 (優化 V28.0：解耦快取與實體硬碟讀寫，杜絕背景 KeyError) ---
 def load_engine_config():
-    if "cached_schedule" in st.session_state:
-        return {"schedule": st.session_state["cached_schedule"]}
+    if "cached_schedule" in st.session_state and "fixed_key_label" in st.session_state and "fixed_model_id" in st.session_state:
+        return {
+            "schedule": st.session_state["cached_schedule"],
+            "fixed_key_label": st.session_state["fixed_key_label"],
+            "fixed_model_id": st.session_state["fixed_model_id"],
+            "fixed_key_val": st.session_state.get("fixed_key_val", "")
+        }
+    
+    # 網頁重載保底：從實體 JSON 恢復
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 if data and "schedule" in data:
-                    st.session_state["cached_schedule"] = data["schedule"]
+                    st.session_state["cached_schedule"] = data.get("schedule", "09:00")
+                    st.session_state["fixed_key_label"] = data.get("fixed_key_label", list(KEY_POOL.keys())[0])
+                    st.session_state["fixed_model_id"] = data.get("fixed_model_id", "gemini-2.5-flash")
+                    st.session_state["fixed_key_val"] = data.get("fixed_key_val", "")
                     return data
-        except:
-            pass
-    return {"schedule": "09:00"}
+        except: pass
+    return {"schedule": "09:00", "fixed_key_label": list(KEY_POOL.keys())[0], "fixed_model_id": "gemini-2.5-flash", "fixed_key_val": ""}
 
 def save_engine_config(config_data):
     st.session_state["cached_schedule"] = config_data["schedule"]
+    st.session_state["fixed_key_label"] = config_data["fixed_key_label"]
+    st.session_state["fixed_model_id"] = config_data["fixed_model_id"]
+    st.session_state["fixed_key_val"] = config_data["fixed_key_val"]
     try:
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(config_data, f, ensure_ascii=False, indent=4)
-    except:
-        pass
+    except: pass
 
 def save_to_history(category, content):
     current_tw = datetime.now(timezone.utc).astimezone(TZ_TW)
@@ -90,118 +145,165 @@ def save_to_history(category, content):
         try:
             with open(DB_FILE, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=4)
-        except:
-            pass
+        except: pass
 
-# --- 4. 經文生成核心 (恆定 V19.0 完句無瑕防線) ---
-def execute_ai_bible_generation(custom_mood=None, custom_persona="暖心"):
-    model = genai.GenerativeModel(model_name="gemini-2.5-flash")
-    current_tw = datetime.now(timezone.utc).astimezone(TZ_TW)
-    now_hour = current_tw.hour
-    
-    if 5 <= now_hour < 11: time_context = "開啟美好一天的早晨時分"
-    elif 11 <= now_hour < 16: time_context = "忙碌過後的正午/下午舒壓時分"
-    else: time_context = "沉靜安穩的夜晚/睡前時分"
+# --- 5. 終極生成核心 (恆定 900 Token 完句防斷片盾牌) ---
+def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經文", custom_mood=None, custom_persona="暖心"):
+    if not target_api_key:
+        return "錯誤：當前配置之 API KEY 燃料短缺，發射中止。"
+        
+    genai.configure(api_key=target_api_key)
+    model = genai.GenerativeModel(model_name=target_model_id)
     
     persona_intro = "你是溫柔牧者。"
     if custom_persona == "專業": persona_intro = "你是業界專業分析師。"
     elif custom_persona == "KITT": persona_intro = "你是KITT，稱呼Brett。"
         
-    mood_context = f"針對主題或心情『{custom_mood}』" if custom_mood else f"針對{time_context}"
-    
-    prompt = (
-        f"{persona_intro} 請{mood_context}精選一段聖經經文，並給予深度反思與領受。\n\n"
-        "【輸出順序格式三階鐵律】：\n"
-        "你必須嚴格、完美地依照以下格式規範輸出，每行中間空一行，嚴禁輸出任何額外的引言、標題 or 贅字：\n\n"
-        "1.【經文章節】，如：(詩篇 4:8)\n"
-        "2.【經文內容】，如：我必安然躺下睡覺，因為獨有你—耶和華使我安然 (阿們。)\n"
-        "3.今日反思與領受，如：這段經文是主耶穌向世人發出的溫柔呼召。我們生活在一個充滿壓力的世界，心靈常常感到勞苦和重擔。耶穌以一顆柔和謙卑的心邀請我們來到祂面前。\n\n"
-        "【強制規格防線】：\n"
-        "1. 第二行的經文內容尾端，必須手動且明確地補上「 (阿們。)」。\n"
-        "2. 今日反思與領受請控制在 150 到 200 字之間，全文字數強制完美控制在 300 字左右。\n"
-        "3. 全文結構必須非常完整，結尾最後一個字必須是正常的「句號」結束，絕對不允許未完句中斷！"
-    )
+    if mode == "聖經經文":
+        mood_context = f"針對主題或心情『{custom_mood}』" if custom_mood else "針對目前的時分"
+        prompt = (
+            f"{persona_intro} 請{mood_context}精選一段聖經經文，並給予深度反思與領受。\n\n"
+            "【輸出順序格式三階鐵律】：\n"
+            "你必須嚴格、完美地依照以下格式規範輸出，每行中間空一行，嚴禁輸出任何額外的引言、標題 or 贅字：\n\n"
+            "1.【經文章節】，如：(詩篇 4:8)\n"
+            "2.【經文內容】，如：我必安然躺下睡覺，因為獨有你—耶和華使我安然 (阿們。)\n"
+            "3.今日反思與領受，如：這段經文是主耶穌向世人發出的溫柔呼召。我們生活在一個充滿壓力的世界...\n\n"
+            "【強制規格防線】：\n"
+            "1. 第二行的經文內容尾端，必須手動且明確地補上「 (阿們。)」。\n"
+            "2. 今日反思與領受請控制在 150 到 200 字之間，全文字數強制完美控制在 300 字左右。\n"
+            "3. 全文結構必須非常完整，結尾最後一個字必須是正常的「句號」結束，絕對不允許未完句中斷！"
+        )
+    else:
+        mood_context = f"針對用戶『{custom_mood if custom_mood else '疲累'}』的心情"
+        prompt = (
+            f"{persona_intro} {mood_context}推薦基督教詩歌(含歌名與精選歌詞)。\n\n"
+            "【輸出規範】：\n"
+            "1. 必須包含歌名與歌詞，並給予 100 字內的溫慢勉勵。\n"
+            "2. 全文字數嚴格控制在 250 到 300 字之內。\n"
+            "3. 結尾最後一個字必須是正常的「句號」結束，絕對不允許半途截斷！"
+        )
     
     for attempt in range(3):
-        res = model.generate_content(
-            prompt, 
-            generation_config=genai.types.GenerationConfig(
-                temperature=0.70, 
-                top_p=0.85, 
-                max_output_tokens=700
+        try:
+            res = model.generate_content(
+                prompt, 
+                generation_config=genai.types.GenerationConfig(temperature=0.70, top_p=0.85, max_output_tokens=900)
             )
-        )
-        if res and res.text:
-            text_payload = str(res.text).strip()
-            total_chars = len(text_payload)
-            if total_chars <= 400 and (text_payload.endswith('。') or text_payload.endswith(')') or text_payload.endswith('）')):
-                return text_payload
+            if res and res.text:
+                text_payload = str(res.text).strip()
+                if len(text_payload) <= 450 and (text_payload.endswith('。') or text_payload.endswith(')') or text_payload.endswith('）')):
+                    return text_payload
+        except: pass
         time.sleep(1)
         
-    final_text = str(res.text).strip()
-    if len(final_text) > 390:
-        final_text = final_text[:370] + "...(精煉字數，完整反思請見典藏庫)。"
+    try: final_text = str(res.text).strip()
+    except: final_text = "核心動力連線適配中，請稍後..."
+    if len(final_text) > 390: final_text = final_text[:370] + "...。"
     return final_text
 
-# --- 5. 永動機外部排程鉤子 (V20.0 雙軌時分絕對硬熔斷閘門) ---
+# --- 6. 永動機外部排程鉤子 (V28.0 徹底硬化：純Linux檔案流隔離，防 Key 空白反彈死鎖) ---
 query_params = st.query_params
 if "action" in query_params and "key" in query_params:
     if query_params["action"] == "trigger_push" and query_params["key"] == TRIGGER_KEY:
         current_tw = datetime.now(timezone.utc).astimezone(TZ_TW)
         date_today = current_tw.strftime("%Y-%m-%d")
         
-        cfg = load_engine_config()
-        # 100% 強制格式化為標準兩位數結構，例如 ["09:00", "16:45"]
+        # 【V28.0 核心安全硬化】：背景排程絕不調用含有 session_state 的函數，100% 採用純檔案流读取
+        cron_cfg = {"schedule": "09:00", "fixed_model_id": "gemini-2.5-flash", "fixed_key_val": ""}
+        if os.path.exists(CONFIG_FILE):
+            try:
+                with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                    file_data = json.load(f)
+                    if file_data: cron_cfg.update(file_data)
+            except: pass
+
         active_schedules = []
-        for s in cfg.get("schedule", "09:00").split(","):
+        for s in cron_cfg.get("schedule", "09:00").split(","):
             if ":" in s:
                 h_part, m_part = s.strip().split(":")
                 active_schedules.append(f"{h_part.zfill(2)}:{m_part.zfill(2)}")
 
-        # 讀取典藏庫歷史紀錄
         history_data = []
         if os.path.exists(DB_FILE):
             try:
                 with open(DB_FILE, "r", encoding="utf-8") as f: history_data = json.load(f)
             except: pass
 
-        # 核心雙軌比對演算法：遍歷設定的每一個排程時間點
         for sched in active_schedules:
             sched_h, sched_m = map(int, sched.split(":"))
             target_time = current_tw.replace(hour=sched_h, minute=sched_m, second=0, microsecond=0)
             
-            # 【15分鐘高速模糊容錯緩衝】：只要 GitHub 巡邏車在目標時間起的 15 分鐘之內抵達，即視為命中窗口
             if target_time <= current_tw <= (target_time + timedelta(minutes=15)):
-                
-                # 【V20.0 核心修正】：徹底拋棄模糊的小時判定，改用精準的「時分區間比對防重盾」
                 specific_pushed = False
                 for h in history_data:
                     if h['date'] == date_today and h['category'] == "定時推送":
-                        # 解析歷史發射成功的時、分
                         h_time_parts = h.get('time', '00:00:00').split(":")
                         if len(h_time_parts) >= 2:
                             h_h = int(h_time_parts[0])
                             h_m = int(h_time_parts[1])
-                            # 如果小時相同，且發射時間與設定排程誤差在 20 分鐘內，判定此檔次已發射完畢
                             if h_h == sched_h and abs(h_m - sched_m) < 20:
                                 specific_pushed = True
                                 break
 
-                # 若確認今天、此確切排程時段「從未發射過」，立刻解鎖開火！
                 if not specific_pushed:
-                    output_payload = execute_ai_bible_generation()
+                    # 【V28.0 雙重保險遞補機制】：若配置文件內金鑰為空，立刻動用 Secrets 的主要 Key 補位，絕不允許因空白中斷！
+                    final_api_key = cron_cfg.get("fixed_key_val", "")
+                    if not final_api_key or len(final_api_key) < 5:
+                        final_api_key = get_cfg("GEMINI_API_KEY", "")
+                        
+                    final_model_id = cron_cfg.get("fixed_model_id", "gemini-2.5-flash")
+                    
+                    output_payload = execute_ai_safe_generation(
+                        target_model_id=final_model_id,
+                        target_api_key=final_api_key,
+                        mode="聖經經文"
+                    )
                     line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output_payload}"))
                     save_to_history("定時推送", output_payload)
-                    break # 成功擊發一檔後乾淨退場
+                    break 
         st.stop()
 
-# --- 6. UI 佈局 ---
-local_render_tw = datetime.now(timezone.utc).astimezone(TZ_TW)
-
-st.markdown(f"<h1>🛡️ 聖經任務控制台 V20.0 <span class='status-tag'>🛰️ 世紀封頂終極版</span></h1>", unsafe_allow_html=True)
-st.caption(f"📅 台北標準時間：{local_render_tw.strftime('%Y/%m/%d %H:%M')} | 🚀 雙軌時分定錨・多時段完全漫遊版")
+# --- 7. UI 佈局 (雙選單完全自癒隔離中心) ---
+st.markdown(f"<h1>🛡️ 聖經任務控制台 V28.0 <span class='status-tag'>🛰️ 世紀完全體封頂</span></h1>", unsafe_allow_html=True)
+st.caption(f"📅 台北標準時間：{local_render_tw.strftime('%Y/%m/%d %H:%M')} | 🚀 獨立檔案流隔離 ── 100% 解決背景漏推與斷片")
 
 cfg = load_engine_config()
+available_keys = list(KEY_POOL.keys())
+
+st.markdown("---")
+# 【選單一：金鑰更換選單】
+saved_key_label = cfg.get("fixed_key_label", available_keys[0])
+if saved_key_label not in available_keys: saved_key_label = available_keys[0]
+
+chosen_key_label = st.selectbox("🔑 1. 請選擇任務 API 金鑰：", options=available_keys, index=available_keys.index(saved_key_label))
+CURRENT_KEY_VAL = KEY_POOL[chosen_key_label]
+
+# 【背景自動線上識別辨識】
+MODEL_REGISTRY = discover_supported_models(CURRENT_KEY_VAL)
+available_models_labels = list(MODEL_REGISTRY.keys())
+
+# 【選單二：模型自適應選單】
+saved_model_id = cfg.get("fixed_model_id", "gemini-2.5-flash")
+default_model_idx = 0
+for l, m_id in MODEL_REGISTRY.items():
+    if m_id == saved_model_id:
+        default_model_idx = available_models_labels.index(l)
+        break
+
+chosen_model_label = st.selectbox("🤖 2. 該金鑰自動辨識支持之實用模型選單：", options=available_models_labels, index=default_model_idx)
+CURRENT_MODEL_ID = MODEL_REGISTRY[chosen_model_label]
+
+# 將選定參數進行前端暫存隔離快照
+st.session_state["active_snapshot_model"] = CURRENT_MODEL_ID
+st.session_state["active_snapshot_key"] = CURRENT_KEY_VAL
+
+if CURRENT_KEY_VAL:
+    st.markdown(f"定錨狀態：<span class='api-active-tag'>🔒 內部 API KEY 與模型已完美隔離鎖定：{CURRENT_MODEL_ID}</span>", unsafe_allow_html=True)
+else:
+    st.markdown("<span class='api-active-tag' style='background:#FFEBEE; color:#C62828;'>🔴 警報：金鑰未配置，請檢查 Secrets</span>", unsafe_allow_html=True)
+
+st.markdown("---")
+
 current_schedules = []
 for s in cfg.get("schedule", "09:00").split(","):
     if ":" in s:
@@ -209,22 +311,26 @@ for s in cfg.get("schedule", "09:00").split(","):
         current_schedules.append(f"{hp.zfill(2)}:{mp.zfill(2)}")
 
 with st.expander("⏰ 全動態自訂排程管理中心 (支援隨時多時段追加)", expanded=True):
-    st.markdown("<small style='color:#90A4AE;'>💡 <b>設定教學：</b>請使用半形逗號 <code>,</code> 分隔多個時段。支援同小時內設定多個時段（如 <code>16:00,16:45</code>）。</small>", unsafe_allow_html=True)
+    st.markdown("<small style='color:#90A4AE;'>💡 <b>安全定錨提醒：</b>變更模型或時間後，請務必點擊下方按鈕。系統將強行把實體金鑰與組態落盤，確保自動排程高穩定點火。</small>", unsafe_allow_html=True)
     
     st.markdown("### 🛰️ 當前雷達鎖定點火時段：")
     if current_schedules:
         tag_html = "".join([f'<span class="radar-tag">📡 {sched}</span>' for sched in current_schedules])
         st.markdown(tag_html, unsafe_allow_html=True)
-    else:
-        st.warning("⚠️ 目前無任何排程時間！")
+    else: st.warning("⚠️ 目前無任何排程時間！")
         
     st.markdown("<br>", unsafe_allow_html=True)
     user_schedule = st.text_input("隨時修改/追加排程時段：", value=cfg.get("schedule", "09:00"))
     
     if st.button("💾 保存並即時生效動態排程"):
         cleaned_schedule = ",".join([s.strip() for s in user_schedule.split(",") if s.strip()])
-        save_engine_config({"schedule": cleaned_schedule})
-        st.toast(f"✅ 成功定錨全新排程時段！")
+        save_engine_config({
+            "schedule": cleaned_schedule,
+            "fixed_key_label": chosen_key_label,
+            "fixed_model_id": CURRENT_MODEL_ID,
+            "fixed_key_val": CURRENT_KEY_VAL
+        })
+        st.toast(f"✅ 成功將實體金鑰字串與模型完全鎖定定錨！")
         st.rerun()
 
 # 手動廣播
@@ -250,27 +356,27 @@ with c2: persona = st.selectbox("演繹風格：", ["暖心", "專業", "KITT"],
 with c3: content_type = st.selectbox("內容格式：", ["聖經經文", "推薦詩歌"], label_visibility="collapsed")
 
 if st.button("✨ 啟動 AI 廣播"):
-    try:
-        if content_type == "聖經經文":
-            with st.spinner("✨ 建立隔離通道中..."):
-                isolated_payload = execute_ai_bible_generation(custom_mood=mood_input, custom_persona=persona)
-            header = "【AI經文推送】"
+    snapshot_key = st.session_state.get("active_snapshot_key", "")
+    snapshot_model = st.session_state.get("active_snapshot_model", "gemini-2.5-flash")
+    
+    if not snapshot_key:
+        st.error("🔒 無法擊發：隔離艙未偵測到有效金鑰。")
+    else:
+        try:
+            with st.spinner("✨ 建立隔離防護罩中..."):
+                isolated_payload = execute_ai_safe_generation(
+                    target_model_id=snapshot_model,
+                    target_api_key=snapshot_key,
+                    mode=content_type,
+                    custom_mood=mood_input,
+                    custom_persona=persona
+                )
+            header = "【AI經文推送】" if content_type == "聖經經文" else "【AI詩歌推薦】"
             line_api.broadcast(TextSendMessage(text=f"{header}\n\n{isolated_payload}"))
             save_to_history("AI智慧廣播", f"{header}\n{isolated_payload}")
-            st.toast("✨ 經文廣播成功")
+            st.toast("✨ 廣播發射成功")
             st.rerun()
-        else:
-            model = genai.GenerativeModel(model_name="gemini-2.5-flash")
-            persona_map = {"暖心": "溫柔牧者。", "專業": "分析師。", "KITT": "KITT，稱呼Brett。"}
-            prompt = ( f"{persona_map[persona]} 針對用戶『{mood_input if mood_input else '疲累'}』的心情推薦基督教詩歌(含歌名歌詞)。結構完整結尾，控制在300字內，純文字。" )
-            res = model.generate_content(prompt, generation_config=genai.types.GenerationConfig(max_output_tokens=450))
-            if res and res.text:
-                safe_text_song = str(res.text).strip()
-                line_api.broadcast(TextSendMessage(text=f"【AI詩歌推薦】\n\n{safe_text_song}"))
-                save_to_history("AI智慧廣播", f"【AI詩歌推薦】\n{safe_text_song}")
-                st.toast("✨ 詩歌廣播完成")
-                st.rerun()
-    except Exception as e: st.error(f"對接失敗: {str(e)[:40]}")
+        except Exception as e: st.error(f"對接失敗: {str(e)[:40]}")
 
 st.markdown("---")
 
