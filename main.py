@@ -7,8 +7,11 @@ import threading
 import json
 import os
 
-# --- 1. 頁面配置 (旗艦一頁式極簡美學 ── V41.2 強裝標題絕對不折行盔甲) ---
-st.set_page_config(page_title="聖經控制台 V41.2", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
+# --- 0. 系統版本宣告 (主程式與後台核心定錨) ---
+SYSTEM_VERSION = "V41.2.3"
+
+# --- 1. 頁面配置 (旗艦一頁式極簡美學 ── 強裝標題絕對不折行盔甲) ---
+st.set_page_config(page_title=f"聖經控制台 {SYSTEM_VERSION}", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
@@ -308,9 +311,9 @@ if "action" in query_params and "key" in query_params:
         st.write("CRON_PROCESSED")
         st.stop()
 
-# --- 7. UI 佈局 (行動端不折行盔甲 + 印刷級PDF矩陣鎖定版) ---
-st.markdown(f"<h1>🛡️ 聖經任務控制台 V41.2 <span class='status-tag'>🛰️ 聯邦制導</span><span class='status-tag' style='background:#1565C0; color:white;'>世紀封頂完全體</span></h1>", unsafe_allow_html=True)
-st.caption(f"📅 台北標準時間：{local_render_tw.strftime('%Y/%m/%d %H:%M')} | 🚀 行動端標題與勳章絕對對齊版")
+# --- 7. UI 佈局 (動態標籤版本與首頁空白全修復) ---
+st.markdown(f"<h1>🛡️ 聖經任務控制台 {SYSTEM_VERSION} <span class='status-tag'>🛰️ 聯邦制導</span><span class='status-tag' style='background:#1565C0; color:white;'>世紀封頂完全體</span></h1>", unsafe_allow_html=True)
+st.caption(f"📅 台北標準時間：{local_render_tw.strftime('%Y/%m/%d %H:%M')} | 🚀 行動端標題與勳章絕對對齊版 [核心定錨版本: {SYSTEM_VERSION}]")
 
 cfg = load_engine_config()
 confirmed_schedules = cfg.get("schedule", "09:00")
@@ -463,7 +466,7 @@ if st.button("✨ 啟動 AI 廣播"):
 
 st.markdown("---")
 
-# --- 歷史經文典藏管理庫 (首頁空白徹底修復版) ---
+# --- 歷史經文典藏管理庫 (A4 溢出與勳章色彩修復版) ---
 st.subheader("📚 歷史經文典藏管理庫")
 history_data = []
 if os.path.exists(DB_FILE):
@@ -472,7 +475,7 @@ if os.path.exists(DB_FILE):
     except: pass
 
 if history_data:
-    # --- V41.2.2 緊湊型無縫 A4 印刷級排版盾 ---
+    # --- V41.2.3 緊湊型無縫 A4 印刷級排版盾 ---
     html_report_content = """
     <html>
     <head>
@@ -511,9 +514,7 @@ if history_data:
         else:
             std_cat = "手動全員廣播"; css_class = "card-manual"; badge_class = "badge-manual"
             
-        # 核心修復點：將全域首字替換為加粗標籤，完全移除造成首頁向下擠壓的頭部 <br>
         formatted_content = h['content'].replace('【', '<b>【').replace('】', '】</b><br>').strip()
-        # 清洗連續換行漏洞，避免撐破 A4 邊界
         formatted_content = formatted_content.replace('<br><br>', '<br>')
             
         html_report_content += f"""
@@ -538,6 +539,7 @@ if history_data:
     filter_type = st.selectbox("🔍 按推送類型過濾顯示：", ["全部", "排程推送", "手動全員廣播", "手動精準推送", "AI智慧廣播"])
     for item in history_data:
         raw_cat = item['category']
+        # 核心修復點：完美修復過濾列表中的 tag_class 渲染判定錯誤，讓 AI 廣播卡片重現藍色勳章
         if "定時" in raw_cat or "排程" in raw_cat: std_cat = "排程推送"; tag_class = "type-tag-auto"
         elif "AI" in raw_cat or "智慧" in raw_cat: std_cat = "AI智慧廣播"; tag_class = "type-tag-ai"
         elif "精準" in raw_cat or "Multicast" in raw_cat: std_cat = "手動精準推送"; tag_class = "type-tag-multicast"
