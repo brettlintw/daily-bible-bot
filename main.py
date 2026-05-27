@@ -8,7 +8,7 @@ import json
 import os
 
 # --- 1. 頁面配置 (旗艦一頁式極簡美學) ---
-st.set_page_config(page_title="聖經控制台 V40.0", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="聖經控制台 V40.1", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
@@ -33,7 +33,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. 核心時區與全域時間常量配置 (時區全對齊 ── 解決台灣/機房/Uptime時差盲區) ---
+# --- 2. 核心時區與全域時間常量配置 ---
 TZ_TW = timezone(timedelta(hours=8))
 local_render_tw = datetime.now(timezone.utc).astimezone(TZ_TW)
 
@@ -52,7 +52,7 @@ DB_FILE = "bible_history.json"
 CONFIG_FILE = "engine_config.json"
 RADAR_TRACK_FILE = "radar_user_track.json"
 
-# --- 3. 金鑰與模型動態探測中樞 (100% 滿足指標 7 ── 自動判定與顯示資費模型) ---
+# --- 3. 金鑰與模型動態探測中樞 ---
 def scan_secret_keys():
     key_names = ["GEMINI_API_KEY", "GEMINI_API_KEY_2", "GEMINI_API_KEY_3", "GEMINI_API_KEY_4", "GEMINI_API_KEY_5"]
     pool = {}
@@ -162,7 +162,7 @@ def save_to_history(category, content):
                 json.dump(data, f, ensure_ascii=False, indent=4)
         except: pass
 
-# --- 5. 終極生成核心 (1500 Token 寬頻與 500中文字省略熔斷盾 ── 滿足指標 2, 3, 4) ---
+# --- 5. 終極生成核心 ---
 def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經文", custom_mood=None, custom_persona="暖心"):
     if not target_api_key:
         return "錯誤：當前配置之 API KEY 燃料短缺，發射中止。"
@@ -170,7 +170,6 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
     genai.configure(api_key=target_api_key)
     model = genai.GenerativeModel(model_name=target_model_id)
     
-    # 智慧風格口吻演繹 (100% 滿足指標 6 ── 暖心/專業/KITT 不變)
     persona_intro = "你是溫柔牧者。"
     if custom_persona == "專業": persona_intro = "你是具備20年資歷的業界資深 AI 策略分析師，請用高度冷靜、專業、精準、條理分明的口吻演繹。"
     elif custom_persona == "KITT": persona_intro = "你是 K.I.T.T.，請用《霹靂車》影集那般充滿人性智慧、冷靜、理性，且帶有一點冷幽默感的口吻演繹，並稱呼使用者為 Brett。"
@@ -180,7 +179,7 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
         prompt = (
             f"{persona_intro}\n"
             f"請{mood_context}精選一段聖經經文，並給予深度反思與領受。\n\n"
-            "【輸出順序格式三階鐵律】(100% 滿足指標 4)：\n"
+            "【輸出順序格式三階鐵律】:\n"
             "你必須嚴格、完美地依照以下格式規範輸出，每行中間空一行，嚴禁輸出任何額外的引言、前言、結語標題 or 贅字：\n\n"
             "【經文內容】\n"
             "（在此寫下完整的經文字句，並在句子末端手動且明確地加上「 (阿們。)」。）\n\n"
@@ -188,7 +187,7 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
             "（在此工整寫出章節，例如：(詩篇 4:8)）\n\n"
             "【領受與感悟】\n"
             "（在此寫下深度的領受與反思內容。）\n\n"
-            "【強制規格字數防線】(100% 滿足指標 2 & 3)：\n"
+            "【強制規格字數防線】:\n"
             "1. 全文字數請嚴格、精準地控制在 500 個中文字之內！不得過多，這是最核心的指標。\n"
             "2. 全文結構必須非常完整，結尾最後一個字必須是正常的「句號」結束，絕對不允許未完句中斷！"
         )
@@ -196,7 +195,7 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
         mood_context = f"針對用戶『{custom_mood if custom_mood else '疲累'}』的心情"
         prompt = (
             f"{persona_intro}\n"
-            f"{mood_context}推薦基督教詩歌(含歌名與精選歌詞)。\n\n"
+            f"{mood_context}推薦基督教詩歌(含歌名與精選歌詞).\n\n"
             "【輸出規範】:\n"
             "1. 必須包含歌名與歌詞，並給予深度的溫暖勉勵與感悟。\n"
             "2. 全文字數嚴格控制在 500 個中文字之內。\n"
@@ -220,13 +219,12 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
     try: final_text = str(res.text).strip()
     except: return "核心動力連線適配中，請稍後..."
         
-    # 【500字自癒省略防線 ── 滿足指標 2 & 3】：若大模型失控溢出，在 494 字處強制切斷並焊接 ”(省略)” 完句結束，絕不斷片
     if len(final_text) > 500:
         final_text = final_text[:494] + " (省略)"
         
     return final_text
 
-# --- 6. 永動機外部排程與 Webhook 雙軌中樞 (100% 準時排程 ── 滿足指標 1) ---
+# --- 6. 永動機外部排程與 Webhook 雙軌中樞 ---
 query_params = st.query_params
 
 if "incoming_uid" in query_params:
@@ -241,7 +239,6 @@ if "incoming_uid" in query_params:
     st.write("OK")
     st.stop()
 
-# 外部排程點火中樞 (【V40.0 強化】：Headless 背景獨立生存線路，徹底消滅無 Session 時的落盤崩潰)
 if "action" in query_params and "key" in query_params:
     if query_params["action"] == "trigger_push" and query_params["key"] == TRIGGER_KEY:
         current_tw = datetime.now(timezone.utc).astimezone(TZ_TW)
@@ -271,8 +268,8 @@ if "action" in query_params and "key" in query_params:
             sched_h, sched_m = map(int, sched.split(":"))
             target_time = current_tw.replace(hour=sched_h, minute=sched_m, second=0, microsecond=0)
             
-            # 20分鐘防禦點火窗口
-            if target_time <= current_tw <= (target_time + timedelta(minutes=20)):
+            # 【核心修復點】：將打錯的 Glen 物理剔除，修正回正確的 Python 'and' 運算子
+            if target_time <= current_tw and current_tw <= (target_time + timedelta(minutes=20)):
                 specific_pushed = False
                 for h in history_data:
                     if h['date'] == date_today and h['category'] == "排程推送":
@@ -280,7 +277,7 @@ if "action" in query_params and "key" in query_params:
                         if len(h_time_parts) >= 2:
                             h_h = int(h_time_parts[0])
                             h_m = int(h_time_parts[1])
-                            if h_h == sched_h Glen abs(h_m - sched_m) < 25:
+                            if h_h == sched_h and abs(h_m - sched_m) < 25:
                                 specific_pushed = True
                                 break
 
@@ -298,7 +295,6 @@ if "action" in query_params and "key" in query_params:
                     
                     try:
                         line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output_payload}"))
-                        # 背景 Headless 模式安全儲存
                         save_to_history("排程推送", output_payload)
                     except: pass
                     break 
@@ -306,8 +302,8 @@ if "action" in query_params and "key" in query_params:
         st.stop()
 
 # --- 7. UI 佈局 ---
-st.markdown(f"<h1>🛡️ 聖經任務控制台 V40.0 <span class='status-tag'>🛰️ 聯邦制導世紀封頂完全體</span></h1>", unsafe_allow_html=True)
-st.caption(f"📅 台北標準時間：{local_render_tw.strftime('%Y/%m/%d %H:%M')} | 🚀 500字硬熔斷・四維歷史稽核 PDF 盾")
+st.markdown(f"<h1>🛡️ 聖經任務控制台 V40.1 <span class='status-tag'>🛰️ 聯邦制導世紀封頂完全體</span></h1>", unsafe_allow_html=True)
+st.caption(f"📅 台北標準時間：{local_render_tw.strftime('%Y/%m/%d %H:%M')} | 🚀 500字硬熔斷・物理剔除語法異常")
 
 if os.path.exists(RADAR_TRACK_FILE):
     try:
@@ -371,7 +367,7 @@ if st.button("💾 保存並即時生效動態排程"):
     st.toast(f"✅ 成功將實體金鑰與資費模型完全鎖定定錨！")
     st.rerun()
 
-# --- 手動精準推送中樞 (三維動態切換鈕外部解耦 ── 100% 滿足指標 8) ---
+# --- 手動精準推送中樞 ---
 st.markdown("---")
 st.subheader("✍️ 手動精準推送中樞")
 
@@ -401,7 +397,6 @@ with st.form("manual_制導form_v40", clear_on_submit=False):
                     save_to_history("手動全員廣播", custom_text)
                     st.toast("📢 已成功執行全員廣播發射")
                 else:
-                    # 【SDK 軍規去重清洗矩陣】：全面自動洗淨空白、空值與重複 ID，防禦 400 Bad Request
                     raw_list = target_uids.split(",")
                     id_list = []
                     for uid in raw_list:
@@ -453,7 +448,7 @@ if st.button("✨ 啟動 AI 廣播"):
 
 st.markdown("---")
 
-# 歷史經文典藏管理庫 (100% 滿足指標 5 ── 四維 HTML-to-PDF 稽核矩陣，完整記錄日期與所有類型標籤)
+# 歷史經文典藏管理庫
 st.subheader("📚 歷史經文典藏管理庫")
 history_data = []
 if os.path.exists(DB_FILE):
@@ -513,7 +508,7 @@ if history_data:
     col_dl1, col_dl2 = st.columns([1, 1])
     with col_dl1:
         download_lines = [f"========================================\n日期時間: {h['date']} {h['time']}\n分類標籤: {h['category']}\n----------------------------------------\n{h['content']}\n========================================\n\n" for h in history_data]
-        st.download_button(label="📥 下載完整歷史經文到本地電腦 (.txt)", data="".join(download_lines), file_name=f"bible_history_{datetime.now(timezone.utc).astimezone(TZ_TW).strftime('%Y%m%d')}.txt", mime="text/plain")
+        st.download_button(label="📥 下載完整歷史經文到本地电脑 (.txt)", data="".join(download_lines), file_name=f"bible_history_{datetime.now(timezone.utc).astimezone(TZ_TW).strftime('%Y%m%d')}.txt", mime="text/plain")
     with col_dl2:
         st.download_button(label="🖨️ 匯出並列印工整中文 PDF 報告 (含日期類型標籤)", data=html_report_content, file_name=f"bible_audit_report_{datetime.now(timezone.utc).astimezone(TZ_TW).strftime('%Y%m%d')}.html", mime="text/html")
 
