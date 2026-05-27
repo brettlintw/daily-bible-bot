@@ -8,7 +8,7 @@ import json
 import os
 
 # --- 1. 頁面配置 (旗艦一頁式極簡美學) ---
-st.set_page_config(page_title="聖經控制台 V36.0", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="聖經控制台 V37.0", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
@@ -49,7 +49,7 @@ line_api = LineBotApi(LINE_TOKEN)
 
 DB_FILE = "bible_history.json"
 CONFIG_FILE = "engine_config.json"
-RADAR_TRACK_FILE = "radar_user_track.json" # V36.0 自主側錄追蹤晶片
+RADAR_TRACK_FILE = "radar_user_track.json"
 
 # --- 3. 金鑰與模型動態探測中樞 ---
 def scan_secret_keys():
@@ -165,7 +165,7 @@ def save_to_history(category, content):
                 json.dump(data, f, ensure_ascii=False, indent=4)
         except: pass
 
-# --- 5. 終極生成核心 (V36.0：維持 1500 Token 寬頻與 500字省略硬熔斷盾) ---
+# --- 5. 終極生成核心 ---
 def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經文", custom_mood=None, custom_persona="暖心"):
     if not target_api_key:
         return "錯誤：當前配置之 API KEY 燃料短缺，發射中止。"
@@ -227,10 +227,9 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
         
     return final_text
 
-# --- 6. 永動機外部排程與 Webhook 雙軌鉤子 (V36.0：新增原生自主側錄對齊機制) ---
+# --- 6. 永動機外部排程與 Webhook 雙軌鉤子 ---
 query_params = st.query_params
 
-# A. 當 LINE 官方帳號有用戶傳入訊息時，用來捕獲並在網頁顯示 Brett 本人 ID
 if "incoming_uid" in query_params:
     try:
         radar_data = {
@@ -243,7 +242,6 @@ if "incoming_uid" in query_params:
     st.write("OK")
     st.stop()
 
-# B. 外部定時排程點火中樞
 if "action" in query_params and "key" in query_params:
     if query_params["action"] == "trigger_push" and query_params["key"] == TRIGGER_KEY:
         current_tw = datetime.now(timezone.utc).astimezone(TZ_TW)
@@ -302,10 +300,9 @@ if "action" in query_params and "key" in query_params:
         st.stop()
 
 # --- 7. UI 佈局 ---
-st.markdown(f"<h1>🛡️ 聖經任務控制台 V36.0 <span class='status-tag'>🛰️ 聯邦全自主制導完全體</span></h1>", unsafe_allow_html=True)
-st.caption(f"📅 台北標準時間：{local_render_tw.strftime('%Y/%m/%d %H:%M')} | 🚀 內建自主側錄雷達牆 ── 1秒抓取本人 ID")
+st.markdown(f"<h1>🛡️ 聖經任務控制台 V37.0 <span class='status-tag'>🛰️ 表單解耦完備體</span></h1>", unsafe_allow_html=True)
+st.caption(f"📅 台北標準時間：{local_render_tw.strftime('%Y/%m/%d %H:%M')} | 🚀 100% 解決多維度推送選單彈出死鎖")
 
-# --- 【V36.0 核心改裝】：Brett 本人 ID 專用自主側錄雷達牆牆面渲染 ---
 if os.path.exists(RADAR_TRACK_FILE):
     try:
         with open(RADAR_TRACK_FILE, "r", encoding="utf-8") as f:
@@ -353,38 +350,38 @@ else:
 
 st.markdown("---")
 
-current_schedules = []
-for s in cfg.get("schedule", "09:00").split(","):
-    if ":" in s:
-        hp, mp = s.strip().split(":")
-        current_schedules.append(f"{hp.zfill(2)}:{mp.zfill(2)}")
+user_schedule = st.text_input("隨時修改/追加排程時段：", value=cfg.get("schedule", "09:00"))
+if st.button("💾 保存並即時生效動態排程"):
+    cleaned_schedule = ",".join([s.strip() for s in user_schedule.split(",") if s.strip()])
+    save_engine_config({
+        "schedule": cleaned_schedule,
+        "fixed_key_label": chosen_key_label,
+        "fixed_model_id": CURRENT_MODEL_ID,
+        "fixed_key_val": CURRENT_KEY_VAL
+    })
+    st.toast(f"✅ 成功將實體金鑰與資費模型完全鎖定定錨！")
+    st.rerun()
 
-with st.expander("⏰ 全動態自訂排程管理中心 (支援隨時多時段追加)", expanded=True):
-    user_schedule = st.text_input("隨時修改/追加排程時段：", value=cfg.get("schedule", "09:00"))
-    if st.button("💾 保存並即時生效動態排程"):
-        cleaned_schedule = ",".join([s.strip() for s in user_schedule.split(",") if s.strip()])
-        save_engine_config({
-            "schedule": cleaned_schedule,
-            "fixed_key_label": chosen_key_label,
-            "fixed_model_id": CURRENT_MODEL_ID,
-            "fixed_key_val": CURRENT_KEY_VAL
-        })
-        st.toast(f"✅ 成功將實體金鑰與資費模型完全鎖定定錨！")
-        st.rerun()
-
-# --- 手動精準推送中樞 ---
+# --- 【V37.0 重大優化】：手動精準推送中樞 (將切換鈕移至 Form 外部，解鎖動態渲染) ---
+st.markdown("---")
 st.subheader("✍️ 手動精準推送中樞")
-with st.form("manual_制導form", clear_on_submit=False):
-    target_mode = st.radio(
-        "🎯 請選擇發射精準維度：", 
-        ["全員廣播 (Broadcast)", "單人/多人精準推送 (Multicast)"], 
-        horizontal=True
-    )
-    
+
+# 1. 移出表單外部，實時捕捉切換動作並立刻刷新 UI 介面
+target_mode = st.radio(
+    "🎯 請選擇發射精準維度：", 
+    ["全員廣播 (Broadcast)", "單人/多人精準推送 (Multicast)"], 
+    horizontal=True,
+    key="制導維度切換器"
+)
+
+# 2. 建立封閉獨立的發射表單
+with st.form("manual_制導form_v37", clear_on_submit=False):
     target_uids = ""
+    # 完美連動：當外部點選精準推送時，此處將 100% 毫無懸念、即時彈出輸入框！
     if target_mode == "單人/多人精準推送 (Multicast)":
         target_uids = st.text_input(
             "🆔 請輸入目標好友之 LINE User ID：", 
+            value="Uf166c741223bc8ee5d82fd1fd9f4df86", # 預設帶上 Brett 指揮官的專屬座標
             placeholder="多個 ID 請用半形逗號隔開，例如: U112233..., U445566..."
         )
         
@@ -479,39 +476,4 @@ if history_data:
     for h in history_data:
         raw_cat = h.get('category', '排程推送')
         if "定時" in raw_cat or "排程" in raw_cat:
-            std_cat = "排程推送"; css_class = "card-auto"; badge_class = "badge-auto"
-        elif "AI" in raw_cat or "智慧" in raw_cat:
-            std_cat = "AI智慧廣播"; css_class = "card-ai"; badge_class = "badge-ai"
-        else:
-            std_cat = "手動全員廣播" if "全員" in raw_cat else "手動精準推送"
-            css_class = "card-manual"; badge_class = "badge-manual"
-            
-        html_report_content += f"""
-        <div class='card {css_class}'>
-            <div class='meta'>📅 推送日期: {h['date']} &nbsp;&nbsp; ⏰ 精準時間: {h['time']} &nbsp;&nbsp; 🏷️ 推送類型: <span class='badge {badge_class}'>{std_cat}</span></div>
-            <pre>{h['content']}</pre>
-        </div>
-        """
-    html_report_content += """
-        <script>window.onload = function() { window.print(); }</script>
-    </body>
-    </html>
-    """
-
-    col_dl1, col_dl2 = st.columns([1, 1])
-    with col_dl1:
-        download_lines = [f"========================================\n日期時間: {h['date']} {h['time']}\n分類標籤: {h['category']}\n----------------------------------------\n{h['content']}\n========================================\n\n" for h in history_data]
-        st.download_button(label="📥 下載完整歷史經文到本地電腦 (.txt)", data="".join(download_lines), file_name=f"bible_history_{datetime.now(timezone.utc).astimezone(TZ_TW).strftime('%Y%m%d')}.txt", mime="text/plain")
-    with col_dl2:
-        st.download_button(label="🖨️ 匯出並列印工整中文 PDF 報告 (含日期類型標籤)", data=html_report_content, file_name=f"bible_audit_report_{datetime.now(timezone.utc).astimezone(TZ_TW).strftime('%Y%m%d')}.html", mime="text/html")
-
-    filter_type = st.selectbox("🔍 按推送類型過濾顯示：", ["全部", "排程推送", "手動廣播/精準推送", "AI智慧廣播"])
-    for item in history_data:
-        raw_cat = item['category']
-        if "定時" in raw_cat or "排程" in raw_cat: std_cat = "排程推送"; tag_class = "type-tag-auto"
-        elif "AI" in raw_cat or "智慧" in raw_cat: std_cat = "AI智慧廣播"; tag_class = "type-tag-ai"
-        else: std_cat = "手動廣播/精準推送"; tag_class = "type-tag-manual"
-        
-        if filter_type != "全部" and std_cat != filter_type: continue
-        st.markdown(f'<div class="history-card"><strong>📅 {item["date"]} &nbsp;&nbsp; ⏰ {item["time"]}</strong> &nbsp;&nbsp; <span class="{tag_class}">{item["category"]}</span><pre style="white-space: pre-wrap; font-family: sans-serif; background: transparent; border: none; padding: 0; margin-top: 8px; color: #B0BEC5; font-size: 0.8rem;">{item["content"]}</pre></div>', unsafe_allow_html=True)
-else: st.info("⚠️ 儲存艙目前尚無歷史保存紀錄。")
+            std_cat = "排程推送"; css_class = "card-auto"; badge_class = "badge
