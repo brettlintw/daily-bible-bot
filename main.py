@@ -473,27 +473,29 @@ if os.path.exists(DB_FILE):
     except: pass
 
 if history_data:
+    # --- V41.2.1 物理級 PDF A4 嚴整咬合排版盾 ---
     html_report_content = """
     <html>
     <head>
         <meta charset='utf-8'>
         <title>每日聖經經文歷史典藏稽核報告</title>
         <style>
-            @page { size: A4; margin: 20mm; }
-            body { font-family: 'Microsoft JhengHei', 'Heiti TC', sans-serif; padding: 10px; color: #000; line-height: 1.8; }
-            h2 { text-align: center; color: #1A237E; border-bottom: 2px solid #1A237E; padding-bottom: 10px; margin-bottom: 30px; }
-            .card { background: #ffffff; padding: 20px; border: 1px solid #ddd; border-left: 6px solid #1A237E; border-radius: 4px; margin-bottom: 25px; page-break-inside: avoid; position: relative; }
+            @page { size: A4; margin: 20mm 15mm; }
+            body { font-family: 'Microsoft JhengHei', 'Heiti TC', sans-serif; padding: 0; margin: 0; color: #333333; line-height: 1.6; background: #ffffff; }
+            h2 { text-align: center; color: #1A237E; border-bottom: 2px solid #1A237E; padding-bottom: 12px; margin-top: 10px; margin-bottom: 25px; font-size: 22px; letter-spacing: 1px; }
+            .card { background: #ffffff; padding: 18px; border: 1px solid #e0e0e0; border-left: 6px solid #1A237E; border-radius: 4px; margin-bottom: 20px; box-sizing: border-box; position: relative; page-break-inside: avoid !important; break-inside: avoid !important; }
             .card-auto { border-left-color: #2E7D32; }
             .card-ai { border-left-color: #1565C0; }
             .card-manual { border-left-color: #C62828; }
             .card-multicast { border-left-color: #E65100; }
-            .meta { font-size: 0.85rem; color: #555; margin-bottom: 12px; font-weight: bold; border-bottom: 1px dashed #ddd; padding-bottom: 6px; }
-            .badge { padding: 2px 6px; border-radius: 4px; color: #fff; font-size: 0.75rem; margin-left: 5px; font-weight: bold; }
+            .meta { font-size: 13px; color: #555555; margin-bottom: 12px; font-weight: bold; border-bottom: 1px dashed #e0e0e0; padding-bottom: 8px; }
+            .badge { padding: 3px 8px; border-radius: 4px; color: #ffffff; font-size: 11px; margin-left: 6px; font-weight: bold; display: inline-block; vertical-align: middle; }
             .badge-auto { background: #2E7D32; }
             .badge-ai { background: #1565C0; }
             .badge-manual { background: #C62828; }
             .badge-multicast { background: #E65100; }
-            pre { white-space: pre-wrap; word-wrap: break-word; font-family: 'Microsoft JhengHei', sans-serif; font-size: 0.95rem; margin: 0; color: #222; }
+            .content-box { white-space: pre-wrap; word-wrap: break-word; font-family: 'Microsoft JhengHei', sans-serif; font-size: 14px; margin: 0; color: #222222; line-height: 1.7; text-align: justify; }
+            b { color: #1A237E; font-size: 14.5px; }
         </style>
     </head>
     <body>
@@ -510,10 +512,14 @@ if history_data:
         else:
             std_cat = "手動全員廣播"; css_class = "card-manual"; badge_class = "badge-manual"
             
+        formatted_content = h['content'].replace('【', '<br><b>【').replace('】', '】</b><br>').strip()
+        if formatted_content.startswith('<br>'):
+            formatted_content = formatted_content[4:]
+            
         html_report_content += f"""
         <div class='card {css_class}'>
-            <div class='meta'>📅 推送日期: {h['date']} &nbsp;&nbsp; ⏰ 精準時間: {h['time']} &nbsp;&nbsp; 🏷️ 推送類型: <span class='badge {badge_class}'>{std_cat}</span></div>
-            <pre>{h['content'].replace('【', '<b>【').replace('】', '】</b>')}</pre>
+            <div class='meta'>📅 推送日期: {h['date']} &nbsp;&nbsp;&nbsp;&nbsp; ⏰ 精準時間: {h['time']} &nbsp;&nbsp;&nbsp;&nbsp; 🏷️ 推送類型: <span class='badge {badge_class}'>{std_cat}</span></div>
+            <div class='content-box'>{formatted_content}</div>
         </div>
         """
     html_report_content += """
