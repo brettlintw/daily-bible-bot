@@ -8,7 +8,7 @@ import json
 import os
 
 # --- 1. 頁面配置 (旗艦一頁式極簡美學) ---
-st.set_page_config(page_title="聖經控制台 V28.0", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="聖經控制台 V28.1", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
@@ -29,8 +29,9 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. 核心時區與常量配置 ---
+# --- 2. 核心時區與全域時間常量配置 (【V28.1 修正】：變數提前定義，徹底解除 NameError) ---
 TZ_TW = timezone(timedelta(hours=8))
+local_render_tw = datetime.now(timezone.utc).astimezone(TZ_TW)
 
 def get_cfg(key, fallback):
     try: return st.secrets.get(key, fallback) or fallback
@@ -91,7 +92,7 @@ def discover_supported_models(target_key):
         discovered_options["🚀 gemini-2.5-flash ── 系統防護保底核心"] = "gemini-2.5-flash"
     return discovered_options
 
-# --- 4. 配置管理 (優化 V28.0：解耦快取與實體硬碟讀寫，杜絕背景 KeyError) ---
+# --- 4. 配置管理 ---
 def load_engine_config():
     if "cached_schedule" in st.session_state and "fixed_key_label" in st.session_state and "fixed_model_id" in st.session_state:
         return {
@@ -101,7 +102,6 @@ def load_engine_config():
             "fixed_key_val": st.session_state.get("fixed_key_val", "")
         }
     
-    # 網頁重載保底：從實體 JSON 恢復
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
@@ -201,14 +201,13 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
     if len(final_text) > 390: final_text = final_text[:370] + "...。"
     return final_text
 
-# --- 6. 永動機外部排程鉤子 (V28.0 徹底硬化：純Linux檔案流隔離，防 Key 空白反彈死鎖) ---
+# --- 6. 永動機外部排程鉤子 ---
 query_params = st.query_params
 if "action" in query_params and "key" in query_params:
     if query_params["action"] == "trigger_push" and query_params["key"] == TRIGGER_KEY:
         current_tw = datetime.now(timezone.utc).astimezone(TZ_TW)
         date_today = current_tw.strftime("%Y-%m-%d")
         
-        # 【V28.0 核心安全硬化】：背景排程絕不調用含有 session_state 的函數，100% 採用純檔案流读取
         cron_cfg = {"schedule": "09:00", "fixed_model_id": "gemini-2.5-flash", "fixed_key_val": ""}
         if os.path.exists(CONFIG_FILE):
             try:
@@ -246,7 +245,6 @@ if "action" in query_params and "key" in query_params:
                                 break
 
                 if not specific_pushed:
-                    # 【V28.0 雙重保險遞補機制】：若配置文件內金鑰為空，立刻動用 Secrets 的主要 Key 補位，絕不允許因空白中斷！
                     final_api_key = cron_cfg.get("fixed_key_val", "")
                     if not final_api_key or len(final_api_key) < 5:
                         final_api_key = get_cfg("GEMINI_API_KEY", "")
@@ -264,7 +262,7 @@ if "action" in query_params and "key" in query_params:
         st.stop()
 
 # --- 7. UI 佈局 (雙選單完全自癒隔離中心) ---
-st.markdown(f"<h1>🛡️ 聖經任務控制台 V28.0 <span class='status-tag'>🛰️ 世紀完全體封頂</span></h1>", unsafe_allow_html=True)
+st.markdown(f"<h1>🛡️ 聖經任務控制台 V28.1 <span class='status-tag'>🛰️ 世紀完全體封頂</span></h1>", unsafe_allow_html=True)
 st.caption(f"📅 台北標準時間：{local_render_tw.strftime('%Y/%m/%d %H:%M')} | 🚀 獨立檔案流隔離 ── 100% 解決背景漏推與斷片")
 
 cfg = load_engine_config()
