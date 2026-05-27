@@ -170,7 +170,7 @@ def save_to_history(category, content):
                 json.dump(data, f, ensure_ascii=False, indent=4)
         except: pass
 
-# --- 5. 終極生成核心 ---
+# --- 5. 終極生成核心 (900字超長外科手術截斷熔斷盾) ---
 def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經文", custom_mood=None, custom_persona="暖心"):
     if not target_api_key:
         return "錯誤：當前配置之 API KEY 燃料短缺，發射中止。"
@@ -196,7 +196,7 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
             "【領受與感悟】\n"
             "（在此寫下深度的領受與反思內容。）\n\n"
             "【強制規格字數防線】:\n"
-            "1. 全文字數請嚴格、精準地控制在 500 個中文字之內！不得過多，這是最核心的指標。\n"
+            "1. 全文字數請嚴格、精準地控制在 900 個中文字之內！不得過多，這是最核心的指標。\n"
             "2. 全文結構必須非常完整，結尾最後一個字必須是正常的「句號」結束，絕對不允許未完句中斷！"
         )
     else:
@@ -205,8 +205,8 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
             f"{persona_intro}\n"
             f"{mood_context}推薦基督教詩歌(含歌名與精選歌詞)。\n\n"
             "【輸出規範】:\n"
-            "1. 必須包含歌名與歌詞，並給予深度的溫暖勉勵與感悟。\n"
-            "2. 全文字數嚴格控制在 500 個中文字之內。\n"
+            "1. 必須包含歌名與歌詞，並給予深度的溫慢勉勵與感悟。\n"
+            "2. 全文字數嚴格控制在 900 個中文字之內。\n"
             "3. 結尾最後一個字必須是正常的「句號」結束，絕對不允許半途截斷！"
         )
     
@@ -214,12 +214,12 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
         try:
             res = model.generate_content(
                 prompt, 
-                generation_config=genai.types.GenerationConfig(temperature=0.72, top_p=0.85, max_output_tokens=1500)
+                generation_config=genai.types.GenerationConfig(temperature=0.72, top_p=0.85, max_output_tokens=2000)
             )
             if res and res.text:
                 text_payload = str(res.text).strip()
                 if text_payload.endswith('。') or text_payload.endswith(')') or text_payload.endswith('）'):
-                    if len(text_payload) <= 500:
+                    if len(text_payload) <= 900:
                         return text_payload
         except: pass
         time.sleep(1)
@@ -227,8 +227,9 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
     try: final_text = str(res.text).strip()
     except: return "核心動力連線適配中，請稍後..."
         
-    if len(final_text) > 500:
-        final_text = final_text[:494] + " (省略)"
+    # 【900字自癒省略防線】：字數超標時，精準在 894 字切斷並強制補齊 ”(省略)” 完句結束，絕不斷片
+    if len(final_text) > 900:
+        final_text = final_text[:894] + " (省略)"
         
     return final_text
 
@@ -308,7 +309,7 @@ if "action" in query_params and "key" in query_params:
         st.write("CRON_PROCESSED")
         st.stop()
 
-# --- 7. UI 佈局 (V41.2：導入標題非斷行彈性包裝 ── 完美消滅紅圈擠壓) ---
+# --- 7. UI 佈局 (行動端不折行盔甲 + 印刷級PDF矩陣鎖定版) ---
 st.markdown(f"<h1>🛡️ 聖經任務控制台 V41.2 <span class='status-tag'>🛰️ 聯邦制導</span><span class='status-tag' style='background:#1565C0; color:white;'>世紀封頂完全體</span></h1>", unsafe_allow_html=True)
 st.caption(f"📅 台北標準時間：{local_render_tw.strftime('%Y/%m/%d %H:%M')} | 🚀 行動端標題與勳章絕對對齊版")
 
@@ -463,7 +464,7 @@ if st.button("✨ 啟動 AI 廣播"):
 
 st.markdown("---")
 
-# 歷史經文典藏管理庫
+# --- 歷史經文典藏管理庫 (精準分頁印刷級 PDF 輸出模組) ---
 st.subheader("📚 歷史經文典藏管理庫")
 history_data = []
 if os.path.exists(DB_FILE):
@@ -478,20 +479,21 @@ if history_data:
         <meta charset='utf-8'>
         <title>每日聖經經文歷史典藏稽核報告</title>
         <style>
-            body { font-family: 'Microsoft JhengHei', 'Heiti TC', sans-serif; padding: 30px; color: #333; line-height: 1.6; }
+            @page { size: A4; margin: 20mm; }
+            body { font-family: 'Microsoft JhengHei', 'Heiti TC', sans-serif; padding: 10px; color: #000; line-height: 1.8; }
             h2 { text-align: center; color: #1A237E; border-bottom: 2px solid #1A237E; padding-bottom: 10px; margin-bottom: 30px; }
-            .card { background: #f9f9f9; padding: 20px; border-radius: 8px; margin-bottom: 20px; page-break-inside: avoid; position: relative; }
-            .card-auto { border-left: 6px solid #2E7D32; }
-            .card-ai { border-left: 6px solid #1565C0; }
-            .card-manual { border-left: 6px solid #C62828; }
-            .card-multicast { border-left: 6px solid #E65100; }
+            .card { background: #ffffff; padding: 20px; border: 1px solid #ddd; border-left: 6px solid #1A237E; border-radius: 4px; margin-bottom: 25px; page-break-inside: avoid; position: relative; }
+            .card-auto { border-left-color: #2E7D32; }
+            .card-ai { border-left-color: #1565C0; }
+            .card-manual { border-left-color: #C62828; }
+            .card-multicast { border-left-color: #E65100; }
             .meta { font-size: 0.85rem; color: #555; margin-bottom: 12px; font-weight: bold; border-bottom: 1px dashed #ddd; padding-bottom: 6px; }
-            .badge { padding: 2px 6px; border-radius: 4px; color: white; font-size: 0.75rem; margin-left: 5px; }
+            .badge { padding: 2px 6px; border-radius: 4px; color: #fff; font-size: 0.75rem; margin-left: 5px; font-weight: bold; }
             .badge-auto { background: #2E7D32; }
             .badge-ai { background: #1565C0; }
             .badge-manual { background: #C62828; }
             .badge-multicast { background: #E65100; }
-            pre { white-space: pre-wrap; font-family: sans-serif; font-size: 0.95rem; margin: 0; color: #222; }
+            pre { white-space: pre-wrap; word-wrap: break-word; font-family: 'Microsoft JhengHei', sans-serif; font-size: 0.95rem; margin: 0; color: #222; }
         </style>
     </head>
     <body>
@@ -511,7 +513,7 @@ if history_data:
         html_report_content += f"""
         <div class='card {css_class}'>
             <div class='meta'>📅 推送日期: {h['date']} &nbsp;&nbsp; ⏰ 精準時間: {h['time']} &nbsp;&nbsp; 🏷️ 推送類型: <span class='badge {badge_class}'>{std_cat}</span></div>
-            <pre>{h['content']}</pre>
+            <pre>{h['content'].replace('【', '<b>【').replace('】', '】</b>')}</pre>
         </div>
         """
     html_report_content += """
@@ -531,7 +533,7 @@ if history_data:
     for item in history_data:
         raw_cat = item['category']
         if "定時" in raw_cat or "排程" in raw_cat: std_cat = "排程推送"; tag_class = "type-tag-auto"
-        elif "AI" in raw_cat or "智慧" in raw_cat: std_cat = "AI智慧廣播"; tag_class = "type-tag-auto"
+        elif "AI" in raw_cat or "智慧" in raw_cat: std_cat = "AI智慧廣播"; tag_class = "type-tag-ai"
         elif "精準" in raw_cat or "Multicast" in raw_cat: std_cat = "手動精準推送"; tag_class = "type-tag-multicast"
         else: std_cat = "手動全員廣播"; tag_class = "type-tag-manual"
         
