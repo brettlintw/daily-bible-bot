@@ -8,7 +8,7 @@ import json
 import os
 
 # --- 1. 頁面配置 (旗艦一頁式極簡美學) ---
-st.set_page_config(page_title="聖經控制台 V34.0", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="聖經控制台 V36.0", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
@@ -27,6 +27,7 @@ st.markdown("""
     .api-active-tag { background: #E0F2F1; color: #004D40; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; }
     .billing-free { color: #FF9100; font-weight: bold; font-family: monospace; }
     .billing-paid { color: #00E676; font-weight: bold; font-family: monospace; }
+    .self-radar-box { background: #3E2723; border: 1px dashed #FF9100; border-radius: 8px; padding: 10px; margin-bottom: 15px; color: #FFD180; font-family: monospace; font-size: 0.85rem; }
     [data-testid="stHeader"], footer, #MainMenu { visibility: hidden; height: 0; }
     </style>
     """, unsafe_allow_html=True)
@@ -48,6 +49,7 @@ line_api = LineBotApi(LINE_TOKEN)
 
 DB_FILE = "bible_history.json"
 CONFIG_FILE = "engine_config.json"
+RADAR_TRACK_FILE = "radar_user_track.json" # V36.0 自主側錄追蹤晶片
 
 # --- 3. 金鑰與模型動態探測中樞 ---
 def scan_secret_keys():
@@ -163,7 +165,7 @@ def save_to_history(category, content):
                 json.dump(data, f, ensure_ascii=False, indent=4)
         except: pass
 
-# --- 5. 終極生成核心 (V34.0：上限字數精準校準為 500 字，超字完美以 "(省略)" 完句焊接) ---
+# --- 5. 終極生成核心 (V36.0：維持 1500 Token 寬頻與 500字省略硬熔斷盾) ---
 def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經文", custom_mood=None, custom_persona="暖心"):
     if not target_api_key:
         return "錯誤：當前配置之 API KEY 燃料短缺，發射中止。"
@@ -203,35 +205,45 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
             "3. 結尾最後一個字必須是正常的「句號」結束，絕對不允許半途截斷！"
         )
     
-    # 核心安全探針主迴路 (Token 頻寬維持 1024 滿載，交由 Python 探針精準控字)
     for attempt in range(3):
         try:
             res = model.generate_content(
                 prompt, 
-                generation_config=genai.types.GenerationConfig(temperature=0.72, top_p=0.85, max_output_tokens=1024)
+                generation_config=genai.types.GenerationConfig(temperature=0.72, top_p=0.85, max_output_tokens=1500)
             )
             if res and res.text:
                 text_payload = str(res.text).strip()
                 if text_payload.endswith('。') or text_payload.endswith(')') or text_payload.endswith('）'):
-                    if len(text_payload) <= 500: # 100% 滿足 500 字硬壁鎖
+                    if len(text_payload) <= 500:
                         return text_payload
         except: pass
         time.sleep(1)
         
-    # --- V34.0 500字邊界智慧型自癒清洗器 ── 「省略」熔斷盾 ---
-    try: 
-        final_text = str(res.text).strip()
-    except: 
-        return "核心動力連線適配中，請稍後..."
+    try: final_text = str(res.text).strip()
+    except: return "核心動力連線適配中，請稍後..."
         
-    # 【100% 滿足更正鐵律】：如果文本因換行或長篇反思衝破 500 中文字，精準切下前 494 個字，並強行以 " (省略)" 工整收尾！
     if len(final_text) > 500:
         final_text = final_text[:494] + " (省略)"
         
     return final_text
 
-# --- 6. 永動機外部排程鉤子 ---
+# --- 6. 永動機外部排程與 Webhook 雙軌鉤子 (V36.0：新增原生自主側錄對齊機制) ---
 query_params = st.query_params
+
+# A. 當 LINE 官方帳號有用戶傳入訊息時，用來捕獲並在網頁顯示 Brett 本人 ID
+if "incoming_uid" in query_params:
+    try:
+        radar_data = {
+            "last_seen_uid": query_params["incoming_uid"],
+            "timestamp": datetime.now(timezone.utc).astimezone(TZ_TW).strftime("%H:%M:%S")
+        }
+        with open(RADAR_TRACK_FILE, "w", encoding="utf-8") as f:
+            json.dump(radar_data, f, ensure_ascii=False, indent=4)
+    except: pass
+    st.write("OK")
+    st.stop()
+
+# B. 外部定時排程點火中樞
 if "action" in query_params and "key" in query_params:
     if query_params["action"] == "trigger_push" and query_params["key"] == TRIGGER_KEY:
         current_tw = datetime.now(timezone.utc).astimezone(TZ_TW)
@@ -277,7 +289,6 @@ if "action" in query_params and "key" in query_params:
                     final_api_key = cron_cfg.get("fixed_key_val", "")
                     if not final_api_key or len(final_api_key) < 5:
                         final_api_key = get_cfg("GEMINI_API_KEY", "")
-                        
                     final_model_id = cron_cfg.get("fixed_model_id", "gemini-2.5-flash")
                     
                     output_payload = execute_ai_safe_generation(
@@ -291,8 +302,24 @@ if "action" in query_params and "key" in query_params:
         st.stop()
 
 # --- 7. UI 佈局 ---
-st.markdown(f"<h1>🛡️ 聖經任務控制台 V34.0 <span class='status-tag'>🛰️ 500字「省略」完全體</span></h1>", unsafe_allow_html=True)
-st.caption(f"📅 台北標準時間：{local_render_tw.strftime('%Y/%m/%d %H:%M')} | 🚀 上限 500 字硬熔斷・資費雙選單動態漫遊版")
+st.markdown(f"<h1>🛡️ 聖經任務控制台 V36.0 <span class='status-tag'>🛰️ 聯邦全自主制導完全體</span></h1>", unsafe_allow_html=True)
+st.caption(f"📅 台北標準時間：{local_render_tw.strftime('%Y/%m/%d %H:%M')} | 🚀 內建自主側錄雷達牆 ── 1秒抓取本人 ID")
+
+# --- 【V36.0 核心改裝】：Brett 本人 ID 專用自主側錄雷達牆牆面渲染 ---
+if os.path.exists(RADAR_TRACK_FILE):
+    try:
+        with open(RADAR_TRACK_FILE, "r", encoding="utf-8") as f:
+            track = json.load(f)
+            if track and "last_seen_uid" in track:
+                st.markdown(f"""
+                <div class="self-radar-box">
+                    📡 <b>[雷達即時偵測]</b> 剛剛在手機 LINE 傳送訊息說話的用戶根座標為：<br>
+                    <code style="color:#00E676; font-size:1rem; font-weight:bold;">{track['last_seen_uid']}</code> 
+                    &nbsp;&nbsp; (<small>偵測時間: {track['timestamp']}</small>)<br>
+                    <span style="color:#90A4AE; font-size:0.75rem;">💡 提示：這串就是您本人的 User ID！請直接複製，拿去下方手動精準推送框鎖定測試！</span>
+                </div>
+                """, unsafe_allow_html=True)
+    except: pass
 
 cfg = load_engine_config()
 available_keys = list(KEY_POOL.keys())
@@ -333,17 +360,7 @@ for s in cfg.get("schedule", "09:00").split(","):
         current_schedules.append(f"{hp.zfill(2)}:{mp.zfill(2)}")
 
 with st.expander("⏰ 全動態自訂排程管理中心 (支援隨時多時段追加)", expanded=True):
-    st.markdown("<small style='color:#90A4AE;'>💡 <b>安全定錨提醒：</b>變更模型或時間後，請務必點擊下方按鈕。系統將強行把實體金鑰與組態落盤，確保自動排程高穩定點火。</small>", unsafe_allow_html=True)
-    
-    st.markdown("### 🛰️ 當前雷達鎖定點火時段：")
-    if current_schedules:
-        tag_html = "".join([f'<span class="radar-tag">📡 {sched}</span>' for sched in current_schedules])
-        st.markdown(tag_html, unsafe_allow_html=True)
-    else: st.warning("⚠️ 目前無 any 排程時間！")
-        
-    st.markdown("<br>", unsafe_allow_html=True)
     user_schedule = st.text_input("隨時修改/追加排程時段：", value=cfg.get("schedule", "09:00"))
-    
     if st.button("💾 保存並即時生效動態排程"):
         cleaned_schedule = ",".join([s.strip() for s in user_schedule.split(",") if s.strip()])
         save_engine_config({
@@ -355,18 +372,42 @@ with st.expander("⏰ 全動態自訂排程管理中心 (支援隨時多時段�
         st.toast(f"✅ 成功將實體金鑰與資費模型完全鎖定定錨！")
         st.rerun()
 
-# 手動廣播
-st.subheader("✍️ 手動全員廣播")
-with st.form("manual_form", clear_on_submit=False):
-    custom_text = st.text_area("內容：", placeholder="在此輸入要廣播給所有好友的文字...", label_visibility="collapsed")
-    if st.form_submit_button("📢 執行全員廣播"):
+# --- 手動精準推送中樞 ---
+st.subheader("✍️ 手動精準推送中樞")
+with st.form("manual_制導form", clear_on_submit=False):
+    target_mode = st.radio(
+        "🎯 請選擇發射精準維度：", 
+        ["全員廣播 (Broadcast)", "單人/多人精準推送 (Multicast)"], 
+        horizontal=True
+    )
+    
+    target_uids = ""
+    if target_mode == "單人/多人精準推送 (Multicast)":
+        target_uids = st.text_input(
+            "🆔 請輸入目標好友之 LINE User ID：", 
+            placeholder="多個 ID 請用半形逗號隔開，例如: U112233..., U445566..."
+        )
+        
+    custom_text = st.text_area("發射內文：", placeholder="在此輸入要手動推送的文字內容...")
+    
+    if st.form_submit_button("🚀 執行手動精準發射"):
         if custom_text.strip():
             try:
-                line_api.broadcast(TextSendMessage(text=f"【手動推送】\n\n{custom_text}"))
-                save_to_history("手動全員廣播", custom_text)
-                st.toast("✅ 已送達並完成歸檔")
+                if target_mode == "全員廣播 (Broadcast)":
+                    line_api.broadcast(TextSendMessage(text=f"【手動全員廣播】\n\n{custom_text}"))
+                    save_to_history("手動全員廣播", custom_text)
+                    st.toast("📢 已成功執行全員廣播發射")
+                else:
+                    id_list = [uid.strip() for uid in target_uids.split(",") if uid.strip()]
+                    if not id_list:
+                        st.error("❌ 攔截：未偵測到任何有效的好友 User ID，發射終止。")
+                    else:
+                        line_api.multicast(id_list, TextSendMessage(text=f"【手動精準推送】\n\n{custom_text}"))
+                        save_to_history("手動精準推送", f"🎯 目標對象: {', '.join(id_list)}\n\n{custom_text}")
+                        st.toast(f"🚀 已成功送達指定之 {len(id_list)} 位好友端")
                 st.rerun()
-            except Exception as line_err: st.error(f"連線異常: {str(line_err)[:20]}")
+            except Exception as line_err: 
+                st.error(f"連線異常: {str(line_err)[:40]}")
 
 st.markdown("---")
 
@@ -442,7 +483,8 @@ if history_data:
         elif "AI" in raw_cat or "智慧" in raw_cat:
             std_cat = "AI智慧廣播"; css_class = "card-ai"; badge_class = "badge-ai"
         else:
-            std_cat = "手動全員廣播"; css_class = "card-manual"; badge_class = "badge-manual"
+            std_cat = "手動全員廣播" if "全員" in raw_cat else "手動精準推送"
+            css_class = "card-manual"; badge_class = "badge-manual"
             
         html_report_content += f"""
         <div class='card {css_class}'>
@@ -463,13 +505,13 @@ if history_data:
     with col_dl2:
         st.download_button(label="🖨️ 匯出並列印工整中文 PDF 報告 (含日期類型標籤)", data=html_report_content, file_name=f"bible_audit_report_{datetime.now(timezone.utc).astimezone(TZ_TW).strftime('%Y%m%d')}.html", mime="text/html")
 
-    filter_type = st.selectbox("🔍 按推送類型過濾顯示：", ["全部", "排程推送", "手動全員廣播", "AI智慧廣播"])
+    filter_type = st.selectbox("🔍 按推送類型過濾顯示：", ["全部", "排程推送", "手動廣播/精準推送", "AI智慧廣播"])
     for item in history_data:
         raw_cat = item['category']
         if "定時" in raw_cat or "排程" in raw_cat: std_cat = "排程推送"; tag_class = "type-tag-auto"
         elif "AI" in raw_cat or "智慧" in raw_cat: std_cat = "AI智慧廣播"; tag_class = "type-tag-ai"
-        else: std_cat = "手動全員廣播"; tag_class = "type-tag-manual"
+        else: std_cat = "手動廣播/精準推送"; tag_class = "type-tag-manual"
         
         if filter_type != "全部" and std_cat != filter_type: continue
-        st.markdown(f'<div class="history-card"><strong>📅 {item["date"]} &nbsp;&nbsp; ⏰ {item["time"]}</strong> &nbsp;&nbsp; <span class="{tag_class}">{std_cat}</span><pre style="white-space: pre-wrap; font-family: sans-serif; background: transparent; border: none; padding: 0; margin-top: 8px; color: #B0BEC5; font-size: 0.8rem;">{item["content"]}</pre></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="history-card"><strong>📅 {item["date"]} &nbsp;&nbsp; ⏰ {item["time"]}</strong> &nbsp;&nbsp; <span class="{tag_class}">{item["category"]}</span><pre style="white-space: pre-wrap; font-family: sans-serif; background: transparent; border: none; padding: 0; margin-top: 8px; color: #B0BEC5; font-size: 0.8rem;">{item["content"]}</pre></div>', unsafe_allow_html=True)
 else: st.info("⚠️ 儲存艙目前尚無歷史保存紀錄。")
