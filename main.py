@@ -8,7 +8,7 @@ import json
 import os
 
 # --- 0. 系統版本宣告 (主程式與後台核心定錨) ---
-SYSTEM_VERSION = "V41.2.3"
+SYSTEM_VERSION = "V41.2.4"
 
 # --- 1. 頁面配置 (旗艦一頁式極簡美學 ── 強裝標題絕對不折行盔甲) ---
 st.set_page_config(page_title=f"聖經控制台 {SYSTEM_VERSION}", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
@@ -173,7 +173,7 @@ def save_to_history(category, content):
                 json.dump(data, f, ensure_ascii=False, indent=4)
         except: pass
 
-# --- 5. 終極生成核心 (900字超長外科手術截斷熔斷盾) ---
+# --- 5. 終極生成核心 (V41.2.4：雙重防線 900 字同步鎖定版) ---
 def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經文", custom_mood=None, custom_persona="暖心"):
     if not target_api_key:
         return "錯誤：當前配置之 API KEY 燃料短缺，發射中止。"
@@ -222,6 +222,7 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
             if res and res.text:
                 text_payload = str(res.text).strip()
                 if text_payload.endswith('。') or text_payload.endswith(')') or text_payload.endswith('）'):
+                    # 核心校準點：將內圈嘗試防線同步放寬至 900 字，釋放 500-900 字之間的被動自癒力
                     if len(text_payload) <= 900:
                         return text_payload
         except: pass
@@ -230,6 +231,7 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
     try: final_text = str(res.text).strip()
     except: return "核心動力連線適配中，請稍後..."
         
+    # 外圈物理截斷保險：只要總字數實質跨越 900 字門檻，鐵定截斷並焊接 (省略)
     if len(final_text) > 900:
         final_text = final_text[:894] + " (省略)"
         
@@ -423,7 +425,7 @@ with st.form("manual_制導form_v41_2", clear_on_submit=False):
                             id_list.append(cleaned_id)
                             
                     if not id_list:
-                        st.error("❌ 攔截：未偵測到任何有效的好友 User ID，發射終止。")
+                        st.error("❌ 攔截：未偵測到任何有效的好友 User ID，發射終止. ")
                     else:
                         line_api.multicast(id_list, TextSendMessage(text=f"【手動精準推送】\n\n{custom_text}"))
                         save_to_history("手動精準推送", f"🎯 目標對象: {', '.join(id_list)}\n\n{custom_text}")
@@ -466,7 +468,7 @@ if st.button("✨ 啟動 AI 廣播"):
 
 st.markdown("---")
 
-# --- 歷史經文典藏管理庫 (A4 溢出與勳章色彩修復版) ---
+# --- 歷史經文典藏管理庫 ---
 st.subheader("📚 歷史經文典藏管理庫")
 history_data = []
 if os.path.exists(DB_FILE):
@@ -475,7 +477,7 @@ if os.path.exists(DB_FILE):
     except: pass
 
 if history_data:
-    # --- V41.2.3 緊湊型無縫 A4 印刷級排版盾 ---
+    # --- 緊湊型無縫 A4 印刷級排版盾 ---
     html_report_content = """
     <html>
     <head>
@@ -539,7 +541,6 @@ if history_data:
     filter_type = st.selectbox("🔍 按推送類型過濾顯示：", ["全部", "排程推送", "手動全員廣播", "手動精準推送", "AI智慧廣播"])
     for item in history_data:
         raw_cat = item['category']
-        # 核心修復點：完美修復過濾列表中的 tag_class 渲染判定錯誤，讓 AI 廣播卡片重現藍色勳章
         if "定時" in raw_cat or "排程" in raw_cat: std_cat = "排程推送"; tag_class = "type-tag-auto"
         elif "AI" in raw_cat or "智慧" in raw_cat: std_cat = "AI智慧廣播"; tag_class = "type-tag-ai"
         elif "精準" in raw_cat or "Multicast" in raw_cat: std_cat = "手動精準推送"; tag_class = "type-tag-multicast"
