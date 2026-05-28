@@ -265,20 +265,18 @@ if "action" in query_params and "key" in query_params:
             sched_h, sched_m = map(int, [task["hour"], task["minute"]])
             target_time = current_tw.replace(hour=sched_h, minute=sched_m, second=0, microsecond=0)
             
-# --- 終極極簡對齊版 (請直接複製貼上) ---
+# --- 絕對穩定版 (請確保貼上時完全無前導空白) ---
 is_time_ok = (target_time <= current_tw <= (target_time + timedelta(minutes=30)))
 
 if is_time_ok:
-    # 檢查是否有記錄 (使用 any 避免 break 錯誤)
     already_sent = any(h['date'] == date_today and h['category'] == "排程推送" for h in history_data)
     
     if not already_sent:
-        final_api_key = cron_cfg.get("fixed_key_val", "") or get_cfg("GEMINI_API_KEY", "")
-        final_model_id = cron_cfg.get("fixed_model_id", "gemini-2.5-flash")
-        
-        output = execute_ai_safe_generation(target_model_id=final_model_id, target_api_key=final_api_key, mode="聖經經文")
+        key = cron_cfg.get("fixed_key_val") or get_cfg("GEMINI_API_KEY", "")
+        model = cron_cfg.get("fixed_model_id", "gemini-2.5-flash")
         
         try:
+            output = execute_ai_safe_generation(target_model_id=model, target_api_key=key, mode="聖經經文")
             line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output}"))
             save_to_history("排程推送", output)
             st.success("✅ 發送成功")
