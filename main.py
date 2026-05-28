@@ -538,83 +538,94 @@ if st.button("✨ 啟動 AI 廣播"):
 
 st.markdown("---")
 
-# --- 歷史經文典藏管理庫 (V43.0 最終修正版) ---
+# --- 歷史經文典藏管理庫 ---
 st.subheader("📚 歷史經文典藏管理庫")
 history_data = []
 if os.path.exists(DB_FILE):
     try:
-        with open(DB_FILE, "r", encoding="utf-8") as f: 
-            history_data = json.load(f)
+        with open(DB_FILE, "r", encoding="utf-8") as f: history_data = json.load(f)
     except: pass
 
 if history_data:
-# 1. 專業格式化的 HTML 匯出模組
     html_report_content = """
     <html>
     <head>
         <meta charset='utf-8'>
+        <title>每日聖經經文歷史典藏稽核報告</title>
         <style>
-            @page { size: A4; margin: 20mm; }
-            body { font-family: 'Microsoft JhengHei', sans-serif; line-height: 1.8; color: #333; }
-            .report-title { color: #1A237E; border-bottom: 3px solid #1A237E; padding-bottom: 10px; margin-bottom: 20px; }
-            .log-entry { border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; border-radius: 8px; background: #fff; }
-            .log-meta { font-weight: bold; color: #555; border-bottom: 1px dotted #ccc; margin-bottom: 10px; padding-bottom: 5px; }
-            .log-content { white-space: pre-wrap; font-size: 14px; color: #222; }
+            @page { size: A4; margin: 15mm 15mm; }
+            body { font-family: 'Microsoft JhengHei', 'Heiti TC', sans-serif; padding: 0; margin: 0; color: #333333; line-height: 1.5; background: #ffffff; }
+            h2 { text-align: center; color: #1A237E; border-bottom: 2px solid #1A237E; padding-bottom: 8px; margin-top: 5px; margin-bottom: 20px; font-size: 20px; letter-spacing: 1px; }
+            .card { background: #ffffff; padding: 15px; border: 1px solid #e0e0e0; border-left: 6px solid #1A237E; border-radius: 4px; margin-bottom: 15px; box-sizing: border-box; position: relative; page-break-inside: avoid !important; break-inside: avoid !important; }
+            .card-auto { border-left-color: #2E7D32; }
+            .card-ai { border-left-color: #1565C0; }
+            .card-manual { border-left-color: #C62828; }
+            .card-multicast { border-left-color: #E65100; }
+            .meta { font-size: 12px; color: #555555; margin-bottom: 10px; font-weight: bold; border-bottom: 1px dashed #e0e0e0; padding-bottom: 6px; }
+            .badge { padding: 2px 6px; border-radius: 4px; color: #ffffff; font-size: 10px; margin-left: 6px; font-weight: bold; display: inline-block; vertical-align: middle; }
+            .badge-auto { background: #2E7D32; }
+            .badge-ai { background: #1565C0; }
+            .badge-manual { background: #C62828; }
+            .badge-multicast { background: #E65100; }
+            .content-box { white-space: pre-wrap; word-wrap: break-word; font-family: 'Microsoft JhengHei', sans-serif; font-size: 13.5px; margin: 0; color: #222222; line-height: 1.6; text-align: justify; }
+            b { color: #1A237E; font-size: 14px; }
         </style>
     </head>
     <body>
-        <h2 class="report-title">🛡️ 每日聖經經文稽核報告</h2>
+        <h2>🛡️ 每日聖經經文歷史典藏稽核報告</h2>
     """
-    
     for h in history_data:
-        # 這裡重點：我們加入了 div 區塊與明確的 class，確保每筆紀錄都獨立成「卡片」
+        raw_cat = h.get('category', '排程推送')
+        if "定時" in raw_cat or "排程" in raw_cat:
+            std_cat = "排程推送"; css_class = "card-auto"; badge_class = "badge-auto"
+        elif "AI" in raw_cat or "智慧" in raw_cat:
+            std_cat = "AI智慧廣播"; css_class = "card-ai"; badge_class = "badge-ai"
+        elif "精準" in raw_cat or "Multicast" in raw_cat or "🎯" in h.get('content', ''):
+            std_cat = "手動精準推送"; css_class = "card-multicast"; badge_class = "badge-multicast"
+        else:
+            std_cat = "手動全員廣播"; css_class = "card-manual"; badge_class = "badge-manual"
+            
+        formatted_content = h['content'].replace('【', '<b>【').replace('】', '】</b><br>').strip()
+        formatted_content = formatted_content.replace('<br><br>', '<br>')
+            
         html_report_content += f"""
-        <div class='log-entry'>
-            <div class='log-meta'>📅 {h['date']} &nbsp; ⏰ {h['time']} &nbsp; 🏷️ {h['category']}</div>
-            <div class='log-content'>{h['content']}</div>
+        <div class='card {css_class}'>
+            <div class='meta'>📅 推送日期: {h['date']} &nbsp;&nbsp;&nbsp;&nbsp; ⏰ 精準時間: {h['time']} &nbsp;&nbsp;&nbsp;&nbsp; 🏷️ 推送類型: <span class='badge {badge_class}'>{std_cat}</span></div>
+            <div class='content-box'>{formatted_content}</div>
         </div>
         """
-    html_report_content += "</body></html>"
+    html_report_content += """
+        <script>window.onload = function() { window.print(); }</script>
+    </body>
+    </html>
+    """
 
-    # 2. 匯出功能按鈕區
     col_dl1, col_dl2 = st.columns([1, 1])
     with col_dl1:
-        download_lines = [f"日期: {h['date']} {h['time']}\n內容: {h['content']}\n---\n" for h in history_data]
-        st.download_button("📥 下載完整歷史經文 (.txt)", "".join(download_lines), "bible_history.txt")
+        download_lines = [f"========================================\n日期時間: {h['date']} {h['time']}\n分類標籤: {h['category']}\n----------------------------------------\n{h['content']}\n========================================\n\n" for h in history_data]
+        st.download_button(label="📥 下載完整歷史經文 (.txt)", data="".join(download_lines), file_name=f"bible_history_{datetime.now(timezone.utc).astimezone(TZ_TW).strftime('%Y%m%d')}.txt", mime="text/plain")
     with col_dl2:
-        # 這裡正確引用了包含完整 CSS 的字串
-        st.download_button("🖨️ 匯出中文 PDF 報告", data=html_report_content, file_name="bible_audit_report.html", mime="text/html")
+        st.download_button(label="🖨️ 匯出中文 PDF 報告", data=html_report_content, file_name=f"bible_audit_report_{datetime.now(timezone.utc).astimezone(TZ_TW).strftime('%Y%m%d')}.html", mime="text/html")
 
-    # 3. 系統維護區
-    if st.button("⚠️ 強制清除歷史記錄"):
-        if os.path.exists(DB_FILE): os.remove(DB_FILE)
-        st.rerun()
-
-    # 4. 列表顯示區
-    st.markdown("---")
+    # --- 在這裡插入清理功能 ---
+    st.markdown("---") # 加一條分隔線
+    with st.expander("⚙️ 進階系統維護"):
+        if st.button("⚠️ 強制清除歷史記錄 (重置系統)"):
+            if os.path.exists("bible_history.json"): # 確保檔名與您程式中定義的一致
+                os.remove("bible_history.json")
+                st.warning("歷史記錄已清除，請重新整理頁面。")
+                st.rerun()
+            else:
+                st.info("目前沒有歷史記錄檔案。")
+    
     filter_type = st.selectbox("🔍 按推送類型過濾顯示：", ["全部", "排程推送", "手動全員廣播", "手動精準推送", "AI智慧廣播"])
-
     for item in history_data:
-        # ... (保留原本的分類與顯示邏輯) ...
-        raw_cat = item.get('category', '')
-        if "定時" in raw_cat or "排程" in raw_cat:
-            std_cat = "排程推送"; tag_class = "type-tag-auto"
-        elif "AI" in raw_cat or "智慧" in raw_cat:
-            std_cat = "AI智慧廣播"; tag_class = "type-tag-ai"
-        elif "精準" in raw_cat or "Multicast" in raw_cat:
-            std_cat = "手動精準推送"; tag_class = "type-tag-multicast"
-        else:
-            std_cat = "手動全員廣播"; tag_class = "type-tag-manual"
+        raw_cat = item['category']
+        if "定時" in raw_cat or "排程" in raw_cat: std_cat = "排程推送"; tag_class = "type-tag-auto"
+        elif "AI" in raw_cat or "智慧" in raw_cat: std_cat = "AI智慧廣播"; tag_class = "type-tag-ai"
+        elif "精準" in raw_cat or "Multicast" in raw_cat: std_cat = "手動精準推送"; tag_class = "type-tag-multicast"
+        else: std_cat = "手動全員廣播"; tag_class = "type-tag-manual"
         
         if filter_type != "全部" and std_cat != filter_type: continue
-        
-        with st.container():
-            c1, c2 = st.columns([0.8, 0.2])
-            with c1:
-                st.markdown(f"📅 {item['date']} &nbsp;&nbsp; ⏰ {item['time']} &nbsp;&nbsp; <span class='{tag_class}'>{std_cat}</span>", unsafe_allow_html=True)
-            with c2:
-                with st.expander("詳情"):
-                    st.markdown(f"**內容摘要：**\n\n{item['content']}")
-            st.divider()
-else:
-    st.info("⚠️ 儲存艙目前尚無歷史保存紀錄。")
+        st.markdown(f'<div class="history-card"><strong>📅 {item["date"]} &nbsp;&nbsp; ⏰ {item["time"]}</strong> &nbsp;&nbsp; <span class="{tag_class}">{std_cat}</span><pre style="white-space: pre-wrap; font-family: sans-serif; background: transparent; border: none; padding: 0; margin-top: 8px; color: #B0BEC5; font-size: 0.8rem;">{item["content"]}</pre></div>', unsafe_allow_html=True)
+else: st.info("⚠️ 儲存艙目前尚無歷史保存紀錄。")
