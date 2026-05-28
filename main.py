@@ -8,7 +8,7 @@ import json
 import os
 
 # --- 0. 系統版本宣告 (主程式與後台核心定錨) ---
-SYSTEM_VERSION = "V42.2"
+SYSTEM_VERSION = "V42.3"
 
 # --- 1. 頁面配置 (旗艦一頁式極簡美學 ── 強裝標題絕對不折行盔甲) ---
 st.set_page_config(page_title=f"聖經控制台 {SYSTEM_VERSION}", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
@@ -285,21 +285,18 @@ if "action" in query_params and "key" in query_params:
                         mode="聖經經文"
                     )
                     
-                    # 🛡️ V41.3.8 重試補丁：發射重試機制
+               # 🛡️ V41.3.8 診斷強化版：強制錯誤曝光
                     success = False
-                    for attempt in range(2): 
-                        try:
-                            line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output_payload}"))
-                            save_to_history("排程推送", output_payload)
-                            success = True
-                            print(f"[DEBUG] 發送成功 (第 {attempt+1} 次嘗試)")
-                            break # 發送成功則跳出重試
-                        except Exception as e:
-                            print(f"[ERROR] 第 {attempt+1} 次發送失敗，原因: {str(e)}")
-                            time.sleep(3) # 失敗則等待 3 秒後重試一次
-                    
-                    if not success:
-                        print(f"[ERROR] 最終發送失敗，已觸發熔斷")
+                    try:
+                        line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output_payload}"))
+                        save_to_history("排程推送", output_payload)
+                        success = True
+                        st.success("✅ 發送成功") # 讓網頁頁面顯示綠色成功提示
+                    except Exception as e:
+                        # 關鍵：將錯誤直接顯示在網頁上，這段紅色紅字會是我們的救命線索
+                        st.error(f"🚨 LINE發射失敗，錯誤詳情: {str(e)}") 
+                        print(f"[ERROR] 發送失敗: {str(e)}")
+                        success = False
                     break
         st.write("CRON_PROCESSED")
         st.stop()
