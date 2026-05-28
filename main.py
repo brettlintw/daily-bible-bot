@@ -538,7 +538,7 @@ if st.button("✨ 啟動 AI 廣播"):
 
 st.markdown("---")
 
-# --- 歷史經文典藏管理庫 (V43.0 完整功能版) ---
+# --- 歷史經文典藏管理庫 (V43.0 最終修正版) ---
 st.subheader("📚 歷史經文典藏管理庫")
 history_data = []
 if os.path.exists(DB_FILE):
@@ -548,25 +548,32 @@ if os.path.exists(DB_FILE):
     except: pass
 
 if history_data:
-    # 1. 核心匯出功能區 (確保這兩個按鈕都在)
+    # 1. 定義 PDF/HTML 匯出字串 (這是您原本的功能核心)
+    html_report_content = "<html><head><meta charset='utf-8'><title>經文報告</title></head><body><h2>🛡️ 每日聖經經文稽核報告</h2>"
+    for h in history_data:
+        html_report_content += f"<div class='card'>📅 {h['date']} ⏰ {h['time']} - {h['content']}</div>"
+    html_report_content += "</body></html>"
+
+    # 2. 匯出功能按鈕區
     col_dl1, col_dl2 = st.columns([1, 1])
     with col_dl1:
-        download_lines = [f"========================================\n日期時間: {h['date']} {h['time']}\n分類標籤: {h['category']}\n----------------------------------------\n{h['content']}\n========================================\n\n" for h in history_data]
-        st.download_button(label="📥 下載完整歷史經文 (.txt)", data="".join(download_lines), file_name=f"bible_history_{datetime.now(timezone.utc).astimezone(TZ_TW).strftime('%Y%m%d')}.txt")
+        download_lines = [f"日期: {h['date']} {h['time']}\n內容: {h['content']}\n---\n" for h in history_data]
+        st.download_button("📥 下載 .txt", "".join(download_lines), "bible_history.txt")
     with col_dl2:
-        # 這裡保留匯出 PDF/HTML 的邏輯 (保持您原本的強大匯出功能)
-        st.download_button(label="🖨️ 匯出中文 PDF 報告", data=" data=html_report_content, file_name=f"bible_audit_report_{datetime.now(timezone.utc).astimezone(TZ_TW).strftime('%Y%m%d')}.html", mime="text/html", file_name=f"bible_audit_report_{datetime.now(timezone.utc).astimezone(TZ_TW).strftime('%Y%m%d')}.html", mime="text/html")
+        # 這裡正確使用了 html_report_content 變數
+        st.download_button("🖨️ 匯出中文 PDF 報告", data=html_report_content, file_name="bible_audit_report.html", mime="text/html")
 
-    # 2. 系統維護區
+    # 3. 系統維護區
     if st.button("⚠️ 強制清除歷史記錄"):
         if os.path.exists(DB_FILE): os.remove(DB_FILE)
         st.rerun()
 
+    # 4. 列表顯示區
     st.markdown("---")
-    # 3. 列表顯示區
     filter_type = st.selectbox("🔍 按推送類型過濾顯示：", ["全部", "排程推送", "手動全員廣播", "手動精準推送", "AI智慧廣播"])
 
     for item in history_data:
+        # ... (保留原本的分類與顯示邏輯) ...
         raw_cat = item.get('category', '')
         if "定時" in raw_cat or "排程" in raw_cat:
             std_cat = "排程推送"; tag_class = "type-tag-auto"
@@ -577,8 +584,7 @@ if history_data:
         else:
             std_cat = "手動全員廣播"; tag_class = "type-tag-manual"
         
-        if filter_type != "全部" and std_cat != filter_type:
-            continue
+        if filter_type != "全部" and std_cat != filter_type: continue
         
         with st.container():
             c1, c2 = st.columns([0.8, 0.2])
