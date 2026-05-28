@@ -268,11 +268,11 @@ if "action" in query_params and "key" in query_params:
          # --- 最終修正版：這段請完全替換 ---
         if target_time <= current_tw and current_tw <= (target_time + timedelta(minutes=30)):
          # --- 最終防彈版 ---
-        specific_pushed = False
+            specific_pushed = False
         # 檢查是否有今天發送過的記錄
-        for h in history_data:
-            if h['date'] == date_today and h['category'] == "排程推送":
-                h_time_parts = h.get('time', '00:00:00').split(":")
+            for h in history_data:
+                    if h['date'] == date_today and h['category'] == "排程推送":
+                        h_time_parts = h.get('time', '00:00:00').split(":")
                 if len(h_time_parts) >= 2:
                     h_h = int(h_time_parts[0])
                     h_m = int(h_time_parts[1])
