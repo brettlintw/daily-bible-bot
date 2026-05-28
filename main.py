@@ -261,40 +261,40 @@ if "action" in query_params and "key" in query_params:
                 with open(DB_FILE, "r", encoding="utf-8") as f: history_data = json.load(f)
             except: pass
 
+# --- 軌道排程發射核心 ---
         for task in target_schedules:
             sched_h, sched_m = map(int, [task["hour"], task["minute"]])
+            # 依據每個 task 建立 target_time
             target_time = current_tw.replace(hour=sched_h, minute=sched_m, second=0, microsecond=0)
             
-# --- 完整邏輯區塊：請從這裡開始替換 ---
-# 1. 先定義變數
-# --- 必須定義的時序變數 ---
-# 假設這些是您的排程核心變數，請確認這些定義在 is_time_ok 之前
-current_tw = datetime.now(TZ_TW)
-# 這裡需要您定義 target_time，通常是從您的 config 或排程邏輯取得
-# 範例：如果您的 sched_h 和 sched_m 已經有值，請確保下面這行存在：
-target_time = current_tw.replace(hour=sched_h, minute=sched_m, second=0, microsecond=0)
-is_time_ok = (target_time <= current_tw <= (target_time + timedelta(minutes=30)))
-
-# 2. 再進行判斷
-if is_time_ok:
-    already_sent = any(h['date'] == date_today and h['category'] == "排程推送" for h in history_data)
-    
-    if not already_sent:
-        try:
-            key = cron_cfg.get("fixed_key_val") or get_cfg("GEMINI_API_KEY", "")
-            model = cron_cfg.get("fixed_model_id", "gemini-2.5-flash")
+            # 計算時間窗 (發射窗口：target_time 到 target_time + 30分)
+            is_time_ok = (target_time <= current_tw <= (target_time + timedelta(minutes=30)))
             
-            output = execute_ai_safe_generation(target_model_id=model, target_api_key=key, mode="聖經經文")
-            line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output}"))
-            save_to_history("排程推送", output)
-            st.success("✅ 發送成功")
-        except Exception as e:
-            st.error(f"🚨 LINE發射失敗: {str(e)}")
+            if is_time_ok:
+                # 檢查歷史：確保該特定時段沒有重複發送過
+                already_sent = any(
+                    h['date'] == date_today and 
+                    h['category'] == "排程推送" and 
+                    abs(int(h.get('time', '00:00:00').split(":")[0]) - sched_h) == 0 and
+                    abs(int(h.get('time', '00:00:00').split(":")[1]) - sched_m) < 28
+                    for h in history_data
+                )
+                
+                if not already_sent:
+                    try:
+                        key = cron_cfg.get("fixed_key_val") or get_cfg("GEMINI_API_KEY", "")
+                        model = cron_cfg.get("fixed_model_id", "gemini-2.5-flash")
+                        
+                        output = execute_ai_safe_generation(target_model_id=model, target_api_key=key, mode="聖經經文")
+                        line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output}"))
+                        save_to_history("排程推送", output)
+                        st.success(f"✅ {sched_h}:{sched_m} 發送成功")
+                    except Exception as e:
+                        st.error(f"🚨 {sched_h}:{sched_m} 發射失敗: {str(e)}")
 
-# --- 結束邏輯 ---
-st.write("CRON_PROCESSED")
-st.stop()
-
+        # --- 全部檢查完畢後的終點 ---
+        st.write("CRON_PROCESSED")
+        st.stop()
 # --- 7. UI 佈局 ---
 st.markdown(f"<h1>🛡️ 聖經任務控制台 {SYSTEM_VERSION} <span class='status-tag'>🛰️ 聯邦制導</span><span class='status-tag' style='background:#00E676; color:black;'>全時自動巡航體</span></h1>", unsafe_allow_html=True)
 st.caption(f"📅 台北標準時間：{local_render_tw.strftime('%Y/%m/%d %H:%M')} | 🚀 25分鐘補發自癒加固版 [當前版本: {SYSTEM_VERSION}]")
