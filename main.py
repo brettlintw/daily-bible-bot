@@ -45,8 +45,15 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --- 2. 核心時區與全域時間配置 ---
+# --- 穩定巡航模式 (修正版) ---
+# 確保 current_tw 已經正確對齊 UTC+8
 TZ_TW = timezone(timedelta(hours=8))
-local_render_tw = datetime.now(timezone.utc).astimezone(TZ_TW)
+current_tw = datetime.now(timezone.utc).astimezone(TZ_TW)
+target_time = current_tw.replace(hour=sched_h, minute=sched_m, second=0, microsecond=0)
+
+# 將 if True: 改回判定，並將視窗擴大，確保絕對觸發
+if target_time <= current_tw and current_tw <= (target_time + timedelta(minutes=30)):
+    # ... (下方保持您剛剛組裝好的防重邏輯與發送代碼) ...
 
 def get_cfg(key, fallback):
     try: return st.secrets.get(key, fallback) or fallback
