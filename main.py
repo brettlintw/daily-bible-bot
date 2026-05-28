@@ -266,9 +266,7 @@ if "action" in query_params and "key" in query_params:
             target_time = current_tw.replace(hour=sched_h, minute=sched_m, second=0, microsecond=0)
             
 # --- 絕對穩定版 (請確保貼上時完全無前導空白) ---
-# --- 最終極簡版：移除所有多餘變數 ---
-is_time_ok = (target_time <= current_tw <= (target_time + timedelta(minutes=30)))
-
+# --- 終極修正後結構 ---
 if is_time_ok:
     already_sent = any(h['date'] == date_today and h['category'] == "排程推送" for h in history_data)
     if not already_sent:
@@ -279,21 +277,10 @@ if is_time_ok:
             st.success("✅ 發送成功")
         except Exception as e:
             st.error(f"🚨 LINE發射失敗: {str(e)}")
-                    
-               # 🛡️ V41.3.8 診斷強化版：強制錯誤曝光
-                    try:
-                        line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output_payload}"))
-                        save_to_history("排程推送", output_payload)
-                        success = True
-                        st.success("✅ 發送成功") # 讓網頁頁面顯示綠色成功提示
-                    except Exception as e:
-                        # 關鍵：將錯誤直接顯示在網頁上，這段紅色紅字會是我們的救命線索
-                        st.error(f"🚨 LINE發射失敗，錯誤詳情: {str(e)}") 
-                        print(f"[ERROR] 發送失敗: {str(e)}")
-                        success = False
-                    break
-        st.write("CRON_PROCESSED")
-        st.stop()
+
+# --- 這裡直接接結束動作 ---
+st.write("CRON_PROCESSED")
+st.stop()
 
 # --- 7. UI 佈局 ---
 st.markdown(f"<h1>🛡️ 聖經任務控制台 {SYSTEM_VERSION} <span class='status-tag'>🛰️ 聯邦制導</span><span class='status-tag' style='background:#00E676; color:black;'>全時自動巡航體</span></h1>", unsafe_allow_html=True)
