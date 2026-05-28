@@ -267,6 +267,12 @@ if "action" in query_params and "key" in query_params:
             
 # --- 完整邏輯區塊：請從這裡開始替換 ---
 # 1. 先定義變數
+# --- 必須定義的時序變數 ---
+# 假設這些是您的排程核心變數，請確認這些定義在 is_time_ok 之前
+current_tw = datetime.now(TZ_TW)
+# 這裡需要您定義 target_time，通常是從您的 config 或排程邏輯取得
+# 範例：如果您的 sched_h 和 sched_m 已經有值，請確保下面這行存在：
+target_time = current_tw.replace(hour=sched_h, minute=sched_m, second=0, microsecond=0)
 is_time_ok = (target_time <= current_tw <= (target_time + timedelta(minutes=30)))
 
 # 2. 再進行判斷
