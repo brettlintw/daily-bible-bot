@@ -248,9 +248,6 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
 # --- 6. 永動機外部排程與 Webhook 雙軌中樞 (V41.3.4 全時自癒硬化模組) ---
 query_params = st.query_params
 
-# 在 main.py 第 190 行左右
-if "action" in query_params:
-    print(f"[系統日誌] 偵測到外部喚醒脈衝: {query_params['action']}") # 這會顯示在雲端平台的 Logs 中
     
 if "incoming_uid" in query_params:
     try:
