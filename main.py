@@ -8,7 +8,7 @@ import json
 import os
 
 # --- 0. 系統版本宣告 (主程式與後台核心定錨) ---
-SYSTEM_VERSION = "V42.3"
+SYSTEM_VERSION = "V42.4"
 
 # --- 1. 頁面配置 (旗艦一頁式極簡美學 ── 強裝標題絕對不折行盔甲) ---
 st.set_page_config(page_title=f"聖經控制台 {SYSTEM_VERSION}", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
@@ -262,30 +262,33 @@ if "action" in query_params and "key" in query_params:
             # 🛡️ 鋼鐵自癒防線 2：放寬至 25 分鐘補發防禦窗口，消滅外部網路延遲造成的啞火
             #if target_time <= current_tw and current_tw <= (target_time + timedelta(minutes=25)):
             if True: 
-    # ... (原本裡面的發送代碼) ...
-                specific_pushed = False
-                for h in history_data:
-                    if h['date'] == date_today and h['category'] == "排程推送":
-                        h_time_parts = h.get('time', '00:00:00').split(":")
-                        if len(h_time_parts) >= 2:
-                            h_h = int(h_time_parts[0])
-                            h_m = int(h_time_parts[1])
-                            # 如果 25 分鐘窗口內已經發送過，就跳過，絕不重複打擾
-                            if h_h == sched_h and abs(h_m - sched_m) < 28:
-                                specific_pushed = True
-                                break
+               # 🛡️ 強制診斷模式 (確保防重判斷依然運作)
+        specific_pushed = False
+        for h in history_data:
+            if h['date'] == date_today and h['category'] == "排程推送":
+                h_time_parts = h.get('time', '00:00:00').split(":")
+                if len(h_time_parts) >= 2:
+                    h_h = int(h_time_parts[0])
+                    h_m = int(h_time_parts[1])
+                    if h_h == sched_h and abs(h_m - sched_m) < 28:
+                        specific_pushed = True
+                        break
 
-                if not specific_pushed:
-                    final_api_key = cron_cfg.get("fixed_key_val", "")
-                    if not final_api_key or len(final_api_key) < 5:
-                        final_api_key = get_cfg("GEMINI_API_KEY", "")
-                    final_model_id = cron_cfg.get("fixed_model_id", "gemini-2.5-flash")
-                    
-                    output_payload = execute_ai_safe_generation(
-                        target_model_id=final_model_id,
-                        target_api_key=final_api_key,
-                        mode="聖經經文"
-                    )
+        # 如果沒有重複發送，才執行 (強制忽略時間判定)
+        if not specific_pushed:
+            final_api_key = cron_cfg.get("fixed_key_val", "")
+            if not final_api_key or len(final_api_key) < 5:
+                final_api_key = get_cfg("GEMINI_API_KEY", "")
+            final_model_id = cron_cfg.get("fixed_model_id", "gemini-2.5-flash")
+            
+            output_payload = execute_ai_safe_generation(target_model_id=final_model_id, target_api_key=final_api_key, mode="聖經經文")
+            
+            try:
+                line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output_payload}"))
+                save_to_history("排程推送", output_payload)
+                st.success("✅ 發送成功")
+            except Exception as e:
+                st.error(f"🚨 LINE發射失敗，錯誤詳情: {str(e)}")
                     
                # 🛡️ V41.3.8 診斷強化版：強制錯誤曝光
                     success = False
