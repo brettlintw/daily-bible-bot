@@ -8,7 +8,7 @@ import json
 import os
 
 # --- 0. 系統版本宣告 (主程式與後台核心定錨) ---
-SYSTEM_VERSION = "V42.1"
+SYSTEM_VERSION = "V42.2"
 
 # --- 1. 頁面配置 (旗艦一頁式極簡美學 ── 強裝標題絕對不折行盔甲) ---
 st.set_page_config(page_title=f"聖經控制台 {SYSTEM_VERSION}", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
@@ -613,6 +613,17 @@ if history_data:
     with col_dl2:
         st.download_button(label="🖨️ 匯出中文 PDF 報告", data=html_report_content, file_name=f"bible_audit_report_{datetime.now(timezone.utc).astimezone(TZ_TW).strftime('%Y%m%d')}.html", mime="text/html")
 
+    # --- 在這裡插入清理功能 ---
+    st.markdown("---") # 加一條分隔線
+    with st.expander("⚙️ 進階系統維護"):
+        if st.button("⚠️ 強制清除歷史記錄 (重置系統)"):
+            if os.path.exists("bible_history.json"): # 確保檔名與您程式中定義的一致
+                os.remove("bible_history.json")
+                st.warning("歷史記錄已清除，請重新整理頁面。")
+                st.rerun()
+            else:
+                st.info("目前沒有歷史記錄檔案。")
+    
     filter_type = st.selectbox("🔍 按推送類型過濾顯示：", ["全部", "排程推送", "手動全員廣播", "手動精準推送", "AI智慧廣播"])
     for item in history_data:
         raw_cat = item['category']
