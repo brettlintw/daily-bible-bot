@@ -297,7 +297,10 @@ if "action" in query_params and "key" in query_params:
         st.stop()
 # --- 7. UI 佈局 ---
 st.markdown(f"<h1>🛡️ 聖經任務控制台 {SYSTEM_VERSION} <span class='status-tag'>🛰️ 聯邦制導</span><span class='status-tag' style='background:#00E676; color:black;'>全時自動巡航體</span></h1>", unsafe_allow_html=True)
-st.caption(f"📅 台北標準時間：{local_render_tw.strftime('%Y/%m/%d %H:%M')} | 🚀 25分鐘補發自癒加固版 [當前版本: {SYSTEM_VERSION}]")
+# --- 確保時間渲染變數已準備好 (請放在 st.caption 之前) ---
+local_render_tw = datetime.now(TZ_TW)
+# --- 顯示時間 ---
+st.caption(f"🗓️ 台北標準時間: {local_render_tw.strftime('%Y/%m/%d %H:%M')}")
 
 cfg = load_engine_config()
 daily_enabled = cfg.get("daily_enabled", True)
