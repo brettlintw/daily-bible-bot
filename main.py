@@ -11,7 +11,7 @@ import os
 os.environ['TZ'] = 'Asia/Taipei'
 
 # --- 0. 系統版本宣告 (主程式與後台核心定錨) ---
-SYSTEM_VERSION = "V42.5"
+SYSTEM_VERSION = "V42.6"
 
 # --- 1. 頁面配置 (旗艦一頁式極簡美學 ── 強裝標題絕對不折行盔甲) ---
 st.set_page_config(page_title=f"聖經控制台 {SYSTEM_VERSION}", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
@@ -59,14 +59,25 @@ if target_time <= current_tw and current_tw <= (target_time + timedelta(minutes=
     # 這裡必須要有縮排代碼，否則 Python 會報錯
     # 請把原本的發送邏輯整段填回這裡 (確保它們都向右縮排)
     
-    specific_pushed = False
-    for h in history_data:
-        # ... (這裡放入您之前的防重檢查邏輯) ...
-        # ... (這裡放入發送 LINE 訊息的邏輯) ...
+# 🛡️ 防重檢查區塊
+        specific_pushed = False
         
-else:
-    # 這裡是選填的，如果不在時間範圍內，系統不做任何事
-    pass
+        # --- 這一行是 for --- (第 63 行)
+        for h in history_data:
+            if h['date'] == date_today and h['category'] == "排程推送":
+                # ... (內部的 if 邏輯) ...
+                if h_h == sched_h and abs(h_m - sched_m) < 28:
+                    specific_pushed = True
+                    break
+        
+        # --- 這一行是 else，必須與上面的 for 對齊 --- (第 67 行)
+        else:
+            # 如果迴圈正常跑完沒被 break，執行這裡
+            print("檢查完畢，準備進入發送邏輯")
+            
+        # --- 如果邏輯有誤，您可能不需要 else，直接執行下方即可 ---
+        if not specific_pushed:
+            # (這裡放您的發送邏輯)
 
 def get_cfg(key, fallback):
     try: return st.secrets.get(key, fallback) or fallback
