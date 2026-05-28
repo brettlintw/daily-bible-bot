@@ -266,17 +266,14 @@ if "action" in query_params and "key" in query_params:
             target_time = current_tw.replace(hour=sched_h, minute=sched_m, second=0, microsecond=0)
             
 # --- 絕對穩定版 (請確保貼上時完全無前導空白) ---
+# --- 最終極簡版：移除所有多餘變數 ---
 is_time_ok = (target_time <= current_tw <= (target_time + timedelta(minutes=30)))
 
 if is_time_ok:
     already_sent = any(h['date'] == date_today and h['category'] == "排程推送" for h in history_data)
-    
     if not already_sent:
-        key = cron_cfg.get("fixed_key_val") or get_cfg("GEMINI_API_KEY", "")
-        model = cron_cfg.get("fixed_model_id", "gemini-2.5-flash")
-        
         try:
-            output = execute_ai_safe_generation(target_model_id=model, target_api_key=key, mode="聖經經文")
+            output = execute_ai_safe_generation(target_model_id="gemini-2.5-flash", target_api_key=get_cfg("GEMINI_API_KEY", ""), mode="聖經經文")
             line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output}"))
             save_to_history("排程推送", output)
             st.success("✅ 發送成功")
@@ -284,7 +281,6 @@ if is_time_ok:
             st.error(f"🚨 LINE發射失敗: {str(e)}")
                     
                # 🛡️ V41.3.8 診斷強化版：強制錯誤曝光
-                    success = False
                     try:
                         line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output_payload}"))
                         save_to_history("排程推送", output_payload)
