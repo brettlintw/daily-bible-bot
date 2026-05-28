@@ -54,10 +54,18 @@ TZ_TW = timezone(timedelta(hours=8))
 current_tw = datetime.now(timezone.utc).astimezone(TZ_TW)
 target_time = current_tw.replace(hour=sched_h, minute=sched_m, second=0, microsecond=0)
 
-# --- 修正後的排程執行區塊 ---
+
+# --- 這裡假設是您剛剛的 if 判斷 (第 79 行) ---
 if target_time <= current_tw and current_tw <= (target_time + timedelta(minutes=30)):
-    # 這裡必須要有縮排代碼，否則 Python 會報錯
-    # 請把原本的發送邏輯整段填回這裡 (確保它們都向右縮排)
+    # ... (中間的防重邏輯與發送代碼，全部都要向右縮排) ...
+    # 確保這區塊內的所有程式碼都整齊排列
+# --- 這裡必須完全「頂格」 (不留任何空格，與最左邊對齊) ---
+# 因為 def get_cfg 是函式定義，不能被包在任何 if 裡面
+def get_cfg(key, fallback):
+    try: 
+        return st.secrets.get(key, fallback) or fallback
+    except: 
+        return fallback
     
 # 🛡️ 防重檢查區塊
         specific_pushed = False
