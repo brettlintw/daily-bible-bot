@@ -548,19 +548,39 @@ if os.path.exists(DB_FILE):
     except: pass
 
 if history_data:
-    # 1. 定義 PDF/HTML 匯出字串 (這是您原本的功能核心)
-    html_report_content = "<html><head><meta charset='utf-8'><title>經文報告</title></head><body><h2>🛡️ 每日聖經經文稽核報告</h2>"
+# 1. 完整且專業的 PDF/HTML 樣式生成模組 (V43.0 規格)
+    html_report_content = """
+    <html>
+    <head>
+        <meta charset='utf-8'>
+        <style>
+            @page { size: A4; margin: 15mm; }
+            body { font-family: 'Microsoft JhengHei', sans-serif; color: #333; line-height: 1.6; }
+            h2 { color: #1A237E; border-bottom: 2px solid #1A237E; padding-bottom: 10px; }
+            .card { background: #f9f9f9; padding: 15px; border-left: 6px solid #1A237E; margin-bottom: 15px; border-radius: 4px; }
+            .meta { font-size: 12px; color: #666; margin-bottom: 5px; font-weight: bold; }
+            .content { font-size: 14px; white-space: pre-wrap; }
+        </style>
+    </head>
+    <body>
+        <h2>🛡️ 每日聖經經文稽核報告</h2>
+    """
     for h in history_data:
-        html_report_content += f"<div class='card'>📅 {h['date']} ⏰ {h['time']} - {h['content']}</div>"
+        html_report_content += f"""
+        <div class='card'>
+            <div class='meta'>📅 {h['date']} ⏰ {h['time']} | 類型: {h['category']}</div>
+            <div class='content'>{h['content']}</div>
+        </div>
+        """
     html_report_content += "</body></html>"
 
     # 2. 匯出功能按鈕區
     col_dl1, col_dl2 = st.columns([1, 1])
     with col_dl1:
         download_lines = [f"日期: {h['date']} {h['time']}\n內容: {h['content']}\n---\n" for h in history_data]
-        st.download_button("📥 下載 .txt", "".join(download_lines), "bible_history.txt")
+        st.download_button("📥 下載完整歷史經文 (.txt)", "".join(download_lines), "bible_history.txt")
     with col_dl2:
-        # 這裡正確使用了 html_report_content 變數
+        # 這裡正確引用了包含完整 CSS 的字串
         st.download_button("🖨️ 匯出中文 PDF 報告", data=html_report_content, file_name="bible_audit_report.html", mime="text/html")
 
     # 3. 系統維護區
