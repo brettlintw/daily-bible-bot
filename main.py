@@ -48,57 +48,21 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --- 2. 核心時區與全域時間配置 ---
-# --- 穩定巡航模式 (修正版) ---
-# 確保 current_tw 已經正確對齊 UTC+8
+# 確保在任何時間函式呼叫前設定環境變數
 TZ_TW = timezone(timedelta(hours=8))
-current_tw = datetime.now(timezone.utc).astimezone(TZ_TW)
-target_time = current_tw.replace(hour=sched_h, minute=sched_m, second=0, microsecond=0)
-
-# --- 重新組裝區塊 ---
-if target_time <= current_tw and current_tw <= (target_time + timedelta(minutes=30)):
-    # 這裡放上一個 pass 作為佔位符，確保 if 區塊永遠不會報錯
-    # 如果這裡有您原本的發送邏輯，請確認它們都「向右縮排」了 4 個空格
-    pass 
-else:
-    # 這是為了確保 if 結束後，後面的代碼能正確銜接
-    pass
-
-# --- 這行 def 必須「完全頂格」 (最左邊，沒有任何空格) ---
 def get_cfg(key, fallback):
     try: 
         return st.secrets.get(key, fallback) or fallback
     except: 
         return fallback
-    
-# 🛡️ 防重檢查區塊
-        specific_pushed = False
-        
-        # --- 這一行是 for --- (第 63 行)
-        for h in history_data:
-            if h['date'] == date_today and h['category'] == "排程推送":
-                # ... (內部的 if 邏輯) ...
-                if h_h == sched_h and abs(h_m - sched_m) < 28:
-                    specific_pushed = True
-                    break
-        
-        # --- 這一行是 else，必須與上面的 for 對齊 --- (第 67 行)
-        else:
-            # 如果迴圈正常跑完沒被 break，執行這裡
-            print("檢查完畢，準備進入發送邏輯")
-            
-        # --- 如果邏輯有誤，您可能不需要 else，直接執行下方即可 ---
-        if not specific_pushed:
-            # (這裡放您的發送邏輯)
-
-def get_cfg(key, fallback):
-    try: return st.secrets.get(key, fallback) or fallback
-    except: return fallback
 
 LINE_TOKEN = get_cfg("LINE_ACCESS_TOKEN", "")
 TRIGGER_KEY = get_cfg("TRIGGER_KEY", "KITT_SECURE_KEY_2026")
 
 from linebot import LineBotApi
 from linebot.models import TextSendMessage
+
+# 確保 line_api 在全域範圍內初始化
 line_api = LineBotApi(LINE_TOKEN)
 
 DB_FILE = "bible_history.json"
