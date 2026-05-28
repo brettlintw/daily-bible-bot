@@ -555,7 +555,7 @@ if history_data:
         st.download_button(label="📥 下載完整歷史經文 (.txt)", data="".join(download_lines), file_name=f"bible_history_{datetime.now(timezone.utc).astimezone(TZ_TW).strftime('%Y%m%d')}.txt")
     with col_dl2:
         # 這裡保留匯出 PDF/HTML 的邏輯 (保持您原本的強大匯出功能)
-        st.download_button(label="🖨️ 匯出中文 PDF 報告", data=" data=html_report_content, file_name=f"bible_audit_report_{datetime.now(timezone.utc).astimezone(TZ_TW).strftime('%Y%m%d')}.html", mime="text/html"", file_name=f"bible_audit_report_{datetime.now(timezone.utc).astimezone(TZ_TW).strftime('%Y%m%d')}.html", mime="text/html")
+        st.download_button(label="🖨️ 匯出中文 PDF 報告", data=" data=html_report_content, file_name=f"bible_audit_report_{datetime.now(timezone.utc).astimezone(TZ_TW).strftime('%Y%m%d')}.html", mime="text/html", file_name=f"bible_audit_report_{datetime.now(timezone.utc).astimezone(TZ_TW).strftime('%Y%m%d')}.html", mime="text/html")
 
     # 2. 系統維護區
     if st.button("⚠️ 強制清除歷史記錄"):
