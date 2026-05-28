@@ -248,6 +248,10 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
 # --- 6. 永動機外部排程與 Webhook 雙軌中樞 (V41.3.4 全時自癒硬化模組) ---
 query_params = st.query_params
 
+if "action" in query_params and "key" in query_params:
+    # 🛡️ 關鍵偵測日誌：部署後，請檢查雲端平台的 Log，確認此行有無出現
+    print(f"[DEBUG] 接收到 Webhook 脈衝: action={query_params.get('action')}, key={query_params.get('key')}")
+
 if "incoming_uid" in query_params:
     try:
         radar_data = {
