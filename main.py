@@ -271,15 +271,17 @@ if "action" in query_params and "key" in query_params:
         if True:  # 這是第 264 行
             specific_pushed = False  # 這行必須向右縮排 4 個空格
             for h in history_data:   # 這行也要對齊上面
-                if h['date'] == date_today and h['category'] == "排程推送":
-                    # ... 之後的代碼也要跟著縮排 ...
-                h_time_parts = h.get('time', '00:00:00').split(":")
-                if len(h_time_parts) >= 2:
-                    h_h = int(h_time_parts[0])
-                    h_m = int(h_time_parts[1])
-                    if h_h == sched_h and abs(h_m - sched_m) < 28:
-                        specific_pushed = True
-                        break
+        # --- 這裡是防重檢查邏輯的正確縮排版 ---
+        if h['date'] == date_today and h['category'] == "排程推送":
+            # 這一行必須比上面的 if 往右縮進 4 個空格 (一個 Tab 或 4 個空格)
+            h_time_parts = h.get('time', '00:00:00').split(":")
+            if len(h_time_parts) >= 2:
+                # 這裡的每一行都要對齊 h_time_parts
+                h_h = int(h_time_parts[0])
+                h_m = int(h_time_parts[1])
+                if h_h == sched_h and abs(h_m - sched_m) < 28:
+                    specific_pushed = True
+                    break
 
         # 如果沒有重複發送，才執行 (強制忽略時間判定)
         if not specific_pushed:
