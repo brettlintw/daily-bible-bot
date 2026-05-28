@@ -261,11 +261,12 @@ if "action" in query_params and "key" in query_params:
             
             # 🛡️ 鋼鐵自癒防線 2：放寬至 25 分鐘補發防禦窗口，消滅外部網路延遲造成的啞火
             #if target_time <= current_tw and current_tw <= (target_time + timedelta(minutes=25)):
-            if True: 
-               # 🛡️ 強制診斷模式 (確保防重判斷依然運作)
-        specific_pushed = False
-        for h in history_data:
-            if h['date'] == date_today and h['category'] == "排程推送":
+            # 🛡️ 強制診斷模式 (確保防重判斷依然運作)
+        if True:  # 這是第 264 行
+            specific_pushed = False  # 這行必須向右縮排 4 個空格
+            for h in history_data:   # 這行也要對齊上面
+                if h['date'] == date_today and h['category'] == "排程推送":
+                    # ... 之後的代碼也要跟著縮排 ...
                 h_time_parts = h.get('time', '00:00:00').split(":")
                 if len(h_time_parts) >= 2:
                     h_h = int(h_time_parts[0])
