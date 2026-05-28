@@ -7,11 +7,9 @@ import threading
 import json
 import os
 
-# --- 這裡就是黃金位置 ---
-os.environ['TZ'] = 'Asia/Taipei'
 
 # --- 0. 系統版本宣告 (主程式與後台核心定錨) ---
-SYSTEM_VERSION = "V43.0完美版"
+SYSTEM_VERSION = "V43.1"
 
 # --- 1. 頁面配置 (旗艦一頁式極簡美學 ── 強裝標題絕對不折行盔甲) ---
 st.set_page_config(page_title=f"聖經控制台 {SYSTEM_VERSION}", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
@@ -261,22 +259,28 @@ if "action" in query_params and "key" in query_params:
                 with open(DB_FILE, "r", encoding="utf-8") as f: history_data = json.load(f)
             except: pass
 
-# --- 軌道排程發射核心 ---
+# --- 軌道排程發射核心 (V43.0 強定錨版) ---
         for task in target_schedules:
             sched_h, sched_m = map(int, [task["hour"], task["minute"]])
-            # 依據每個 task 建立 target_time
+            
+            # 1. 強制以 UTC+8 基準建立目標時間 (這是最關鍵的一步)
             target_time = current_tw.replace(hour=sched_h, minute=sched_m, second=0, microsecond=0)
             
-            # 計算時間窗 (發射窗口：target_time 到 target_time + 30分)
+            # 2. 定義時間窗口：任務時間後 5 分鐘內到 30 分鐘內為發射區間
+            # 修正：只要當前時間在 [排程時間, 排程時間+30分] 之間，即判定觸發
             is_time_ok = (target_time <= current_tw <= (target_time + timedelta(minutes=30)))
             
+            # 測試用：強行觸發 (如果還是沒發，把下面這行註解打開，它會強制無視時間判定)
+            # is_time_ok = True 
+            
             if is_time_ok:
-                # 檢查歷史：確保該特定時段沒有重複發送過
+                # 3. 防重複判定：確保該日該時段未發射
+                # 這裡比對小時與分鐘即可，容錯範圍抓在 30 分鐘內
                 already_sent = any(
                     h['date'] == date_today and 
                     h['category'] == "排程推送" and 
-                    abs(int(h.get('time', '00:00:00').split(":")[0]) - sched_h) == 0 and
-                    abs(int(h.get('time', '00:00:00').split(":")[1]) - sched_m) < 28
+                    int(h.get('time', '00:00:00').split(":")[0]) == sched_h and
+                    abs(int(h.get('time', '00:00:00').split(":")[1]) - sched_m) < 30
                     for h in history_data
                 )
                 
@@ -291,8 +295,6 @@ if "action" in query_params and "key" in query_params:
                         st.success(f"✅ {sched_h}:{sched_m} 發送成功")
                     except Exception as e:
                         st.error(f"🚨 {sched_h}:{sched_m} 發射失敗: {str(e)}")
-
-        # --- 全部檢查完畢後的終點 ---
         st.write("CRON_PROCESSED")
         st.stop()
 # --- 7. UI 佈局 ---
