@@ -55,16 +55,30 @@ current_tw = datetime.now(timezone.utc).astimezone(TZ_TW)
 target_time = current_tw.replace(hour=sched_h, minute=sched_m, second=0, microsecond=0)
 
 
-# --- 這裡假設是您剛剛的 if 判斷 (第 79 行) ---
+# --- 59 行：這是您的時間判定 ---
 if target_time <= current_tw and current_tw <= (target_time + timedelta(minutes=30)):
-    # ... (中間的防重邏輯與發送代碼，全部都要向右縮排) ...
-    # 確保這區塊內的所有程式碼都整齊排列
-# --- 這裡必須完全「頂格」 (不留任何空格，與最左邊對齊) ---
-# 因為 def get_cfg 是函式定義，不能被包在任何 if 裡面
+    # 這裡的所有代碼「必須」全部向右縮排 4 個空格 (一個 Tab 或四個空格)
+    specific_pushed = False
+    for h in history_data:
+        if h['date'] == date_today and h['category'] == "排程推送":
+            h_time_parts = h.get('time', '00:00:00').split(":")
+            if len(h_time_parts) >= 2:
+                h_h = int(h_time_parts[0])
+                h_m = int(h_time_parts[1])
+                if h_h == sched_h and abs(h_m - sched_m) < 28:
+                    specific_pushed = True
+                    break
+
+    if not specific_pushed:
+        # ... (這裡放您的發送邏輯，同樣要向右縮排) ...
+        final_api_key = cron_cfg.get("fixed_key_val", "")
+        # ... 後續程式碼維持同樣縮排層級 ...
+
+# --- 64 行：這裡開始，要「完全向左頂格」 (移除所有空格) ---
 def get_cfg(key, fallback):
-    try: 
+    try:
         return st.secrets.get(key, fallback) or fallback
-    except: 
+    except:
         return fallback
     
 # 🛡️ 防重檢查區塊
