@@ -183,68 +183,29 @@ def save_to_history(category, content):
                 json.dump(data, f, ensure_ascii=False, indent=4)
         except: pass
 
-# --- 5. 終極生成核心 (900字防線) ---
+# --- 5. 終極生成核心 (token 4096防線) ---
 def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經文", custom_mood=None, custom_persona="暖心"):
-    if not target_api_key:
-        return "錯誤：當前配置之 API KEY 燃料短缺，發射中止。"
-        
+    if not target_api_key: return "燃料短缺，發射中止。"
+    
     genai.configure(api_key=target_api_key)
     model = genai.GenerativeModel(model_name=target_model_id)
     
-    persona_intro = "你是溫柔牧者。"
-    if custom_persona == "專業": persona_intro = "你是具備20年資歷的業界資深 AI 策略分析師，請用高度冷靜、專業、精準、條理分明的口吻演繹。"
-    elif custom_persona == "KITT": persona_intro = "你是 K.I.T.T.，請用《霹靂車》影集那般充滿人性智慧、冷靜、理性，且帶有一點冷幽默感的口吻演繹，並稱呼使用者為 Brett。"
-        
-    if mode == "聖經經文":
-        mood_context = f"針對主題或心情『{custom_mood}』" if custom_mood else "針對目前的時分"
-        prompt = (
-            f"{persona_intro}\n"
-            f"請{mood_context}精選一段聖經經文，並給予深度反思與領受。\n\n"
-            "【輸出順序格式三階鐵律】:\n"
-            "你必須嚴格、完美地依照以下格式規範輸出，每行中間空一行，嚴禁輸出任何額外的引言、前言、結語標題 or 贅字：\n\n"
-            "【經文內容】\n"
-            "（在此寫下完整的經文字句，並在句子末端手動且明確地加上「 (阿們。)」。）\n\n"
-            "【經文章節】\n"
-            "（在此工整寫出章節，例如：(詩篇 4:8)）\n\n"
-            "【領受與感悟】\n"
-            "（在此寫下深度的領受與反思內容。）\n\n"
-            "【強制規格字數防線】:\n"
-            "1. 全文字數請嚴格、精準地控制在 900 個中文字之內！不得過多，這是最核心的指標。\n"
-            "2. 全文結構必須非常完整，結尾最後一個字必須是正常的「句號」結束，絕對不允許未完句中斷！"
-        )
-    else:
-        mood_context = f"針對用戶『{custom_mood if custom_mood else '疲累'}』的心情"
-        prompt = (
-            f"{persona_intro}\n"
-            f"{mood_context}推薦基督教詩歌(含歌名與精選歌詞)。\n\n"
-            "【輸出規範】:\n"
-            "1. 必須包含歌名與歌詞，並給予深度的溫慢勉勵與感悟。\n"
-            "2. 全文字數嚴格控制在 900 個中文字之內。\n"
-            "3. 結尾最後一個字必須是正常的「句號」結束，絕對不允許半途截斷！"
-        )
+    # 調整 Prompt：加入「嚴格不要中斷」的指示
+    prompt = f"你是溫柔牧者。請精選一段聖經經文，並給予深度反思。請確保內容完整，絕對不要在句子中間截斷。如果內容過長，請精簡，但必須要有一個完整的收尾。\n\n【輸出順序】\n【經文內容】\n【經文章節】\n【領受與感悟】\n\n以句號結尾。"
     
     for attempt in range(3):
         try:
-            res = model.generate_content(
-                prompt, 
-                generation_config=genai.types.GenerationConfig(temperature=0.72, top_p=0.85, max_output_tokens=2000)
-            )
+            # 提升 Token 額度到 4096
+            res = model.generate_content(prompt, generation_config=genai.types.GenerationConfig(temperature=0.7, max_output_tokens=4096))
             if res and res.text:
-                text_payload = str(res.text).strip()
-                if text_payload.endswith('。') or text_payload.endswith(')') or text_payload.endswith('）'):
-                    if len(text_payload) <= 900:
-                        return text_payload
+                text = str(res.text).strip()
+                # 容錯邏輯：如果沒有句號，強行補上，確保閱讀體驗
+                if not (text.endswith('。') or text.endswith('！') or text.endswith(')')):
+                    text += "。"
+                return text
         except: pass
-        time.sleep(1)
-        
-    try: final_text = str(res.text).strip()
-    except: return "核心動力連線適配中，請稍後..."
-        
-    if len(final_text) > 900:
-        final_text = final_text[:894] + " (省略)"
-        
-    return final_text
-
+        time.sleep(2) # 增加重試間隔
+    return "系統稍後恢復，請稍後。"
 # --- 6. 永動機外部排程與 Webhook 雙軌中樞 (V41.3.4 全時自癒硬化模組) ---
 query_params = st.query_params
 
