@@ -548,28 +548,30 @@ if os.path.exists(DB_FILE):
     except: pass
 
 if history_data:
-# 1. 完整且專業的 PDF/HTML 樣式生成模組 (V43.0 規格)
+# 1. 專業格式化的 HTML 匯出模組
     html_report_content = """
     <html>
     <head>
         <meta charset='utf-8'>
         <style>
-            @page { size: A4; margin: 15mm; }
-            body { font-family: 'Microsoft JhengHei', sans-serif; color: #333; line-height: 1.6; }
-            h2 { color: #1A237E; border-bottom: 2px solid #1A237E; padding-bottom: 10px; }
-            .card { background: #f9f9f9; padding: 15px; border-left: 6px solid #1A237E; margin-bottom: 15px; border-radius: 4px; }
-            .meta { font-size: 12px; color: #666; margin-bottom: 5px; font-weight: bold; }
-            .content { font-size: 14px; white-space: pre-wrap; }
+            @page { size: A4; margin: 20mm; }
+            body { font-family: 'Microsoft JhengHei', sans-serif; line-height: 1.8; color: #333; }
+            .report-title { color: #1A237E; border-bottom: 3px solid #1A237E; padding-bottom: 10px; margin-bottom: 20px; }
+            .log-entry { border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; border-radius: 8px; background: #fff; }
+            .log-meta { font-weight: bold; color: #555; border-bottom: 1px dotted #ccc; margin-bottom: 10px; padding-bottom: 5px; }
+            .log-content { white-space: pre-wrap; font-size: 14px; color: #222; }
         </style>
     </head>
     <body>
-        <h2>🛡️ 每日聖經經文稽核報告</h2>
+        <h2 class="report-title">🛡️ 每日聖經經文稽核報告</h2>
     """
+    
     for h in history_data:
+        # 這裡重點：我們加入了 div 區塊與明確的 class，確保每筆紀錄都獨立成「卡片」
         html_report_content += f"""
-        <div class='card'>
-            <div class='meta'>📅 {h['date']} ⏰ {h['time']} | 類型: {h['category']}</div>
-            <div class='content'>{h['content']}</div>
+        <div class='log-entry'>
+            <div class='log-meta'>📅 {h['date']} &nbsp; ⏰ {h['time']} &nbsp; 🏷️ {h['category']}</div>
+            <div class='log-content'>{h['content']}</div>
         </div>
         """
     html_report_content += "</body></html>"
