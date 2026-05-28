@@ -54,9 +54,19 @@ TZ_TW = timezone(timedelta(hours=8))
 current_tw = datetime.now(timezone.utc).astimezone(TZ_TW)
 target_time = current_tw.replace(hour=sched_h, minute=sched_m, second=0, microsecond=0)
 
-# 將 if True: 改回判定，並將視窗擴大，確保絕對觸發
+# --- 修正後的排程執行區塊 ---
 if target_time <= current_tw and current_tw <= (target_time + timedelta(minutes=30)):
-    # ... (下方保持您剛剛組裝好的防重邏輯與發送代碼) ...
+    # 這裡必須要有縮排代碼，否則 Python 會報錯
+    # 請把原本的發送邏輯整段填回這裡 (確保它們都向右縮排)
+    
+    specific_pushed = False
+    for h in history_data:
+        # ... (這裡放入您之前的防重檢查邏輯) ...
+        # ... (這裡放入發送 LINE 訊息的邏輯) ...
+        
+else:
+    # 這裡是選填的，如果不在時間範圍內，系統不做任何事
+    pass
 
 def get_cfg(key, fallback):
     try: return st.secrets.get(key, fallback) or fallback
