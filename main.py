@@ -269,35 +269,34 @@ if "action" in query_params and "key" in query_params:
             #if target_time <= current_tw and current_tw <= (target_time + timedelta(minutes=25)):
             # 🛡️ 強制診斷模式 (確保防重判斷依然運作)
         if True:  # 這是第 264 行
-            specific_pushed = False  # 這行必須向右縮排 4 個空格
-            for h in history_data:   # 這行也要對齊上面
-        # --- 這裡是防重檢查邏輯的正確縮排版 ---
-        if h['date'] == date_today and h['category'] == "排程推送":
-            # 這一行必須比上面的 if 往右縮進 4 個空格 (一個 Tab 或 4 個空格)
-            h_time_parts = h.get('time', '00:00:00').split(":")
-            if len(h_time_parts) >= 2:
-                # 這裡的每一行都要對齊 h_time_parts
-                h_h = int(h_time_parts[0])
-                h_m = int(h_time_parts[1])
-                if h_h == sched_h and abs(h_m - sched_m) < 28:
-                    specific_pushed = True
-                    break
-
-        # 如果沒有重複發送，才執行 (強制忽略時間判定)
+            # --- 徹底修復縮排的對齊塊 ---
+        specific_pushed = False
+        for h in history_data:
+            # 下面這行 if 必須比 for 往右縮排 4 個空格
+            if h['date'] == date_today and h['category'] == "排程推送":
+                # 下面這行 h_time_parts 必須比上面的 if 再往右縮排 4 個空格
+                h_time_parts = h.get('time', '00:00:00').split(":")
+                if len(h_time_parts) >= 2:
+                    h_h = int(h_time_parts[0])
+                    h_m = int(h_time_parts[1])
+                    if h_h == sched_h and abs(h_m - sched_m) < 28:
+                        specific_pushed = True
+                        break
+        
+        # 這行 if 必須與上面的 for 對齊 (不要縮排)
         if not specific_pushed:
+            # 這一層則需要縮排 4 個空格
             final_api_key = cron_cfg.get("fixed_key_val", "")
             if not final_api_key or len(final_api_key) < 5:
                 final_api_key = get_cfg("GEMINI_API_KEY", "")
             final_model_id = cron_cfg.get("fixed_model_id", "gemini-2.5-flash")
-            
             output_payload = execute_ai_safe_generation(target_model_id=final_model_id, target_api_key=final_api_key, mode="聖經經文")
-            
             try:
                 line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output_payload}"))
                 save_to_history("排程推送", output_payload)
                 st.success("✅ 發送成功")
             except Exception as e:
-                st.error(f"🚨 LINE發射失敗，錯誤詳情: {str(e)}")
+                st.error(f"🚨 LINE發射失敗: {str(e)}")
                     
                # 🛡️ V41.3.8 診斷強化版：強制錯誤曝光
                     success = False
