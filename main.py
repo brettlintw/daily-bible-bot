@@ -11,7 +11,7 @@ import os
 os.environ['TZ'] = 'Asia/Taipei'
 
 # --- 0. 系統版本宣告 (主程式與後台核心定錨) ---
-SYSTEM_VERSION = "V42.4"
+SYSTEM_VERSION = "V42.5"
 
 # --- 1. 頁面配置 (旗艦一頁式極簡美學 ── 強裝標題絕對不折行盔甲) ---
 st.set_page_config(page_title=f"聖經控制台 {SYSTEM_VERSION}", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
