@@ -7,6 +7,9 @@ import threading
 import json
 import os
 
+# --- 這裡就是黃金位置 ---
+os.environ['TZ'] = 'Asia/Taipei'
+
 # --- 0. 系統版本宣告 (主程式與後台核心定錨) ---
 SYSTEM_VERSION = "V42.4"
 
