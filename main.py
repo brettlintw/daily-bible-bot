@@ -260,7 +260,9 @@ if "action" in query_params and "key" in query_params:
             target_time = current_tw.replace(hour=sched_h, minute=sched_m, second=0, microsecond=0)
             
             # 🛡️ 鋼鐵自癒防線 2：放寬至 25 分鐘補發防禦窗口，消滅外部網路延遲造成的啞火
-            if target_time <= current_tw and current_tw <= (target_time + timedelta(minutes=25)):
+            #if target_time <= current_tw and current_tw <= (target_time + timedelta(minutes=25)):
+            if True: 
+    # ... (原本裡面的發送代碼) ...
                 specific_pushed = False
                 for h in history_data:
                     if h['date'] == date_today and h['category'] == "排程推送":
