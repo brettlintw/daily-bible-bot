@@ -268,27 +268,30 @@ if "action" in query_params and "key" in query_params:
          # --- 最終清潔與強制對齊版本 ---
         if target_time <= current_tw and current_tw <= (target_time + timedelta(minutes=30)):
             specific_pushed = False
-            for h in history_data:
-                if h['date'] == date_today and h['category'] == "排程推送":
-                    h_time_parts = h.get('time', '00:00:00').split(":")
-                    if len(h_time_parts) >= 2:
-                        h_h = int(h_time_parts[0])
-                        h_m = int(h_time_parts[1])
-                        if h_h == sched_h and abs(h_m - sched_m) < 28:
-                            specific_pushed = True
+            # --- 最終極的簡化版：完全不用 break，也不用循環跳出 ---
+        # 直接檢查歷史中是否有符合條件的項目
+        has_pushed_today = any(
+            h['date'] == date_today and 
+            h['category'] == "排程推送" and 
+            abs(int(h.get('time', '00:00:00').split(":")[0]) - sched_h) == 0 and
+            abs(int(h.get('time', '00:00:00').split(":")[1]) - sched_m) < 28
+            for h in history_data
+        )
+
+        # 只有在沒有發送過的情況下才執行
+        if not has_pushed_today:
+            final_api_key = cron_cfg.get("fixed_key_val", "")
+            if not final_api_key or len(final_api_key) < 5:
+                final_api_key = get_cfg("GEMINI_API_KEY", "")
+            final_model_id = cron_cfg.get("fixed_model_id", "gemini-2.5-flash")
             
-            if not specific_pushed:
-                final_api_key = cron_cfg.get("fixed_key_val", "")
-                if not final_api_key or len(final_api_key) < 5:
-                    final_api_key = get_cfg("GEMINI_API_KEY", "")
-                final_model_id = cron_cfg.get("fixed_model_id", "gemini-2.5-flash")
-                output_payload = execute_ai_safe_generation(target_model_id=final_model_id, target_api_key=final_api_key, mode="聖經經文")
-                try:
-                    line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output_payload}"))
-                    save_to_history("排程推送", output_payload)
-                    st.success("✅ 發送成功")
-                except Exception as e:
-                    st.error(f"🚨 LINE發射失敗: {str(e)}")
+            output_payload = execute_ai_safe_generation(target_model_id=final_model_id, target_api_key=final_api_key, mode="聖經經文")
+            try:
+                line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output_payload}"))
+                save_to_history("排程推送", output_payload)
+                st.success("✅ 發送成功")
+            except Exception as e:
+                st.error(f"🚨 LINE發射失敗: {str(e)}")
                     
                # 🛡️ V41.3.8 診斷強化版：強制錯誤曝光
                     success = False
