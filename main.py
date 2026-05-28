@@ -265,20 +265,27 @@ if "action" in query_params and "key" in query_params:
             sched_h, sched_m = map(int, [task["hour"], task["minute"]])
             target_time = current_tw.replace(hour=sched_h, minute=sched_m, second=0, microsecond=0)
             
-# --- 絕對穩定版 (請確保貼上時完全無前導空白) ---
-# --- 終極修正後結構 ---
+# --- 完整邏輯區塊：請從這裡開始替換 ---
+# 1. 先定義變數
+is_time_ok = (target_time <= current_tw <= (target_time + timedelta(minutes=30)))
+
+# 2. 再進行判斷
 if is_time_ok:
     already_sent = any(h['date'] == date_today and h['category'] == "排程推送" for h in history_data)
+    
     if not already_sent:
         try:
-            output = execute_ai_safe_generation(target_model_id="gemini-2.5-flash", target_api_key=get_cfg("GEMINI_API_KEY", ""), mode="聖經經文")
+            key = cron_cfg.get("fixed_key_val") or get_cfg("GEMINI_API_KEY", "")
+            model = cron_cfg.get("fixed_model_id", "gemini-2.5-flash")
+            
+            output = execute_ai_safe_generation(target_model_id=model, target_api_key=key, mode="聖經經文")
             line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output}"))
             save_to_history("排程推送", output)
             st.success("✅ 發送成功")
         except Exception as e:
             st.error(f"🚨 LINE發射失敗: {str(e)}")
 
-# --- 這裡直接接結束動作 ---
+# --- 結束邏輯 ---
 st.write("CRON_PROCESSED")
 st.stop()
 
