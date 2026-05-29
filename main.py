@@ -211,9 +211,10 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
         time.sleep(2) # 增加重試間隔
     return "系統稍後恢復，請稍後。"
 
-# --- 6. 永動機排程與廣播發射核心 (精準狙擊修正版) ---
+# --- 6. 永動機排程與廣播發射核心 (HEAD 兼容 & 強制狙擊版) ---
 params = st.query_params
 
+# 只要參數對了，無論是 HEAD 還是 GET，Streamlit 都會讀取 params
 if params.get("action") == "trigger_push":
     trigger_key = params.get("key")
     if trigger_key == TRIGGER_KEY:
@@ -241,16 +242,17 @@ if params.get("action") == "trigger_push":
 
         for task in target_schedules:
             sched_h, sched_m = map(int, [task["hour"], task["minute"]])
-            # 設定目標時間為當日該時段
             target_time = current_tw.replace(hour=sched_h, minute=sched_m, second=0, microsecond=0)
             
-            # --- 核心修正：將觸發視窗精簡為「準點前後 5 分鐘」---
-            # 確保 14:31 的 Ping 不會誤觸 15:00 的任務
+            # --- 核心優化：前後 5 分鐘容錯窗口 ---
             time_diff_seconds = (current_tw - target_time).total_seconds()
             is_time_ok = (-300 <= time_diff_seconds <= 300) 
             
-            if is_time_ok:
-                # 檢查今日該時段是否已發送 (時分精準比對)
+            # 偵測是否為「手動強制觸發」(參數帶有 manual=true)
+            is_manual = params.get("manual", "false") == "true"
+            
+            if is_time_ok or is_manual:
+                # 檢查今日該時段是否已發送
                 already_sent = any(
                     h['date'] == date_today and 
                     h['category'] == "排程推送" and 
@@ -259,7 +261,8 @@ if params.get("action") == "trigger_push":
                     for h in history_data
                 )
                 
-                if not already_sent:
+                # 若是手動強制觸發，跳過 already_sent 檢查
+                if not already_sent or is_manual:
                     try:
                         bot = LineBotApi(get_cfg("LINE_ACCESS_TOKEN", ""))
                         output = execute_ai_safe_generation(
@@ -275,6 +278,7 @@ if params.get("action") == "trigger_push":
         
         st.write("CRON_TRIGGERED_SUCCESS")
         st.stop()
+
 
 # --- 7. UI 佈局 ---
 st.markdown(f"<h1>🛡️ 聖經任務控制台 {SYSTEM_VERSION} <span class='status-tag'>🛰️ 聯邦制導</span><span class='status-tag' style='background:#00E676; color:black;'>全時自動巡航體</span></h1>", unsafe_allow_html=True)
