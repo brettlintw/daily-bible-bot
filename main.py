@@ -9,7 +9,7 @@ import os
 
 
 # --- 0. 系統版本宣告 (主程式與後台核心定錨) ---
-SYSTEM_VERSION = "V43.3"
+SYSTEM_VERSION = "V43.4"
 
 # --- 1. 頁面配置 (旗艦一頁式極簡美學 ── 強裝標題絕對不折行盔甲) ---
 st.set_page_config(page_title=f"聖經控制台 {SYSTEM_VERSION}", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
@@ -210,10 +210,10 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
         except: pass
         time.sleep(2) # 增加重試間隔
     return "系統稍後恢復，請稍後。"
-# --- 6. 永動機外部排程與 Webhook 雙軌中樞 (V43.2 修正版) ---
+# --- 6. 永動機外部排程與 Webhook 雙軌中樞 (V43.3 穩定觸發版) ---
 params = st.query_params
 
-# 1. 偵測雷達 UID (保持原有功能)
+# 1. 偵測雷達 UID
 if "incoming_uid" in params:
     try:
         radar_data = {
@@ -226,19 +226,18 @@ if "incoming_uid" in params:
     st.write("OK")
     st.stop()
 
-# 2. Webhook 觸發核心 (修正邏輯：確保優先級最高)
+# 2. Webhook 觸發核心 (解耦初始化與發送)
 if params.get("action") == "trigger_push":
     trigger_key = params.get("key")
     if trigger_key == TRIGGER_KEY:
-        # 🛡️ 強制時間定錨
+        # 強制時間定錨
         current_tw = datetime.now(timezone.utc).astimezone(TZ_TW)
         date_today = current_tw.strftime("%Y-%m-%d")
         
-        # 載入配置
         cron_cfg = load_engine_config()
         target_schedules = []
         
-        # 軌道 A：每日循環
+        # 軌道 A 與 B 設定
         if cron_cfg.get("daily_enabled", True):
             d_times = cron_cfg.get("daily_schedule", "09:00,15:30,21:00").split(",")
             d_gates = [cron_cfg.get("daily_t1_enabled", True), cron_cfg.get("daily_t2_enabled", True), cron_cfg.get("daily_t3_enabled", True)]
@@ -247,7 +246,6 @@ if params.get("action") == "trigger_push":
                     h, m = s.strip().split(":")
                     target_schedules.append({"hour": h.zfill(2), "minute": m.zfill(2)})
                 
-        # 軌道 B：特定日期
         if cron_cfg.get("specific_enabled", True) and cron_cfg.get("specific_date", "") == date_today:
             s_times = cron_cfg.get("specific_schedule", "09:00,15:30,21:00").split(",")
             s_gates = [cron_cfg.get("specific_t1_enabled", True), cron_cfg.get("specific_t2_enabled", True), cron_cfg.get("specific_t3_enabled", True)]
@@ -262,12 +260,10 @@ if params.get("action") == "trigger_push":
                 with open(DB_FILE, "r", encoding="utf-8") as f: history_data = json.load(f)
             except: pass
 
-        # 軌道發射核心
+        # 發射核心
         for task in target_schedules:
             sched_h, sched_m = map(int, [task["hour"], task["minute"]])
             target_time = current_tw.replace(hour=sched_h, minute=sched_m, second=0, microsecond=0)
-            
-            # 使用 60 分鐘窗口以防誤差 (已修正)
             is_time_ok = (target_time <= current_tw <= (target_time + timedelta(minutes=60)))
             
             if is_time_ok:
@@ -281,12 +277,22 @@ if params.get("action") == "trigger_push":
                 
                 if not already_sent:
                     try:
+                        # 關鍵修正：在排程區塊內重新獲取 Token 並實例化 API
+                        token = get_cfg("LINE_ACCESS_TOKEN", "")
+                        bot = LineBotApi(token)
+                        
                         key = cron_cfg.get("fixed_key_val") or get_cfg("GEMINI_API_KEY", "")
                         model = cron_cfg.get("fixed_model_id", "gemini-2.5-flash")
+                        
                         output = execute_ai_safe_generation(target_model_id=model, target_api_key=key, mode="聖經經文")
-                        line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output}"))
+                        bot.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output}"))
                         save_to_history("排程推送", output)
-                    except: pass
+                        
+                        # 加入短暫緩衝，確保 API 網路連線穩定
+                        time.sleep(1)
+                    except Exception as e:
+                        # 錯誤會被靜默，但排程會繼續執行
+                        pass
         
         st.write("CRON_TRIGGERED_SUCCESS")
         st.stop()
