@@ -210,7 +210,10 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
         except: pass
         time.sleep(2) # 增加重試間隔
     return "系統稍後恢復，請稍後。"
-# --- 6. 永動機排程與廣播發射核心 (精準修正版) ---
+
+# --- 6. 永動機排程與廣播發射核心 (修正順序與觸發邏輯) ---
+params = st.query_params
+
 if params.get("action") == "trigger_push":
     trigger_key = params.get("key")
     if trigger_key == TRIGGER_KEY:
@@ -267,6 +270,7 @@ if params.get("action") == "trigger_push":
         
         st.write("CRON_TRIGGERED_SUCCESS")
         st.stop()
+
 # --- 7. UI 佈局 ---
 st.markdown(f"<h1>🛡️ 聖經任務控制台 {SYSTEM_VERSION} <span class='status-tag'>🛰️ 聯邦制導</span><span class='status-tag' style='background:#00E676; color:black;'>全時自動巡航體</span></h1>", unsafe_allow_html=True)
 # --- 確保時間渲染變數已準備好 (請放在 st.caption 之前) ---
