@@ -9,7 +9,7 @@ import os
 
 
 # --- 0. 系統版本宣告 (主程式與後台核心定錨) ---
-SYSTEM_VERSION = "V43.4"
+SYSTEM_VERSION = "V43.5最終完美版"
 
 # --- 1. 頁面配置 (旗艦一頁式極簡美學 ── 強裝標題絕對不折行盔甲) ---
 st.set_page_config(page_title=f"聖經控制台 {SYSTEM_VERSION}", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
@@ -210,34 +210,27 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
         except: pass
         time.sleep(2) # 增加重試間隔
     return "系統稍後恢復，請稍後。"
-# --- 6. 永動機外部排程與 Webhook 雙軌中樞 (V43.3 穩定觸發版) ---
+# --- 6. 永動機外部排程與 Webhook 雙軌中樞 (V43.4 成員自動管理與推送版) ---
 params = st.query_params
 
-# 1. 偵測雷達 UID
+# 1. 自動偵測雷達與成員入籍
 if "incoming_uid" in params:
-    try:
-        radar_data = {
-            "last_seen_uid": params["incoming_uid"],
-            "timestamp": datetime.now(timezone.utc).astimezone(TZ_TW).strftime("%H:%M:%S")
-        }
-        with open(RADAR_TRACK_FILE, "w", encoding="utf-8") as f:
-            json.dump(radar_data, f, ensure_ascii=False, indent=4)
-    except: pass
+    uid = params["incoming_uid"]
+    add_member_to_json(uid) # 自動收編好友 ID
     st.write("OK")
     st.stop()
 
-# 2. Webhook 觸發核心 (解耦初始化與發送)
+# 2. 軌道排程發射核心
 if params.get("action") == "trigger_push":
     trigger_key = params.get("key")
     if trigger_key == TRIGGER_KEY:
-        # 強制時間定錨
         current_tw = datetime.now(timezone.utc).astimezone(TZ_TW)
         date_today = current_tw.strftime("%Y-%m-%d")
         
         cron_cfg = load_engine_config()
         target_schedules = []
         
-        # 軌道 A 與 B 設定
+        # 軌道 A：每日循環
         if cron_cfg.get("daily_enabled", True):
             d_times = cron_cfg.get("daily_schedule", "09:00,15:30,21:00").split(",")
             d_gates = [cron_cfg.get("daily_t1_enabled", True), cron_cfg.get("daily_t2_enabled", True), cron_cfg.get("daily_t3_enabled", True)]
@@ -246,6 +239,7 @@ if params.get("action") == "trigger_push":
                     h, m = s.strip().split(":")
                     target_schedules.append({"hour": h.zfill(2), "minute": m.zfill(2)})
                 
+        # 軌道 B：特定日期
         if cron_cfg.get("specific_enabled", True) and cron_cfg.get("specific_date", "") == date_today:
             s_times = cron_cfg.get("specific_schedule", "09:00,15:30,21:00").split(",")
             s_gates = [cron_cfg.get("specific_t1_enabled", True), cron_cfg.get("specific_t2_enabled", True), cron_cfg.get("specific_t3_enabled", True)]
@@ -260,45 +254,39 @@ if params.get("action") == "trigger_push":
                 with open(DB_FILE, "r", encoding="utf-8") as f: history_data = json.load(f)
             except: pass
 
-        # 發射核心
+        # 軌道發射邏輯
         for task in target_schedules:
             sched_h, sched_m = map(int, [task["hour"], task["minute"]])
             target_time = current_tw.replace(hour=sched_h, minute=sched_m, second=0, microsecond=0)
             is_time_ok = (target_time <= current_tw <= (target_time + timedelta(minutes=60)))
             
             if is_time_ok:
-                already_sent = any(
-                    h['date'] == date_today and 
-                    h['category'] == "排程推送" and 
-                    int(h.get('time', '00:00:00').split(":")[0]) == sched_h and
-                    abs(int(h.get('time', '00:00:00').split(":")[1]) - sched_m) < 30
-                    for h in history_data
-                )
+                already_sent = any(h['date'] == date_today and h['category'] == "排程推送" and 
+                                   int(h.get('time', '00:00:00').split(":")[0]) == sched_h and
+                                   abs(int(h.get('time', '00:00:00').split(":")[1]) - sched_m) < 30
+                                   for h in history_data)
                 
                 if not already_sent:
                     try:
-                        # 關鍵修正：在排程區塊內重新獲取 Token 並實例化 API
-                        token = get_cfg("LINE_ACCESS_TOKEN", "")
-                        bot = LineBotApi(token)
+                        # 讀取自動管理的 members.json
+                        target_list = []
+                        if os.path.exists("members.json"):
+                            with open("members.json", "r", encoding="utf-8") as f: target_list = json.load(f)
                         
-                        key = cron_cfg.get("fixed_key_val") or get_cfg("GEMINI_API_KEY", "")
-                        model = cron_cfg.get("fixed_model_id", "gemini-2.5-flash")
-                        
-                        output = execute_ai_safe_generation(target_model_id=model, target_api_key=key, mode="聖經經文")
-                        # 將原本的廣播改為推播 (Push)
-                        # 這樣做可以跳過「廣播配額限制」，並且更精準
-                        target_uid = "Uf166c741223bc8ee5d82fd1fd9f4df86" # 請確認這是您的 ID
-                        bot.push_message(target_uid, TextSendMessage(text=f"【自動排程推送】\n\n{output}"))
-                        save_to_history("排程推送", output)
-                        
-                        # 加入短暫緩衝，確保 API 網路連線穩定
-                        time.sleep(1)
-                    except Exception as e:
-                        # 錯誤會被靜默，但排程會繼續執行
-                        pass
+                        if target_list:
+                            bot = LineBotApi(get_cfg("LINE_ACCESS_TOKEN", ""))
+                            key = cron_cfg.get("fixed_key_val") or get_cfg("GEMINI_API_KEY", "")
+                            model = cron_cfg.get("fixed_model_id", "gemini-2.5-flash")
+                            
+                            output = execute_ai_safe_generation(target_model_id=model, target_api_key=key, mode="聖經經文")
+                            bot.multicast(target_list, TextSendMessage(text=f"【自動排程推送】\n\n{output}"))
+                            save_to_history("排程推送", output)
+                            time.sleep(1)
+                    except: pass
         
         st.write("CRON_TRIGGERED_SUCCESS")
         st.stop()
+
 # --- 7. UI 佈局 ---
 st.markdown(f"<h1>🛡️ 聖經任務控制台 {SYSTEM_VERSION} <span class='status-tag'>🛰️ 聯邦制導</span><span class='status-tag' style='background:#00E676; color:black;'>全時自動巡航體</span></h1>", unsafe_allow_html=True)
 # --- 確保時間渲染變數已準備好 (請放在 st.caption 之前) ---
@@ -604,3 +592,19 @@ if history_data:
             
 else:
     st.info("⚠️ 儲存艙目前尚無歷史保存紀錄。")
+
+
+else:
+    st.info("⚠️ 儲存艙目前尚無歷史保存紀錄。")
+
+# --- 新增的成員自動監聽區 (請貼在檔案的最後面) ---
+from linebot import WebhookHandler
+from linebot.models import MessageEvent, TextMessage
+from linebot.exceptions import InvalidSignatureError
+
+handler = WebhookHandler(get_cfg("LINE_CHANNEL_SECRET", ""))
+
+@handler.add(MessageEvent, message=TextMessage)
+def handle_message(event):
+    uid = event.source.user_id
+    add_member_to_json(uid)
