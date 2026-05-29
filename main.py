@@ -603,14 +603,21 @@ if history_data:
 else:
     st.info("⚠️ 儲存艙目前尚無歷史保存紀錄。")
 
-# --- 新增的成員自動監聽區 (請貼在檔案的最後面) ---
-from linebot import WebhookHandler
-from linebot.models import MessageEvent, TextMessage
+# --- 請替換您檔案底部的 Webhook 處理區 ---
+from flask import request, abort
 from linebot.exceptions import InvalidSignatureError
 
-handler = WebhookHandler(get_cfg("LINE_CHANNEL_SECRET", ""))
+# 這裡假設您的 App 是標準 Streamlit，通常我們需要掛載一個 Flask handler
+# 但 Streamlit 不直接支援 Flask 路由。
+# 最簡單的「強制監聽」方法是直接在主循環中處理：
 
-@handler.add(MessageEvent, message=TextMessage)
-def handle_message(event):
-    uid = event.source.user_id
-    add_member_to_json(uid)
+if "hub.mode" in params or request is not None:
+    # 這是 LINE 驗證 Webhook 的必經之路
+    body = request.get_data(as_text=True)
+    signature = request.headers['X-Line-Signature']
+    try:
+        handler.handle(body, signature)
+    except InvalidSignatureError:
+        abort(400)
+    st.write("OK")
+    st.stop()
