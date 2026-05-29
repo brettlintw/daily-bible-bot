@@ -285,7 +285,10 @@ if params.get("action") == "trigger_push":
                         model = cron_cfg.get("fixed_model_id", "gemini-2.5-flash")
                         
                         output = execute_ai_safe_generation(target_model_id=model, target_api_key=key, mode="聖經經文")
-                        bot.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output}"))
+                        # 將原本的廣播改為推播 (Push)
+                        # 這樣做可以跳過「廣播配額限制」，並且更精準
+                        target_uid = "Uf166c741223bc8ee5d82fd1fd9f4df86" # 請確認這是您的 ID
+                        bot.push_message(target_uid, TextSendMessage(text=f"【自動排程推送】\n\n{output}"))
                         save_to_history("排程推送", output)
                         
                         # 加入短暫緩衝，確保 API 網路連線穩定
