@@ -286,7 +286,62 @@ if params.get("action") == "trigger_push":
         
         st.write("CRON_TRIGGERED_SUCCESS")
         st.stop()
+        # --- 6. 永動機排程與廣播發射核心 (最終穩定版) ---
+params = st.query_params
 
+if params.get("action") == "trigger_push":
+    trigger_key = params.get("key")
+    if trigger_key == TRIGGER_KEY:
+        current_tw = datetime.now(timezone.utc).astimezone(TZ_TW)
+        date_today = current_tw.strftime("%Y-%m-%d")
+        
+        cron_cfg = load_engine_config()
+        target_schedules = []
+        
+        # 軌道設定判定
+        if cron_cfg.get("daily_enabled", True):
+            d_times = cron_cfg.get("daily_schedule", "09:00,15:30,21:00").split(",")
+            d_gates = [cron_cfg.get("daily_t1_enabled", True), cron_cfg.get("daily_t2_enabled", True), cron_cfg.get("daily_t3_enabled", True)]
+            for idx, s in enumerate(d_times):
+                if idx < len(d_gates) and d_gates[idx] and ":" in s.strip():
+                    h, m = s.strip().split(":")
+                    target_schedules.append({"hour": h.zfill(2), "minute": m.zfill(2)})
+                
+        # 發射邏輯
+        history_data = []
+        if os.path.exists(DB_FILE):
+            try:
+                with open(DB_FILE, "r", encoding="utf-8") as f: history_data = json.load(f)
+            except: pass
+
+        for task in target_schedules:
+            sched_h, sched_m = map(int, [task["hour"], task["minute"]])
+            target_time = current_tw.replace(hour=sched_h, minute=sched_m, second=0, microsecond=0)
+            is_time_ok = (target_time <= current_tw <= (target_time + timedelta(minutes=60)))
+            
+            if is_time_ok:
+                already_sent = any(h['date'] == date_today and h['category'] == "排程推送" and 
+                                   int(h.get('time', '00:00:00').split(":")[0]) == sched_h and
+                                   abs(int(h.get('time', '00:00:00').split(":")[1]) - sched_m) < 30
+                                   for h in history_data)
+                
+                if not already_sent:
+                    try:
+                        # 廣播模式：不需成員清單，直接推送給所有好友
+                        bot = LineBotApi(get_cfg("LINE_ACCESS_TOKEN", ""))
+                        key = cron_cfg.get("fixed_key_val") or get_cfg("GEMINI_API_KEY", "")
+                        model = cron_cfg.get("fixed_model_id", "gemini-2.5-flash")
+                        
+                        output = execute_ai_safe_generation(target_model_id=model, target_api_key=key, mode="聖經經文")
+                        bot.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output}"))
+                        
+                        save_to_history("排程推送", output)
+                        time.sleep(1)
+                    except Exception as e:
+                        pass # 靜默處理，確保排程流程不受干擾
+        
+        st.write("CRON_TRIGGERED_SUCCESS")
+        st.stop()
 # --- 7. UI 佈局 ---
 st.markdown(f"<h1>🛡️ 聖經任務控制台 {SYSTEM_VERSION} <span class='status-tag'>🛰️ 聯邦制導</span><span class='status-tag' style='background:#00E676; color:black;'>全時自動巡航體</span></h1>", unsafe_allow_html=True)
 # --- 確保時間渲染變數已準備好 (請放在 st.caption 之前) ---
@@ -603,23 +658,3 @@ if history_data:
 else:
     st.info("⚠️ 儲存艙目前尚無歷史保存紀錄。")
 
-# --- 請替換您檔案底部的 Webhook 處理區 ---
-# ----永動機排程與自動成員管理 (穩定版) ---
-params = st.query_params
-
-if "incoming_uid" in params:
-    uid = params["incoming_uid"]
-    # 直接讀寫檔案，簡單暴力且有效
-    members = []
-    if os.path.exists("members.json"):
-        try:
-            with open("members.json", "r", encoding="utf-8") as f: members = json.load(f)
-        except: pass
-    if uid not in members:
-        members.append(uid)
-        with open("members.json", "w", encoding="utf-8") as f: json.dump(members, f, ensure_ascii=False, indent=4)
-    st.write("OK")
-    st.stop()
-
-# 排程觸發器邏輯保持不變...
-# (這裡就是您之前那段完整的 trigger_push 邏輯)
