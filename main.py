@@ -211,7 +211,7 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
         time.sleep(2) # 增加重試間隔
     return "系統稍後恢復，請稍後。"
 
-# --- 6. 永動機排程與廣播發射核心 (修正順序與觸發邏輯) ---
+# --- 6. 永動機排程與廣播發射核心 (精準狙擊修正版) ---
 params = st.query_params
 
 if params.get("action") == "trigger_push":
@@ -244,25 +244,30 @@ if params.get("action") == "trigger_push":
             # 設定目標時間為當日該時段
             target_time = current_tw.replace(hour=sched_h, minute=sched_m, second=0, microsecond=0)
             
-            # 精準修正：寬容窗口設定為 30 分鐘，確保 UptimeRobot 觸發即可點火
-            is_time_ok = abs((current_tw - target_time).total_seconds()) <= 1800 
+            # --- 核心修正：將觸發視窗精簡為「準點前後 5 分鐘」---
+            # 確保 14:31 的 Ping 不會誤觸 15:00 的任務
+            time_diff_seconds = (current_tw - target_time).total_seconds()
+            is_time_ok = (-300 <= time_diff_seconds <= 300) 
             
             if is_time_ok:
-                # 檢查今日該時段是否已發送，避免重複
+                # 檢查今日該時段是否已發送 (時分精準比對)
                 already_sent = any(
                     h['date'] == date_today and 
                     h['category'] == "排程推送" and 
-                    abs(int(h.get('time', '00:00:00').split(":")[0]) - sched_h) == 0 and
-                    abs(int(h.get('time', '00:00:00').split(":")[1]) - sched_m) < 30
+                    int(h.get('time', '00:00:00').split(":")[0]) == sched_h and
+                    int(h.get('time', '00:00:00').split(":")[1]) == sched_m
                     for h in history_data
                 )
                 
                 if not already_sent:
                     try:
-                        key = cron_cfg.get("fixed_key_val") or get_cfg("GEMINI_API_KEY", "")
-                        model = cron_cfg.get("fixed_model_id", "gemini-2.5-flash")
-                        output = execute_ai_safe_generation(target_model_id=model, target_api_key=key, mode="聖經經文")
-                        line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output}"))
+                        bot = LineBotApi(get_cfg("LINE_ACCESS_TOKEN", ""))
+                        output = execute_ai_safe_generation(
+                            target_model_id=cron_cfg.get("fixed_model_id", "gemini-2.5-flash"), 
+                            target_api_key=cron_cfg.get("fixed_key_val") or get_cfg("GEMINI_API_KEY", ""), 
+                            mode="聖經經文"
+                        )
+                        bot.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output}"))
                         save_to_history("排程推送", output)
                         time.sleep(1)
                     except Exception as e:
