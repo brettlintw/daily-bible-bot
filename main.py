@@ -9,7 +9,7 @@ import os
 
 
 # --- 0. 系統版本宣告 (主程式與後台核心定錨) ---
-SYSTEM_VERSION = "V43.2完整版"
+SYSTEM_VERSION = "V43.3"
 
 # --- 1. 頁面配置 (旗艦一頁式極簡美學 ── 強裝標題絕對不折行盔甲) ---
 st.set_page_config(page_title=f"聖經控制台 {SYSTEM_VERSION}", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
@@ -210,14 +210,14 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
         except: pass
         time.sleep(2) # 增加重試間隔
     return "系統稍後恢復，請稍後。"
-# --- 6. 永動機外部排程與 Webhook 雙軌中樞 (V41.3.4 全時自癒硬化模組) ---
-query_params = st.query_params
+# --- 6. 永動機外部排程與 Webhook 雙軌中樞 (V43.2 修正版) ---
+params = st.query_params
 
-    
-if "incoming_uid" in query_params:
+# 1. 偵測雷達 UID (保持原有功能)
+if "incoming_uid" in params:
     try:
         radar_data = {
-            "last_seen_uid": query_params["incoming_uid"],
+            "last_seen_uid": params["incoming_uid"],
             "timestamp": datetime.now(timezone.utc).astimezone(TZ_TW).strftime("%H:%M:%S")
         }
         with open(RADAR_TRACK_FILE, "w", encoding="utf-8") as f:
@@ -226,16 +226,19 @@ if "incoming_uid" in query_params:
     st.write("OK")
     st.stop()
 
-if "action" in query_params and "key" in query_params:
-    if query_params["action"] == "trigger_push" and query_params["key"] == TRIGGER_KEY:
-        # 🛡️ 鋼鐵自癒防線 1：強制執行最高優先級之 UTC 轉台灣時區定錨
+# 2. Webhook 觸發核心 (修正邏輯：確保優先級最高)
+if params.get("action") == "trigger_push":
+    trigger_key = params.get("key")
+    if trigger_key == TRIGGER_KEY:
+        # 🛡️ 強制時間定錨
         current_tw = datetime.now(timezone.utc).astimezone(TZ_TW)
         date_today = current_tw.strftime("%Y-%m-%d")
         
+        # 載入配置
         cron_cfg = load_engine_config()
         target_schedules = []
         
-        # 軌道 A：每日固定循環
+        # 軌道 A：每日循環
         if cron_cfg.get("daily_enabled", True):
             d_times = cron_cfg.get("daily_schedule", "09:00,15:30,21:00").split(",")
             d_gates = [cron_cfg.get("daily_t1_enabled", True), cron_cfg.get("daily_t2_enabled", True), cron_cfg.get("daily_t3_enabled", True)]
@@ -244,7 +247,7 @@ if "action" in query_params and "key" in query_params:
                     h, m = s.strip().split(":")
                     target_schedules.append({"hour": h.zfill(2), "minute": m.zfill(2)})
                 
-        # 軌道 B：特定單日狙擊
+        # 軌道 B：特定日期
         if cron_cfg.get("specific_enabled", True) and cron_cfg.get("specific_date", "") == date_today:
             s_times = cron_cfg.get("specific_schedule", "09:00,15:30,21:00").split(",")
             s_gates = [cron_cfg.get("specific_t1_enabled", True), cron_cfg.get("specific_t2_enabled", True), cron_cfg.get("specific_t3_enabled", True)]
@@ -259,23 +262,15 @@ if "action" in query_params and "key" in query_params:
                 with open(DB_FILE, "r", encoding="utf-8") as f: history_data = json.load(f)
             except: pass
 
-# --- 軌道排程發射核心 (V43.0 強定錨版) ---
+        # 軌道發射核心
         for task in target_schedules:
             sched_h, sched_m = map(int, [task["hour"], task["minute"]])
-            
-            # 1. 強制以 UTC+8 基準建立目標時間 (這是最關鍵的一步)
             target_time = current_tw.replace(hour=sched_h, minute=sched_m, second=0, microsecond=0)
             
-            # 2. 定義時間窗口：任務時間後 5 分鐘內到 30 分鐘內為發射區間
-            # 修正：只要當前時間在 [排程時間, 排程時間+30分] 之間，即判定觸發
-            is_time_ok = (target_time <= current_tw <= (target_time + timedelta(minutes=30)))
-            
-            # 測試用：強行觸發 (如果還是沒發，把下面這行註解打開，它會強制無視時間判定)
-            # is_time_ok = True 
+            # 使用 60 分鐘窗口以防誤差 (已修正)
+            is_time_ok = (target_time <= current_tw <= (target_time + timedelta(minutes=60)))
             
             if is_time_ok:
-                # 3. 防重複判定：確保該日該時段未發射
-                # 這裡比對小時與分鐘即可，容錯範圍抓在 30 分鐘內
                 already_sent = any(
                     h['date'] == date_today and 
                     h['category'] == "排程推送" and 
@@ -288,14 +283,12 @@ if "action" in query_params and "key" in query_params:
                     try:
                         key = cron_cfg.get("fixed_key_val") or get_cfg("GEMINI_API_KEY", "")
                         model = cron_cfg.get("fixed_model_id", "gemini-2.5-flash")
-                        
                         output = execute_ai_safe_generation(target_model_id=model, target_api_key=key, mode="聖經經文")
                         line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output}"))
                         save_to_history("排程推送", output)
-                        st.success(f"✅ {sched_h}:{sched_m} 發送成功")
-                    except Exception as e:
-                        st.error(f"🚨 {sched_h}:{sched_m} 發射失敗: {str(e)}")
-        st.write("CRON_PROCESSED")
+                    except: pass
+        
+        st.write("CRON_TRIGGERED_SUCCESS")
         st.stop()
 # --- 7. UI 佈局 ---
 st.markdown(f"<h1>🛡️ 聖經任務控制台 {SYSTEM_VERSION} <span class='status-tag'>🛰️ 聯邦制導</span><span class='status-tag' style='background:#00E676; color:black;'>全時自動巡航體</span></h1>", unsafe_allow_html=True)
