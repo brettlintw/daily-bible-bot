@@ -604,20 +604,22 @@ else:
     st.info("⚠️ 儲存艙目前尚無歷史保存紀錄。")
 
 # --- 請替換您檔案底部的 Webhook 處理區 ---
-from flask import request, abort
-from linebot.exceptions import InvalidSignatureError
+# ----永動機排程與自動成員管理 (穩定版) ---
+params = st.query_params
 
-# 這裡假設您的 App 是標準 Streamlit，通常我們需要掛載一個 Flask handler
-# 但 Streamlit 不直接支援 Flask 路由。
-# 最簡單的「強制監聽」方法是直接在主循環中處理：
-
-if "hub.mode" in params or request is not None:
-    # 這是 LINE 驗證 Webhook 的必經之路
-    body = request.get_data(as_text=True)
-    signature = request.headers['X-Line-Signature']
-    try:
-        handler.handle(body, signature)
-    except InvalidSignatureError:
-        abort(400)
+if "incoming_uid" in params:
+    uid = params["incoming_uid"]
+    # 直接讀寫檔案，簡單暴力且有效
+    members = []
+    if os.path.exists("members.json"):
+        try:
+            with open("members.json", "r", encoding="utf-8") as f: members = json.load(f)
+        except: pass
+    if uid not in members:
+        members.append(uid)
+        with open("members.json", "w", encoding="utf-8") as f: json.dump(members, f, ensure_ascii=False, indent=4)
     st.write("OK")
     st.stop()
+
+# 排程觸發器邏輯保持不變...
+# (這裡就是您之前那段完整的 trigger_push 邏輯)
