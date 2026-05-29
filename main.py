@@ -210,35 +210,17 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
         except: pass
         time.sleep(2) # 增加重試間隔
     return "系統稍後恢復，請稍後。"
-# --- 6. 永動機外部排程與 Webhook 雙軌中樞 (V43.2 修正版) ---
-params = st.query_params
-
-# 1. 偵測雷達 UID (保持原有功能)
-if "incoming_uid" in params:
-    try:
-        radar_data = {
-            "last_seen_uid": params["incoming_uid"],
-            "timestamp": datetime.now(timezone.utc).astimezone(TZ_TW).strftime("%H:%M:%S")
-        }
-        with open(RADAR_TRACK_FILE, "w", encoding="utf-8") as f:
-            json.dump(radar_data, f, ensure_ascii=False, indent=4)
-    except: pass
-    st.write("OK")
-    st.stop()
-
-# 2. Webhook 觸發核心 (修正邏輯：確保優先級最高)
+# --- 6. 永動機排程與廣播發射核心 (精準修正版) ---
 if params.get("action") == "trigger_push":
     trigger_key = params.get("key")
     if trigger_key == TRIGGER_KEY:
-        # 🛡️ 強制時間定錨
         current_tw = datetime.now(timezone.utc).astimezone(TZ_TW)
         date_today = current_tw.strftime("%Y-%m-%d")
         
-        # 載入配置
         cron_cfg = load_engine_config()
         target_schedules = []
         
-        # 軌道 A：每日循環
+        # 軌道設定判定
         if cron_cfg.get("daily_enabled", True):
             d_times = cron_cfg.get("daily_schedule", "09:00,15:30,21:00").split(",")
             d_gates = [cron_cfg.get("daily_t1_enabled", True), cron_cfg.get("daily_t2_enabled", True), cron_cfg.get("daily_t3_enabled", True)]
@@ -247,34 +229,27 @@ if params.get("action") == "trigger_push":
                     h, m = s.strip().split(":")
                     target_schedules.append({"hour": h.zfill(2), "minute": m.zfill(2)})
                 
-        # 軌道 B：特定日期
-        if cron_cfg.get("specific_enabled", True) and cron_cfg.get("specific_date", "") == date_today:
-            s_times = cron_cfg.get("specific_schedule", "09:00,15:30,21:00").split(",")
-            s_gates = [cron_cfg.get("specific_t1_enabled", True), cron_cfg.get("specific_t2_enabled", True), cron_cfg.get("specific_t3_enabled", True)]
-            for idx, s in enumerate(s_times):
-                if idx < len(s_gates) and s_gates[idx] and ":" in s.strip():
-                    h, m = s.strip().split(":")
-                    target_schedules.append({"hour": h.zfill(2), "minute": m.zfill(2)})
-
+        # 發射邏輯
         history_data = []
         if os.path.exists(DB_FILE):
             try:
                 with open(DB_FILE, "r", encoding="utf-8") as f: history_data = json.load(f)
             except: pass
 
-        # 軌道發射核心
         for task in target_schedules:
             sched_h, sched_m = map(int, [task["hour"], task["minute"]])
+            # 設定目標時間為當日該時段
             target_time = current_tw.replace(hour=sched_h, minute=sched_m, second=0, microsecond=0)
             
-            # 使用 60 分鐘窗口以防誤差 (已修正)
-            is_time_ok = (target_time <= current_tw <= (target_time + timedelta(minutes=60)))
+            # 精準修正：寬容窗口設定為 30 分鐘，確保 UptimeRobot 觸發即可點火
+            is_time_ok = abs((current_tw - target_time).total_seconds()) <= 1800 
             
             if is_time_ok:
+                # 檢查今日該時段是否已發送，避免重複
                 already_sent = any(
                     h['date'] == date_today and 
                     h['category'] == "排程推送" and 
-                    int(h.get('time', '00:00:00').split(":")[0]) == sched_h and
+                    abs(int(h.get('time', '00:00:00').split(":")[0]) - sched_h) == 0 and
                     abs(int(h.get('time', '00:00:00').split(":")[1]) - sched_m) < 30
                     for h in history_data
                 )
@@ -286,7 +261,9 @@ if params.get("action") == "trigger_push":
                         output = execute_ai_safe_generation(target_model_id=model, target_api_key=key, mode="聖經經文")
                         line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output}"))
                         save_to_history("排程推送", output)
-                    except: pass
+                        time.sleep(1)
+                    except Exception as e:
+                        st.error(f"發送錯誤: {str(e)}")
         
         st.write("CRON_TRIGGERED_SUCCESS")
         st.stop()
