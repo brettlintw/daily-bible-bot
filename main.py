@@ -593,10 +593,6 @@ if history_data:
 else:
     st.info("⚠️ 儲存艙目前尚無歷史保存紀錄。")
 
-
-else:
-    st.info("⚠️ 儲存艙目前尚無歷史保存紀錄。")
-
 # --- 新增的成員自動監聽區 (請貼在檔案的最後面) ---
 from linebot import WebhookHandler
 from linebot.models import MessageEvent, TextMessage
