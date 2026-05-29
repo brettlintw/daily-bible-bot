@@ -531,6 +531,16 @@ if st.button("✨ 啟動 AI 廣播"):
 st.markdown("---")
 
 # --- 歷史經文典藏管理庫 (V43.1 精簡互動版) ---
+
+# --- 監測器：顯示目前的成員清單 ---
+with st.expander("🔍 系統狀態檢查：members.json"):
+    if os.path.exists("members.json"):
+        with open("members.json", "r", encoding="utf-8") as f:
+            data = json.load(f)
+            st.json(data)
+    else:
+        st.write("members.json 尚未建立")
+        
 st.subheader("📚 歷史經文典藏管理庫")
 history_data = []
 if os.path.exists(DB_FILE):
