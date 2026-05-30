@@ -9,7 +9,7 @@ import os
 
 
 # --- 0. 系統版本宣告 (主程式與後台核心定錨) ---
-SYSTEM_VERSION = "V45.2"
+SYSTEM_VERSION = "V45.3"
 
 # --- 1. 頁面配置 (旗艦一頁式極簡美學 ── 強裝標題絕對不折行盔甲) ---
 st.set_page_config(page_title=f"聖經控制台 {SYSTEM_VERSION}", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
@@ -182,69 +182,68 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
         time.sleep(2) # 增加重試間隔
     return "系統稍後恢復，請稍後。"
 
-# --- 6. 永動機排程與廣播發射核心 (最終穩定版) ---
+# --- 6. 永動機排程與廣播發射核心 (V45.3 穩定加固版) ---
 params = st.query_params
 
 if params.get("action") == "trigger_push":
     trigger_key = params.get("key")
     if trigger_key == TRIGGER_KEY:
-        current_tw = datetime.now(timezone.utc).astimezone(TZ_TW)
+        # 強制指定時區，排除伺服器預設 UTC 時間偏移
+        current_tw = datetime.now(TZ_TW)
         date_today = current_tw.strftime("%Y-%m-%d")
         
         cron_cfg = load_engine_config()
-        
-        # 0. 全局總開關
         if not cron_cfg.get("global_enabled", True):
             st.stop()
 
         target_schedules = []
-        
-        # 1. 判斷模式：特殊日優先，否則每日
         is_spec_day = cron_cfg.get(f"spec_{date_today}_enabled", False)
         
+        # 邏輯解析與開關驗證
         if is_spec_day:
             s_times = cron_cfg.get(f"spec_{date_today}_schedule", "09:00,11:30,21:00").replace(" ", "").split(",")
             for idx, s in enumerate(s_times, 1):
-                # 強制讀取 spec_{date}_t{idx}_enabled
                 if cron_cfg.get(f"spec_{date_today}_t{idx}_enabled", True) and ":" in s:
                     target_schedules.append(s.strip())
         else:
-            # 每日模式：精確讀取 daily_t1, t2, t3 enabled
             if cron_cfg.get("daily_enabled", True):
                 d_times = cron_cfg.get("daily_schedule", "09:00,11:30,21:00").replace(" ", "").split(",")
                 for idx, s in enumerate(d_times, 1):
-                    # 對應 load_engine_config 定義的 Key
                     if cron_cfg.get(f"daily_t{idx}_enabled", True) and ":" in s:
                         target_schedules.append(s.strip())
 
-        # 2. 發射執行邏輯
-        history_data = []
-        if os.path.exists(DB_FILE):
-            try:
-                with open(DB_FILE, "r", encoding="utf-8") as f: history_data = json.load(f)
-            except: pass
-
+        # 安全發射邏輯 (加入執行緒鎖保護歷史紀錄)
+        db_lock = threading.Lock()
         for s in target_schedules:
             sched_h, sched_m = map(int, s.split(":"))
             target_time = current_tw.replace(hour=sched_h, minute=sched_m, second=0, microsecond=0)
             
-            # 擴大為 6 分鐘容錯視窗，完全覆蓋 GitHub Action 喚醒延遲
+            # 6 分鐘容錯視窗，完全應對冷啟動延遲
             if abs((current_tw - target_time).total_seconds()) <= 360:
-                already_sent = any(h['date'] == date_today and h['category'] == "排程推送" and 
-                                   int(h.get('time', '00:00:00').split(":")[0]) == sched_h and
-                                   int(h.get('time', '00:00:00').split(":")[1]) == sched_m 
-                                   for h in history_data)
-                
-                if not already_sent:
-                    try:
-                        bot = LineBotApi(get_cfg("LINE_ACCESS_TOKEN", ""))
-                        output = execute_ai_safe_generation(target_model_id=cron_cfg.get("fixed_model_id", "gemini-2.5-flash"), 
-                                                            target_api_key=cron_cfg.get("fixed_key_val") or get_cfg("GEMINI_API_KEY", ""), 
-                                                            mode="聖經經文")
-                        bot.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output}"))
-                        save_to_history("排程推送", output)
-                    except Exception as e:
-                        st.error(f"發送錯誤: {str(e)}")
+                with db_lock:
+                    history_data = []
+                    if os.path.exists(DB_FILE):
+                        try:
+                            with open(DB_FILE, "r", encoding="utf-8") as f: history_data = json.load(f)
+                        except: pass
+                    
+                    already_sent = any(h['date'] == date_today and h['category'] == "排程推送" and 
+                                       int(h.get('time', '00:00:00').split(":")[0]) == sched_h and
+                                       int(h.get('time', '00:00:00').split(":")[1]) == sched_m 
+                                       for h in history_data)
+                    
+                    if not already_sent:
+                        try:
+                            bot = LineBotApi(get_cfg("LINE_ACCESS_TOKEN", ""))
+                            output = execute_ai_safe_generation(
+                                target_model_id=cron_cfg.get("fixed_model_id", "gemini-2.5-flash"), 
+                                target_api_key=cron_cfg.get("fixed_key_val") or get_cfg("GEMINI_API_KEY", ""), 
+                                mode="聖經經文"
+                            )
+                            bot.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output}"))
+                            save_to_history("排程推送", output)
+                        except Exception as e:
+                            st.error(f"發送錯誤: {str(e)}")
         
         st.write("CRON_TRIGGERED_SUCCESS")
         st.stop()
