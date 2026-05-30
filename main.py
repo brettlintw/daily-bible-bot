@@ -126,7 +126,7 @@ def discover_supported_models(target_key):
         discovered_options["🚀 gemini-2.5-flash ── [免費版] 系統防護保底核心"] = {"model_id": "gemini-2.5-flash", "billing": "免費版"}
     return discovered_options
 
-# --- 4. 配置管理 (工業級同步版) ---
+# --- 4. 配置管理 (工業級同步版 V45.3) ---
 def load_engine_config():
     default_config = {
         "global_enabled": True,
@@ -147,6 +147,7 @@ def load_engine_config():
         "fixed_model_id": "gemini-2.5-flash",
         "fixed_key_val": ""
     }
+    
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
@@ -157,6 +158,35 @@ def load_engine_config():
                     return data
         except: pass
     return default_config
+
+def save_engine_config(config_data):
+    try:
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(config_data, f, ensure_ascii=False, indent=4)
+    except Exception as e:
+        st.error(f"核心配置存檔失敗: {str(e)}")
+
+def save_to_history(category, content):
+    current_tw = datetime.now(TZ_TW)
+    new_entry = {
+        "id": int(time.time() * 1000),
+        "date": current_tw.strftime("%Y-%m-%d"),
+        "time": current_tw.strftime("%H:%M:%S"),
+        "category": category,
+        "content": content
+    }
+    lock = threading.Lock()
+    with lock:
+        data = []
+        if os.path.exists(DB_FILE):
+            try:
+                with open(DB_FILE, "r", encoding="utf-8") as f: data = json.load(f)
+            except: data = []
+        data.insert(0, new_entry)
+        try:
+            with open(DB_FILE, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=4)
+        except: pass
 
 # --- 5. 終極生成核心 (token 4096防線) ---
 def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經文", custom_mood=None, custom_persona="暖心"):
@@ -182,24 +212,26 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
         time.sleep(2) # 增加重試間隔
     return "系統稍後恢復，請稍後。"
 
-# --- 6. 永動機排程與廣播發射核心 (V45.3 穩定加固版) ---
+# --- 6. 永動機排程與廣播發射核心 (最終穩定版 V45.3) ---
 params = st.query_params
 
 if params.get("action") == "trigger_push":
     trigger_key = params.get("key")
     if trigger_key == TRIGGER_KEY:
-        # 強制指定時區，排除伺服器預設 UTC 時間偏移
         current_tw = datetime.now(TZ_TW)
         date_today = current_tw.strftime("%Y-%m-%d")
         
         cron_cfg = load_engine_config()
+        
+        # 0. 全局總開關
         if not cron_cfg.get("global_enabled", True):
             st.stop()
 
         target_schedules = []
+        
+        # 1. 判斷模式：特殊日優先，否則每日
         is_spec_day = cron_cfg.get(f"spec_{date_today}_enabled", False)
         
-        # 邏輯解析與開關驗證
         if is_spec_day:
             s_times = cron_cfg.get(f"spec_{date_today}_schedule", "09:00,11:30,21:00").replace(" ", "").split(",")
             for idx, s in enumerate(s_times, 1):
@@ -212,13 +244,13 @@ if params.get("action") == "trigger_push":
                     if cron_cfg.get(f"daily_t{idx}_enabled", True) and ":" in s:
                         target_schedules.append(s.strip())
 
-        # 安全發射邏輯 (加入執行緒鎖保護歷史紀錄)
+        # 2. 發射執行邏輯
         db_lock = threading.Lock()
         for s in target_schedules:
             sched_h, sched_m = map(int, s.split(":"))
             target_time = current_tw.replace(hour=sched_h, minute=sched_m, second=0, microsecond=0)
             
-            # 6 分鐘容錯視窗，完全應對冷啟動延遲
+            # 6 分鐘容錯視窗，完全覆蓋 GitHub Action 喚醒延遲
             if abs((current_tw - target_time).total_seconds()) <= 360:
                 with db_lock:
                     history_data = []
