@@ -1,0 +1,11 @@
+name: KITT Bible Trigger
+on:
+  schedule:
+    - cron: '0 1,7,13 * * *' # 對應台灣時間 09:00, 15:00, 21:00 (UTC 轉換)
+  workflow_dispatch: # 讓您可以手動在 GitHub 頁面點擊觸發
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger KITT
+        run: curl "https://daily-bible-bot-a5smaqx...streamlit.app/?action=trigger_push&key=KITT_SECURE_KEY_2026"
