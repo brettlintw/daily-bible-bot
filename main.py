@@ -9,7 +9,7 @@ import os
 
 
 # --- 0. 系統版本宣告 (主程式與後台核心定錨) ---
-SYSTEM_VERSION = "V45.0"
+SYSTEM_VERSION = "V45.1"
 
 # --- 1. 頁面配置 (旗艦一頁式極簡美學 ── 強裝標題絕對不折行盔甲) ---
 st.set_page_config(page_title=f"聖經控制台 {SYSTEM_VERSION}", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
@@ -211,7 +211,7 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
         time.sleep(2) # 增加重試間隔
     return "系統稍後恢復，請稍後。"
 
-# --- 6. 永動機排程與廣播發射核心 (多重開關防禦版) ---
+# --- 6. 永動機排程與廣播發射核心 (多重韌性解析版) ---
 params = st.query_params
 
 if params.get("action") == "trigger_push":
@@ -224,35 +224,34 @@ if params.get("action") == "trigger_push":
         
         # 0. 全局總開關 (若為 False，直接跳過)
         if not cron_cfg.get("global_enabled", True):
-            st.write("CRON_TRIGGERED: Global Disabled")
             st.stop()
 
         target_schedules = []
         
-        # 1. 判定當日模式：優先檢查特定日，否則預設每日
+        # 輔助函式：自動尋找正確的開關鍵值
+        def is_enabled(prefix, idx):
+            # 支援多種常見命名結構，避免 UI 鍵名對不上的問題
+            keys = [f"{prefix}_t{idx}_enabled", f"{prefix}_點火狀態_{idx}", f"t{idx}_enabled"]
+            for k in keys:
+                if k in cron_cfg: return cron_cfg[k]
+            return True # 若找不到，預設為開啟
+
+        # 1. 判定模式：優先特定日期，否則每日循環
         is_spec_day = cron_cfg.get(f"spec_{date_today}_enabled", False)
         
         if is_spec_day:
-            # 特殊日模式：讀取該日時間設定與開關
-            s_times = cron_cfg.get(f"spec_{date_today}_schedule", "09:00,15:00,21:00").split(",")
-            s_gates = [cron_cfg.get(f"spec_{date_today}_t1", True), 
-                       cron_cfg.get(f"spec_{date_today}_t2", True), 
-                       cron_cfg.get(f"spec_{date_today}_t3", True)]
-            for idx, s in enumerate(s_times):
-                if idx < len(s_gates) and s_gates[idx] and ":" in s:
+            s_times = cron_cfg.get(f"spec_{date_today}_schedule", "09:00,10:15,21:00").replace(" ", "").split(",")
+            for idx, s in enumerate(s_times, 1):
+                if is_enabled(f"spec_{date_today}", idx) and ":" in s:
                     target_schedules.append(s.strip())
         else:
-            # 每日循環模式：檢查每日開關
             if cron_cfg.get("daily_enabled", True):
-                d_times = cron_cfg.get("daily_schedule", "09:00,15:00,21:00").split(",")
-                d_gates = [cron_cfg.get("daily_t1_enabled", True), 
-                           cron_cfg.get("daily_t2_enabled", True), 
-                           cron_cfg.get("daily_t3_enabled", True)]
-                for idx, s in enumerate(d_times):
-                    if idx < len(d_gates) and d_gates[idx] and ":" in s:
+                d_times = cron_cfg.get("daily_schedule", "09:00,10:15,21:00").replace(" ", "").split(",")
+                for idx, s in enumerate(d_times, 1):
+                    if is_enabled("daily", idx) and ":" in s:
                         target_schedules.append(s.strip())
 
-        # 2. 發射邏輯 (執行)
+        # 2. 發射執行邏輯
         history_data = []
         if os.path.exists(DB_FILE):
             try:
@@ -263,9 +262,8 @@ if params.get("action") == "trigger_push":
             sched_h, sched_m = map(int, s.split(":"))
             target_time = current_tw.replace(hour=sched_h, minute=sched_m, second=0, microsecond=0)
             
-            # 5 分鐘容錯視窗
+            # 容錯視窗：準點前後 5 分鐘
             if abs((current_tw - target_time).total_seconds()) <= 300:
-                # 重複發射防禦
                 already_sent = any(h['date'] == date_today and h['category'] == "排程推送" and 
                                    int(h.get('time', '00:00:00').split(":")[0]) == sched_h and
                                    int(h.get('time', '00:00:00').split(":")[1]) == sched_m 
