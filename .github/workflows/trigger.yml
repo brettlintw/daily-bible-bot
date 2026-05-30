@@ -1,7 +1,7 @@
 name: KITT Bible Trigger
 on:
   schedule:
-    - cron: '*/5 * * * *' # 改為每 5 分鐘執行一次，確保隨時喚醒
+    - cron: '*/5 * * * *' # 改為每 5 分鐘執行，徹底消滅時差
   workflow_dispatch:
 jobs:
   trigger:
