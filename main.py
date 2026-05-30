@@ -134,13 +134,13 @@ def load_engine_config():
         "daily_t1_enabled": True,
         "daily_t2_enabled": True,
         "daily_t3_enabled": True,
-        "daily_schedule": "09:00,11:30,21:00",
+        "daily_schedule": "09:00,12:00,21:00",
         
         "specific_enabled": False,
         "specific_t1_enabled": True,
         "specific_t2_enabled": True,
         "specific_t3_enabled": True,
-        "specific_schedule": "09:00,11:30,21:00",
+        "specific_schedule": "09:00,12:00,21:00",
         "specific_date": datetime.now(TZ_TW).strftime("%Y-%m-%d"),
         
         "fixed_key_label": list(KEY_POOL.keys())[0] if KEY_POOL else "",
