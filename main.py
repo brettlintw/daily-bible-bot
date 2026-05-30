@@ -126,20 +126,21 @@ def discover_supported_models(target_key):
         discovered_options["🚀 gemini-2.5-flash ── [免費版] 系統防護保底核心"] = {"model_id": "gemini-2.5-flash", "billing": "免費版"}
     return discovered_options
 
-# --- 4. 配置管理 ---
+# --- 4. 配置管理 (工業級同步版) ---
 def load_engine_config():
     default_config = {
+        "global_enabled": True,
         "daily_enabled": True,
         "daily_t1_enabled": True,
         "daily_t2_enabled": True,
         "daily_t3_enabled": True,
-        "daily_schedule": "09:00,15:30,21:00",
+        "daily_schedule": "09:00,11:30,21:00",
         
-        "specific_enabled": True,
+        "specific_enabled": False,
         "specific_t1_enabled": True,
         "specific_t2_enabled": True,
         "specific_t3_enabled": True,
-        "specific_schedule": "09:00,15:30,21:00",
+        "specific_schedule": "09:00,11:30,21:00",
         "specific_date": datetime.now(TZ_TW).strftime("%Y-%m-%d"),
         
         "fixed_key_label": list(KEY_POOL.keys())[0] if KEY_POOL else "",
@@ -151,41 +152,11 @@ def load_engine_config():
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 if data:
-                    if "schedule" in data and "daily_schedule" not in data:
-                        data["daily_schedule"] = data["schedule"]
                     for k, v in default_config.items():
                         if k not in data: data[k] = v
                     return data
         except: pass
     return default_config
-
-def save_engine_config(config_data):
-    try:
-        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-            json.dump(config_data, f, ensure_ascii=False, indent=4)
-    except: pass
-
-def save_to_history(category, content):
-    current_tw = datetime.now(timezone.utc).astimezone(TZ_TW)
-    new_entry = {
-        "id": int(time.time() * 1000),
-        "date": current_tw.strftime("%Y-%m-%d"),
-        "time": current_tw.strftime("%H:%M:%S"),
-        "category": category,
-        "content": content
-    }
-    lock = threading.Lock()
-    with lock:
-        data = []
-        if os.path.exists(DB_FILE):
-            try:
-                with open(DB_FILE, "r", encoding="utf-8") as f: data = json.load(f)
-            except: data = []
-        data.insert(0, new_entry)
-        try:
-            with open(DB_FILE, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=4)
-        except: pass
 
 # --- 5. 終極生成核心 (token 4096防線) ---
 def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經文", custom_mood=None, custom_persona="暖心"):
@@ -211,7 +182,7 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
         time.sleep(2) # 增加重試間隔
     return "系統稍後恢復，請稍後。"
 
-# --- 6. 永動機排程與廣播發射核心 (工業級穩定版) ---
+# --- 6. 永動機排程與廣播發射核心 (最終穩定版) ---
 params = st.query_params
 
 if params.get("action") == "trigger_push":
@@ -232,16 +203,17 @@ if params.get("action") == "trigger_push":
         is_spec_day = cron_cfg.get(f"spec_{date_today}_enabled", False)
         
         if is_spec_day:
-            s_times = cron_cfg.get(f"spec_{date_today}_schedule", "09:00,10:15,21:00").replace(" ", "").split(",")
+            s_times = cron_cfg.get(f"spec_{date_today}_schedule", "09:00,11:30,21:00").replace(" ", "").split(",")
             for idx, s in enumerate(s_times, 1):
                 # 強制讀取 spec_{date}_t{idx}_enabled
                 if cron_cfg.get(f"spec_{date_today}_t{idx}_enabled", True) and ":" in s:
                     target_schedules.append(s.strip())
         else:
-            # 每日模式：讀取 daily_t1_enabled, daily_t2_enabled, daily_t3_enabled
+            # 每日模式：精確讀取 daily_t1, t2, t3 enabled
             if cron_cfg.get("daily_enabled", True):
-                d_times = cron_cfg.get("daily_schedule", "09:00,10:15,21:00").replace(" ", "").split(",")
+                d_times = cron_cfg.get("daily_schedule", "09:00,11:30,21:00").replace(" ", "").split(",")
                 for idx, s in enumerate(d_times, 1):
+                    # 對應 load_engine_config 定義的 Key
                     if cron_cfg.get(f"daily_t{idx}_enabled", True) and ":" in s:
                         target_schedules.append(s.strip())
 
@@ -256,8 +228,8 @@ if params.get("action") == "trigger_push":
             sched_h, sched_m = map(int, s.split(":"))
             target_time = current_tw.replace(hour=sched_h, minute=sched_m, second=0, microsecond=0)
             
-            # 5 分鐘容錯視窗判定
-            if abs((current_tw - target_time).total_seconds()) <= 300:
+            # 擴大為 6 分鐘容錯視窗，完全覆蓋 GitHub Action 喚醒延遲
+            if abs((current_tw - target_time).total_seconds()) <= 360:
                 already_sent = any(h['date'] == date_today and h['category'] == "排程推送" and 
                                    int(h.get('time', '00:00:00').split(":")[0]) == sched_h and
                                    int(h.get('time', '00:00:00').split(":")[1]) == sched_m 
