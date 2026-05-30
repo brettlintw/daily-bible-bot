@@ -1,8 +1,8 @@
 name: KITT Bible Trigger
 on:
   schedule:
-    - cron: '0 1,7,13 * * *' # 對應台灣時間 09:00, 15:00, 21:00 (UTC 轉換)
-  workflow_dispatch: # 讓您可以手動在 GitHub 頁面點擊觸發
+    - cron: '*/5 * * * *' # 改為每 5 分鐘執行一次，確保隨時喚醒
+  workflow_dispatch:
 jobs:
   trigger:
     runs-on: ubuntu-latest
