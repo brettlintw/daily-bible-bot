@@ -211,10 +211,9 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
         time.sleep(2) # 增加重試間隔
     return "系統稍後恢復，請稍後。"
 
-# --- 6. 永動機排程與廣播發射核心 (HEAD 兼容 & 強制狙擊版) ---
+# --- 6. 永動機排程與廣播發射核心 (多重開關防禦版) ---
 params = st.query_params
 
-# 只要參數對了，無論是 HEAD 還是 GET，Streamlit 都會讀取 params
 if params.get("action") == "trigger_push":
     trigger_key = params.get("key")
     if trigger_key == TRIGGER_KEY:
@@ -222,57 +221,64 @@ if params.get("action") == "trigger_push":
         date_today = current_tw.strftime("%Y-%m-%d")
         
         cron_cfg = load_engine_config()
+        
+        # 0. 全局總開關 (若為 False，直接跳過)
+        if not cron_cfg.get("global_enabled", True):
+            st.write("CRON_TRIGGERED: Global Disabled")
+            st.stop()
+
         target_schedules = []
         
-        # 軌道設定判定
-        if cron_cfg.get("daily_enabled", True):
-            d_times = cron_cfg.get("daily_schedule", "09:00,15:30,21:00").split(",")
-            d_gates = [cron_cfg.get("daily_t1_enabled", True), cron_cfg.get("daily_t2_enabled", True), cron_cfg.get("daily_t3_enabled", True)]
-            for idx, s in enumerate(d_times):
-                if idx < len(d_gates) and d_gates[idx] and ":" in s.strip():
-                    h, m = s.strip().split(":")
-                    target_schedules.append({"hour": h.zfill(2), "minute": m.zfill(2)})
-                
-        # 發射邏輯
+        # 1. 判定當日模式：優先檢查特定日，否則預設每日
+        is_spec_day = cron_cfg.get(f"spec_{date_today}_enabled", False)
+        
+        if is_spec_day:
+            # 特殊日模式：讀取該日時間設定與開關
+            s_times = cron_cfg.get(f"spec_{date_today}_schedule", "09:00,15:00,21:00").split(",")
+            s_gates = [cron_cfg.get(f"spec_{date_today}_t1", True), 
+                       cron_cfg.get(f"spec_{date_today}_t2", True), 
+                       cron_cfg.get(f"spec_{date_today}_t3", True)]
+            for idx, s in enumerate(s_times):
+                if idx < len(s_gates) and s_gates[idx] and ":" in s:
+                    target_schedules.append(s.strip())
+        else:
+            # 每日循環模式：檢查每日開關
+            if cron_cfg.get("daily_enabled", True):
+                d_times = cron_cfg.get("daily_schedule", "09:00,15:00,21:00").split(",")
+                d_gates = [cron_cfg.get("daily_t1_enabled", True), 
+                           cron_cfg.get("daily_t2_enabled", True), 
+                           cron_cfg.get("daily_t3_enabled", True)]
+                for idx, s in enumerate(d_times):
+                    if idx < len(d_gates) and d_gates[idx] and ":" in s:
+                        target_schedules.append(s.strip())
+
+        # 2. 發射邏輯 (執行)
         history_data = []
         if os.path.exists(DB_FILE):
             try:
                 with open(DB_FILE, "r", encoding="utf-8") as f: history_data = json.load(f)
             except: pass
 
-        for task in target_schedules:
-            sched_h, sched_m = map(int, [task["hour"], task["minute"]])
+        for s in target_schedules:
+            sched_h, sched_m = map(int, s.split(":"))
             target_time = current_tw.replace(hour=sched_h, minute=sched_m, second=0, microsecond=0)
             
-            # --- 核心優化：前後 5 分鐘容錯窗口 ---
-            time_diff_seconds = (current_tw - target_time).total_seconds()
-            is_time_ok = (-300 <= time_diff_seconds <= 300) 
-            
-            # 偵測是否為「手動強制觸發」(參數帶有 manual=true)
-            is_manual = params.get("manual", "false") == "true"
-            
-            if is_time_ok or is_manual:
-                # 檢查今日該時段是否已發送
-                already_sent = any(
-                    h['date'] == date_today and 
-                    h['category'] == "排程推送" and 
-                    int(h.get('time', '00:00:00').split(":")[0]) == sched_h and
-                    int(h.get('time', '00:00:00').split(":")[1]) == sched_m
-                    for h in history_data
-                )
+            # 5 分鐘容錯視窗
+            if abs((current_tw - target_time).total_seconds()) <= 300:
+                # 重複發射防禦
+                already_sent = any(h['date'] == date_today and h['category'] == "排程推送" and 
+                                   int(h.get('time', '00:00:00').split(":")[0]) == sched_h and
+                                   int(h.get('time', '00:00:00').split(":")[1]) == sched_m 
+                                   for h in history_data)
                 
-                # 若是手動強制觸發，跳過 already_sent 檢查
-                if not already_sent or is_manual:
+                if not already_sent:
                     try:
                         bot = LineBotApi(get_cfg("LINE_ACCESS_TOKEN", ""))
-                        output = execute_ai_safe_generation(
-                            target_model_id=cron_cfg.get("fixed_model_id", "gemini-2.5-flash"), 
-                            target_api_key=cron_cfg.get("fixed_key_val") or get_cfg("GEMINI_API_KEY", ""), 
-                            mode="聖經經文"
-                        )
+                        output = execute_ai_safe_generation(target_model_id=cron_cfg.get("fixed_model_id", "gemini-2.5-flash"), 
+                                                            target_api_key=cron_cfg.get("fixed_key_val") or get_cfg("GEMINI_API_KEY", ""), 
+                                                            mode="聖經經文")
                         bot.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output}"))
                         save_to_history("排程推送", output)
-                        time.sleep(1)
                     except Exception as e:
                         st.error(f"發送錯誤: {str(e)}")
         
