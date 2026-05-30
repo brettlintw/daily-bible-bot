@@ -586,3 +586,13 @@ if history_data:
             
 else:
     st.info("⚠️ 儲存艙目前尚無歷史保存紀錄。")
+    
+    # --- LINE API 狀態診斷小工具 ---
+if st.button("🛠️ 測試 LINE 連線狀態"):
+    try:
+        # 直接呼叫 API 取得機器人資訊
+        profile = line_api.get_bot_info()
+        st.success(f"✅ 連線成功！您的機器人名稱是: {profile.display_name}")
+    except Exception as e:
+        st.error(f"❌ 連線失敗！錯誤訊息: {str(e)}")
+
