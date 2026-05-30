@@ -418,21 +418,32 @@ with tab_specific:
 
 st.markdown("<div style='margin-top:5px;'></div>", unsafe_allow_html=True)
 
+# --- 修正後的儲存按鈕邏輯 (確保抓取最新 UI 狀態) ---
 if st.button("💾 保存雙模式平行共存排程設定", key="SAVE_V41_3_4"):
-    final_daily_str = f"{daily_t1.strftime('%H:%M')},{daily_t2.strftime('%H:%M')},{daily_t3.strftime('%H:%M')}"
-    final_spec_str = f"{spec_t1.strftime('%H:%M')},{spec_t2.strftime('%H:%M')},{spec_t3.strftime('%H:%M')}"
+    # 從 session_state 直接獲取 time_input 的最新值
+    new_d_t1 = st.session_state.get("ui_d_t1")
+    new_d_t2 = st.session_state.get("ui_d_t2")
+    new_d_t3 = st.session_state.get("ui_d_t3")
+    
+    new_s_t1 = st.session_state.get("ui_s_t1")
+    new_s_t2 = st.session_state.get("ui_s_t2")
+    new_s_t3 = st.session_state.get("ui_s_t3")
+
+    final_daily_str = f"{new_d_t1.strftime('%H:%M')},{new_d_t2.strftime('%H:%M')},{new_d_t3.strftime('%H:%M')}"
+    final_spec_str = f"{new_s_t1.strftime('%H:%M')},{new_s_t2.strftime('%H:%M')},{new_s_t3.strftime('%H:%M')}"
     
     save_engine_config({
-        "daily_enabled": ui_daily_enabled,
-        "daily_t1_enabled": ui_d_t1_en,
-        "daily_t2_enabled": ui_d_t2_en,
-        "daily_t3_enabled": ui_d_t3_en,
+        "global_enabled": True,
+        "daily_enabled": st.session_state.get("ui_daily_toggle", True),
+        "daily_t1_enabled": st.session_state.get("ui_dt1_en", True),
+        "daily_t2_enabled": st.session_state.get("ui_dt2_en", True),
+        "daily_t3_enabled": st.session_state.get("ui_dt3_en", True),
         "daily_schedule": final_daily_str,
         
-        "specific_enabled": ui_specific_enabled,
-        "specific_t1_enabled": ui_s_t1_en,
-        "specific_t2_enabled": ui_s_t2_en,
-        "specific_t3_enabled": ui_s_t3_en,
+        "specific_enabled": st.session_state.get("ui_spec_toggle", False),
+        "specific_t1_enabled": st.session_state.get("ui_st1_en", True),
+        "specific_t2_enabled": st.session_state.get("ui_st2_en", True),
+        "specific_t3_enabled": st.session_state.get("ui_st3_en", True),
         "specific_schedule": final_spec_str,
         "specific_date": target_date_obj.strftime("%Y-%m-%d"),
         
@@ -440,8 +451,9 @@ if st.button("💾 保存雙模式平行共存排程設定", key="SAVE_V41_3_4")
         "fixed_model_id": CURRENT_MODEL_ID,
         "fixed_key_val": CURRENT_KEY_VAL
     })
-    st.toast(f"<b>[巡航自癒加固成功]</b> 配置已鎖定落盤！")
+    st.toast("✅ 時間已同步落盤，系統已更新！")
     st.rerun()
+
 
 # --- 手動精準推送中樞 ---
 st.markdown("---")
