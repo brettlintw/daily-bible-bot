@@ -1,11 +1,13 @@
 name: KITT Bible Trigger
 on:
   schedule:
-    - cron: '*/5 * * * *' # 改為每 5 分鐘執行，徹底消滅時差
-  workflow_dispatch:
+    - cron: '*/5 * * * *' # 每 5 分鐘執行一次，確保隨時喚醒您的 App
+  workflow_dispatch: # 允許您在 GitHub Actions 頁面點擊 "Run workflow" 手動觸發
+
 jobs:
   trigger:
     runs-on: ubuntu-latest
     steps:
       - name: Trigger KITT
-        run: curl "https://daily-bible-bot-a5smaqx...streamlit.app/?action=trigger_push&key=KITT_SECURE_KEY_2026"
+        # 請將下方 URL 替換為您 App 的真實完整網址 (請勿使用 ...)
+        run: curl "https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/?action=trigger_push&key=KITT_SECURE_KEY_2026"
