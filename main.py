@@ -211,7 +211,7 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
         time.sleep(2) # 增加重試間隔
     return "系統稍後恢復，請稍後。"
 
-# --- 6. 永動機排程與廣播發射核心 (多重韌性解析版) ---
+# --- 6. 永動機排程與廣播發射核心 (工業級穩定版) ---
 params = st.query_params
 
 if params.get("action") == "trigger_push":
@@ -222,33 +222,27 @@ if params.get("action") == "trigger_push":
         
         cron_cfg = load_engine_config()
         
-        # 0. 全局總開關 (若為 False，直接跳過)
+        # 0. 全局總開關
         if not cron_cfg.get("global_enabled", True):
             st.stop()
 
         target_schedules = []
         
-        # 輔助函式：自動尋找正確的開關鍵值
-        def is_enabled(prefix, idx):
-            # 支援多種常見命名結構，避免 UI 鍵名對不上的問題
-            keys = [f"{prefix}_t{idx}_enabled", f"{prefix}_點火狀態_{idx}", f"t{idx}_enabled"]
-            for k in keys:
-                if k in cron_cfg: return cron_cfg[k]
-            return True # 若找不到，預設為開啟
-
-        # 1. 判定模式：優先特定日期，否則每日循環
+        # 1. 判斷模式：特殊日優先，否則每日
         is_spec_day = cron_cfg.get(f"spec_{date_today}_enabled", False)
         
         if is_spec_day:
             s_times = cron_cfg.get(f"spec_{date_today}_schedule", "09:00,10:15,21:00").replace(" ", "").split(",")
             for idx, s in enumerate(s_times, 1):
-                if is_enabled(f"spec_{date_today}", idx) and ":" in s:
+                # 強制讀取 spec_{date}_t{idx}_enabled
+                if cron_cfg.get(f"spec_{date_today}_t{idx}_enabled", True) and ":" in s:
                     target_schedules.append(s.strip())
         else:
+            # 每日模式：讀取 daily_t1_enabled, daily_t2_enabled, daily_t3_enabled
             if cron_cfg.get("daily_enabled", True):
                 d_times = cron_cfg.get("daily_schedule", "09:00,10:15,21:00").replace(" ", "").split(",")
                 for idx, s in enumerate(d_times, 1):
-                    if is_enabled("daily", idx) and ":" in s:
+                    if cron_cfg.get(f"daily_t{idx}_enabled", True) and ":" in s:
                         target_schedules.append(s.strip())
 
         # 2. 發射執行邏輯
@@ -262,7 +256,7 @@ if params.get("action") == "trigger_push":
             sched_h, sched_m = map(int, s.split(":"))
             target_time = current_tw.replace(hour=sched_h, minute=sched_m, second=0, microsecond=0)
             
-            # 容錯視窗：準點前後 5 分鐘
+            # 5 分鐘容錯視窗判定
             if abs((current_tw - target_time).total_seconds()) <= 300:
                 already_sent = any(h['date'] == date_today and h['category'] == "排程推送" and 
                                    int(h.get('time', '00:00:00').split(":")[0]) == sched_h and
