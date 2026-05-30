@@ -251,8 +251,8 @@ if params.get("action") == "trigger_push":
                 sched_h, sched_m = map(int, s.split(":"))
                 target_time = current_tw.replace(hour=sched_h, minute=sched_m, second=0, microsecond=0)
                 
-                # 6 分鐘容錯視窗 (對應每 5 分鐘喚醒一次的 GitHub Action)
-                if abs((current_tw - target_time).total_seconds()) <= 360:
+                # 10分鐘容錯視窗 (對應每 10 分鐘喚醒一次的 GitHub Action)
+                if abs((current_tw - target_time).total_seconds()) <= 600:
                     with db_lock:
                         history_data = []
                         if os.path.exists(DB_FILE):
