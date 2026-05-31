@@ -1,26 +1,15 @@
 name: KITT Bible Trigger
-
-on: 
+on:
   schedule:
     - cron: '*/5 * * * *'
   workflow_dispatch:
-
 jobs:
   trigger:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger KITT with Robust DNS Logic
+      - name: Direct Trigger (No Redirects)
         run: |
-          # 定義目標網域
-          DOMAIN="daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app"
-          URL="https://${DOMAIN}/?action=trigger_push&key=KITT"
-          
-          echo "Attempting robust trigger for: $DOMAIN"
-          
-          # 使用 curl 加上 DNS 解析重試與忽略 SSL 驗證
-          # --retry 5: 若失敗重試 5 次
-          # --connect-timeout 20: 給予 20 秒連線時間
-          curl -L -f --retry 5 --retry-delay 10 --connect-timeout 20 \
-               -k "$URL" || { echo "Trigger failed after retries"; exit 1; }
-          
-          echo "Trigger successfully sent."
+          # 移除 -L (Follow redirects)，改用 -S (Show error)，直接請求 API 端點
+          # 這樣能避免捲入 Streamlit 的 UI 重定向迴圈
+          echo "Sending direct trigger to API..."
+          curl -S -f --connect-timeout 30 "https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/?action=trigger_push&key=KITT"
