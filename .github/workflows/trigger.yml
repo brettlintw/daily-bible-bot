@@ -7,9 +7,11 @@ jobs:
   trigger:
     runs-on: ubuntu-latest
     steps:
-      - name: Direct Trigger (No Redirects)
+      - name: Hardened Trigger
         run: |
-          # 移除 -L (Follow redirects)，改用 -S (Show error)，直接請求 API 端點
-          # 這樣能避免捲入 Streamlit 的 UI 重定向迴圈
-          echo "Sending direct trigger to API..."
-          curl -S -f --connect-timeout 30 "https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/?action=trigger_push&key=KITT"
+          # --no-follow: 禁止任何重定向 (解決 exit code 47)
+          # -H "Host: ...": 強制指定 Host，避開 Cloudflare 轉發檢查
+          # -f: 若伺服器回傳任何 4xx 或 5xx 錯誤即失敗
+          curl -S -f --no-follow \
+               -H "Host: daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app" \
+               "https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/?action=trigger_push&key=KITT"
