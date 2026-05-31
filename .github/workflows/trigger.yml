@@ -2,7 +2,7 @@ name: KITT Bible Trigger
 
 on:
   schedule:
-    # 設置為每 5 分鐘運行一次，確保覆蓋所有設定的時間點
+    # 設置為每 5 分鐘運行一次
     - cron: '*/5 * * * *'
   workflow_dispatch:
 
@@ -10,15 +10,15 @@ jobs:
   trigger:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger KITT with Wake-up
+      - name: Trigger KITT with Extended Wake-up
         run: |
           # 1. 強制喚醒：先對 App 根目錄進行一次 GET 請求
           echo "Attempting to wake up the app..."
           curl -L -o /dev/null -s "https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/"
           
-          # 2. 等待 15 秒：給予 Streamlit Cloud 冷啟動的反應時間
-          echo "Waiting for app to wake up..."
-          sleep 15
+          # 2. 等待 30 秒：確保 Streamlit Cloud 冷啟動完全完成，Python 環境準備就緒
+          echo "Waiting 30 seconds for full app initialization..."
+          sleep 30
           
           # 3. 正式觸發：執行推送任務
           echo "Executing push trigger..."
