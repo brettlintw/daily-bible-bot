@@ -1,6 +1,6 @@
 name: KITT Bible Trigger
 
-on:
+on: 
   schedule:
     - cron: '*/5 * * * *'
   workflow_dispatch:
