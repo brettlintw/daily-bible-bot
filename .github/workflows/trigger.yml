@@ -9,15 +9,18 @@ jobs:
   trigger:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger KITT with wget
+      - name: Trigger KITT with Robust DNS Logic
         run: |
-          # 使用 wget 進行喚醒，--quiet 減少 Log 雜訊，--spider 僅檢查網址是否可達
-          echo "Attempting to wake up the app..."
-          wget --quiet --spider 'https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/'
+          # 定義目標網域
+          DOMAIN="daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app"
+          URL="https://${DOMAIN}/?action=trigger_push&key=KITT"
           
-          echo "Waiting 30 seconds..."
-          sleep 30
+          echo "Attempting robust trigger for: $DOMAIN"
           
-          # 正式觸發，同樣使用 wget，--no-check-certificate 確保在自動化環境不受 SSL 憑證問題影響
-          echo "Executing push trigger..."
-          wget --no-check-certificate -qO- 'https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/?action=trigger_push&key=KITT'
+          # 使用 curl 加上 DNS 解析重試與忽略 SSL 驗證
+          # --retry 5: 若失敗重試 5 次
+          # --connect-timeout 20: 給予 20 秒連線時間
+          curl -L -f --retry 5 --retry-delay 10 --connect-timeout 20 \
+               -k "$URL" || { echo "Trigger failed after retries"; exit 1; }
+          
+          echo "Trigger successfully sent."
