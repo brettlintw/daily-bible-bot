@@ -10,5 +10,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Send Heartbeat
-        run: curl -s 'https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/' > /dev/null
- 
+        run: curl -sL 'https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/' > /dev/null
