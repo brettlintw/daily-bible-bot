@@ -1,10 +1,13 @@
 name: KITT Bible Trigger
+
 on:
   schedule:
     - cron: '*/5 * * * *'
+  workflow_dispatch:
+
 jobs:
-  keep-alive:
+  trigger:
     runs-on: ubuntu-latest
     steps:
       - name: Ping App
-        run: curl -s 'https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/' > /dev/null
+        run: curl -s 'https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/'
