@@ -6,8 +6,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  trigger:
+  ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping App
-        run: curl -s 'https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/'
+      - name: Send Heartbeat
+        run: curl -s 'https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/' > /dev/null
