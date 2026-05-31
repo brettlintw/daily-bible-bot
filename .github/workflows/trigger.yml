@@ -1,17 +1,10 @@
-name: KITT Bible Trigger
+name: Keep Alive
 on:
   schedule:
     - cron: '*/5 * * * *'
-  workflow_dispatch:
 jobs:
-  trigger:
+  keep-alive:
     runs-on: ubuntu-latest
     steps:
-      - name: Hardened Trigger
-        run: |
-          # --no-follow: 禁止任何重定向 (解決 exit code 47)
-          # -H "Host: ...": 強制指定 Host，避開 Cloudflare 轉發檢查
-          # -f: 若伺服器回傳任何 4xx 或 5xx 錯誤即失敗
-          curl -S -f --no-follow \
-               -H "Host: daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app" \
-               "https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/?action=trigger_push&key=KITT"
+      - name: Ping App
+        run: curl -s 'https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/' > /dev/null
