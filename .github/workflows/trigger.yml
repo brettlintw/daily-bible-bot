@@ -1,13 +1,23 @@
-- name: Trigger KITT with Wake-up
+name: KITT Bible Trigger
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger KITT with wget
         run: |
-          # 使用單引號包覆，防止 & 符號被 Shell 誤判為背景執行指令
-          # 增加 -f 參數，若連線失敗直接報錯，方便排查
-          
+          # 使用 wget 進行喚醒，--quiet 減少 Log 雜訊，--spider 僅檢查網址是否可達
           echo "Attempting to wake up the app..."
-          curl -L -f -o /dev/null -s 'https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/'
+          wget --quiet --spider 'https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/'
           
           echo "Waiting 30 seconds..."
           sleep 30
           
+          # 正式觸發，同樣使用 wget，--no-check-certificate 確保在自動化環境不受 SSL 憑證問題影響
           echo "Executing push trigger..."
-          curl -L -f --retry 3 --retry-delay 5 'https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/?action=trigger_push&key=KITT'
+          wget --no-check-certificate -qO- 'https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/?action=trigger_push&key=KITT'
