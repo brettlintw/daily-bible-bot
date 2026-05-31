@@ -1,4 +1,4 @@
-name: Keep Alive
+name: KITT Bible Trigger
 on:
   schedule:
     - cron: '*/5 * * * *'
