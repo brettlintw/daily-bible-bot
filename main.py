@@ -24,11 +24,11 @@ def run_auto_schedule_if_needed():
     sched_list = [datetime.strptime(t.strip(), "%H:%M").time() for t in sched_str.split(",")]
     
     for target in sched_list:
-        # 計算時間差距 (容錯窗口 5 分鐘)
+        # 計算時間差距 (容錯窗口 10 分鐘)
         delta = abs((datetime.combine(date.today(), now_time) - 
                      datetime.combine(date.today(), target)).total_seconds())
         
-        if delta <= 300: 
+        if delta <= 600: 
             # 檢查是否今日已發送過
             already_sent = any(h['date'] == today_str and 
                                h['category'] == "排程推送" and
