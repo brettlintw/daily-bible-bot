@@ -1,15 +1,55 @@
 import streamlit as st
 import google.generativeai as genai
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, date
 import random
 import time
 import threading
 import json
 import os
 
+# --- 輔助函式：自我驅動檢查器 (請放在此處) ---
+def run_auto_schedule_if_needed():
+    config = load_engine_config()
+    history = []
+    if os.path.exists(DB_FILE):
+        try:
+            with open(DB_FILE, "r", encoding="utf-8") as f: history = json.load(f)
+        except: pass
+    
+    now_time = datetime.now(TZ_TW).time()
+    today_str = datetime.now(TZ_TW).strftime("%Y-%m-%d")
+    
+    # 解析目標時間
+    sched_str = config.get("daily_schedule", "09:00,12:00,21:00")
+    sched_list = [datetime.strptime(t.strip(), "%H:%M").time() for t in sched_str.split(",")]
+    
+    for target in sched_list:
+        # 計算時間差距 (容錯窗口 5 分鐘)
+        delta = abs((datetime.combine(date.today(), now_time) - 
+                     datetime.combine(date.today(), target)).total_seconds())
+        
+        if delta <= 300: 
+            # 檢查是否今日已發送過
+            already_sent = any(h['date'] == today_str and 
+                               h['category'] == "排程推送" and
+                               datetime.strptime(h['time'], "%H:%M:%S").time().hour == target.hour and
+                               datetime.strptime(h['time'], "%H:%M:%S").time().minute == target.minute
+                               for h in history)
+            
+            if not already_sent:
+                # 執行發送邏輯
+                bot = LineBotApi(get_cfg("LINE_ACCESS_TOKEN", ""))
+                output = execute_ai_safe_generation(
+                    target_model_id=config.get("fixed_model_id", "gemini-2.5-flash"), 
+                    target_api_key=config.get("fixed_key_val") or get_cfg("GEMINI_API_KEY", ""), 
+                    mode="聖經經文"
+                )
+                bot.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output}"))
+                save_to_history("排程推送", output)
+                st.toast(f"✅ 自動排程任務已於 {target.strftime('%H:%M')} 執行！")
 
-# --- 0. 系統版本宣告 (主程式與後台核心定錨) ---
-SYSTEM_VERSION = "V45.6"
+# --- 系統版本宣告 ---
+SYSTEM_VERSION = "V45.7"
 
 # --- 1. 頁面配置 (旗艦一頁式極簡美學 ── 強裝標題絕對不折行盔甲) ---
 st.set_page_config(page_title=f"聖經控制台 {SYSTEM_VERSION}", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
