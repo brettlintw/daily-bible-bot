@@ -1,4 +1,4 @@
-      - name: Trigger KITT with Wake-up
+- name: Trigger KITT with Wake-up
         run: |
           # 使用單引號包覆，防止 & 符號被 Shell 誤判為背景執行指令
           # 增加 -f 參數，若連線失敗直接報錯，方便排查
