@@ -58,7 +58,7 @@ def run_auto_schedule_if_needed():
                 st.toast(f"✅ 自動排程補發任務已於 {target.strftime('%H:%M')} 執行！")
 
 # --- 系統版本宣告 ---
-SYSTEM_VERSION = "V45.9"
+SYSTEM_VERSION = "V46.0正式版"
 
 # --- 1. 頁面配置 (旗艦一頁式極簡美學 ── 強裝標題絕對不折行盔甲) ---
 st.set_page_config(page_title=f"聖經控制台 {SYSTEM_VERSION}", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
