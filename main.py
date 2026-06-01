@@ -9,27 +9,51 @@ import os
 
 # --- 輔助函式：自我驅動檢查器 (請放在此處) ---
 def run_auto_schedule_if_needed():
+    # 1. 載入配置與時間環境
     config = load_engine_config()
+    if not config.get("global_enabled", True): return
+    
     now_time = datetime.now(TZ_TW).time()
     today_str = datetime.now(TZ_TW).strftime("%Y-%m-%d")
     
-    # 解析目標時間
+    # 2. 讀取歷史資料庫 (用於防重複比對)
+    history_data = []
+    if os.path.exists(DB_FILE):
+        try:
+            with open(DB_FILE, "r", encoding="utf-8") as f:
+                history_data = json.load(f)
+        except: pass
+
+    # 3. 解析目標時間清單
     sched_str = config.get("daily_schedule", "09:00,12:00,21:00")
     sched_list = [datetime.strptime(t.strip(), "%H:%M").time() for t in sched_str.split(",")]
     
+    # 4. 執行時間檢查與補發邏輯
     for target in sched_list:
-        # 判定條件：只要「目標時間 <= 現在時間」且「差距在 15 分鐘內」
         target_dt = datetime.combine(date.today(), target)
         now_dt = datetime.combine(date.today(), now_time)
         
-        # 強制補發機制：如果發現任務時間已經過了，但在 15 分鐘 (900秒) 內，且今日未執行，就執行
+        # 判定：在目標時間後的 15 分鐘 (900秒) 視窗內，且尚未發送
         if 0 <= (now_dt - target_dt).total_seconds() <= 900:
             
-            # 檢查今日歷史，確保沒有重複執行
-            # ... (保留您原本的 already_sent 邏輯) ...
+            # 檢查是否已存在今日該時段的紀錄
+            already_sent = any(
+                h['date'] == today_str and 
+                h['category'] == "排程推送" and
+                abs(datetime.strptime(h['time'], "%H:%M:%S").time().hour * 3600 + 
+                    datetime.strptime(h['time'], "%H:%M:%S").time().minute * 60 - 
+                    (target.hour * 3600 + target.minute * 60)) < 900
+                for h in history_data
+            )
+            
             if not already_sent:
-                # 執行發送邏輯
-                # ...
+                # 執行 AI 生成與發送
+                output = execute_ai_safe_generation(
+                    target_model_id=config.get("fixed_model_id", "gemini-2.5-flash"), 
+                    target_api_key=config.get("fixed_key_val") or get_cfg("GEMINI_API_KEY", ""), 
+                    mode="聖經經文"
+                )
+                line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output}"))
                 save_to_history("排程推送", output)
                 st.toast(f"✅ 自動排程補發任務已於 {target.strftime('%H:%M')} 執行！")
 
@@ -38,6 +62,7 @@ SYSTEM_VERSION = "V45.7"
 
 # --- 1. 頁面配置 (旗艦一頁式極簡美學 ── 強裝標題絕對不折行盔甲) ---
 st.set_page_config(page_title=f"聖經控制台 {SYSTEM_VERSION}", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
+run_auto_schedule_if_needed()
 
 st.markdown("""
     <style>
