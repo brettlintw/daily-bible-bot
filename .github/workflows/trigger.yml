@@ -10,5 +10,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Send Heartbeat
-        # 使用 --max-redirs 10 允許更多轉向，並增加 --retry 3 確保網路震盪時自動重試
-        run: curl -sL --max-redirs 10 --retry 3 'https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/' > /dev/null
+        # 使用 wget，--max-redirect=20 允許更多跳轉，-q (靜默) -O /dev/null (丟棄內容)
+        run: wget -q --max-redirect=20 --timeout=30 'https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/' -O /dev/null
