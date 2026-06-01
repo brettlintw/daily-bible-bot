@@ -11,7 +11,6 @@ import os
 def run_auto_schedule_if_needed():
     # 1. 載入配置與時間環境
     config = load_engine_config()
-    run_auto_schedule_if_needed()
     if not config.get("global_enabled", True): return
     
     now_time = datetime.now(TZ_TW).time()
