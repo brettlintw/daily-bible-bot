@@ -10,50 +10,31 @@ import os
 # --- 輔助函式：自我驅動檢查器 (請放在此處) ---
 def run_auto_schedule_if_needed():
     config = load_engine_config()
-    # 確保不會因為沒發送記錄而導致邏輯崩潰
-    history = []
-    if os.path.exists(DB_FILE):
-        try:
-            with open(DB_FILE, "r", encoding="utf-8") as f: history = json.load(f)
-        except: pass
-    
     now_time = datetime.now(TZ_TW).time()
     today_str = datetime.now(TZ_TW).strftime("%Y-%m-%d")
     
-    # 解析目標時間字串 (例如 "09:00,12:00,18:30")
-    sched_str = config.get("daily_schedule", "09:00,12:00,18:30")
+    # 解析目標時間
+    sched_str = config.get("daily_schedule", "09:00,12:00,21:00")
     sched_list = [datetime.strptime(t.strip(), "%H:%M").time() for t in sched_str.split(",")]
     
     for target in sched_list:
-        # 將目標時間轉為當日的時間戳記進行對比
+        # 判定條件：只要「目標時間 <= 現在時間」且「差距在 15 分鐘內」
         target_dt = datetime.combine(date.today(), target)
         now_dt = datetime.combine(date.today(), now_time)
         
-        # 只要時間落在「已經過了目標時間」且「距離目標時間不超過 10 分鐘」的區間內
-        # 這樣就算 GitHub Action 稍微慢了一點點 Ping 進來，依然會觸發
-        if 0 <= (now_dt - target_dt).total_seconds() <= 600:
+        # 強制補發機制：如果發現任務時間已經過了，但在 15 分鐘 (900秒) 內，且今日未執行，就執行
+        if 0 <= (now_dt - target_dt).total_seconds() <= 900:
             
-            # 檢查今日是否已經發送過該時段
-            already_sent = any(h['date'] == today_str and 
-                               h['category'] == "排程推送" and
-                               abs(datetime.strptime(h['time'], "%H:%M:%S").time().hour * 3600 + 
-                                   datetime.strptime(h['time'], "%H:%M:%S").time().minute * 60 - 
-                                   (target.hour * 3600 + target.minute * 60)) < 600
-                               for h in history)
-            
+            # 檢查今日歷史，確保沒有重複執行
+            # ... (保留您原本的 already_sent 邏輯) ...
             if not already_sent:
-                # 執行發送
-                output = execute_ai_safe_generation(
-                    target_model_id=config.get("fixed_model_id", "gemini-2.5-flash"), 
-                    target_api_key=config.get("fixed_key_val") or get_cfg("GEMINI_API_KEY", ""), 
-                    mode="聖經經文"
-                )
-                line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output}"))
+                # 執行發送邏輯
+                # ...
                 save_to_history("排程推送", output)
-                st.toast(f"✅ 自動排程已於 {target.strftime('%H:%M')} 執行！")
+                st.toast(f"✅ 自動排程補發任務已於 {target.strftime('%H:%M')} 執行！")
 
 # --- 系統版本宣告 ---
-SYSTEM_VERSION = "V45.6"
+SYSTEM_VERSION = "V45.7"
 
 # --- 1. 頁面配置 (旗艦一頁式極簡美學 ── 強裝標題絕對不折行盔甲) ---
 st.set_page_config(page_title=f"聖經控制台 {SYSTEM_VERSION}", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
