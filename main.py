@@ -411,6 +411,8 @@ if CURRENT_KEY_VAL:
     st.markdown(f"<div style='margin-top:5px; line-height:1.4;'>定錨狀態：<span class='api-active-tag'>🔒 內部 API 完美鎖定：{CURRENT_MODEL_ID} (<b class='{color_class}'>{CURRENT_BILLING_STATUS}</b>)</span></div>", unsafe_allow_html=True)
 
 st.markdown("---")
+if __name__ == "__main__":
+    run_auto_schedule_if_needed()
 
 # --- ⏰ 3. 自動巡航排程設定面板 ---
 st.markdown("### ⏰ 3. 自動巡航排程設定面板")
