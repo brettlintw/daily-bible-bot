@@ -11,6 +11,7 @@ import os
 def run_auto_schedule_if_needed():
     # 1. 載入配置與時間環境
     config = load_engine_config()
+    run_auto_schedule_if_needed()
     if not config.get("global_enabled", True): return
     
     now_time = datetime.now(TZ_TW).time()
@@ -62,7 +63,6 @@ SYSTEM_VERSION = "V45.8"
 
 # --- 1. 頁面配置 (旗艦一頁式極簡美學 ── 強裝標題絕對不折行盔甲) ---
 st.set_page_config(page_title=f"聖經控制台 {SYSTEM_VERSION}", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
-run_auto_schedule_if_needed()
 
 st.markdown("""
     <style>
