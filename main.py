@@ -7,7 +7,7 @@ import threading
 import json
 import os
 
-# --- 輔助函式：自我驅動檢查器 (請放在此處) ---
+# --- 0.輔助函式：自我驅動檢查器 (請放在此處) ---
 def run_auto_schedule_if_needed():
     # 1. 載入配置與時間環境
     config = load_engine_config()
