@@ -10,6 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Send Heartbeat
-        # 增加 --insecure 繞過 SSL 檢查，--max-redirs 10 跟隨轉向，--retry 3 自動重試
-        # 這能確保即使 Streamlit 進入冷啟動，請求也能強制送達
-        run: curl -sL --insecure --max-redirs 10 --retry 3 'https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/' > /dev/null
+        # 使用 wget，加入 User-Agent 偽裝成 Chrome 瀏覽器，並強制處理重定向
+        # 這能欺騙 Streamlit 的負載平衡器認為這是一個真實的用戶訪問
+        run: wget -qO- --user-agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" --max-redirect=20 --timeout=30 'https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/' > /dev/null
