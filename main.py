@@ -33,8 +33,8 @@ def run_auto_schedule_if_needed():
         target_dt = datetime.combine(date.today(), target)
         now_dt = datetime.combine(date.today(), now_time)
         
-        # 判定：在目標時間後的 20 分鐘 (1200秒) 視窗內，且尚未發送
-        if 0 <= (now_dt - target_dt).total_seconds() <= 1200:
+        # 判定：在目標時間後的 30 分鐘 (1800秒) 視窗內，且尚未發送
+        if 0 <= (now_dt - target_dt).total_seconds() <= 1800:
             
             # 檢查是否已存在今日該時段的紀錄
             already_sent = any(
