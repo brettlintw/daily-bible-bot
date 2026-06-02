@@ -10,5 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Send Heartbeat
-        # 使用 wget，--max-redirect=20 允許更多跳轉，-q (靜默) -O /dev/null (丟棄內容)
-        run: wget -q --max-redirect=20 --timeout=30 'https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/' -O /dev/null
+        # 增加 --insecure 繞過 SSL 檢查，--max-redirs 10 跟隨轉向，--retry 3 自動重試
+        # 這能確保即使 Streamlit 進入冷啟動，請求也能強制送達
+        run: curl -sL --insecure --max-redirs 10 --retry 3 'https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/' > /dev/null
