@@ -8,7 +8,7 @@ import json
 import os
 
 # ---0. 系統版本宣告 ---
-SYSTEM_VERSION = "V47.1 正式版"
+SYSTEM_VERSION = "V47.2 正式版"
 
 # --- 1. 核心時區與全域時間配置 ---
 # 確保在任何時間函式呼叫前設定環境變數
