@@ -1,21 +1,5 @@
-name: KITT Bible Trigger
-
-on:
-  schedule:
-    - cron: '*/5 * * * *'
-  workflow_dispatch:
-
-jobs:
-  ping:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Send Heartbeat
-        # 移除 -q (Quiet) 改為 -v (Verbose) 
-        # 移除 > /dev/null (丟棄輸出)，讓執行結果直接顯示在日誌中
+- name: Send Heartbeat
         run: |
-          echo "Starting trigger..."
-          wget -v --user-agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
-          --max-redirect=20 \
-          --timeout=45 \
-          'https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/'
-          echo "Trigger completed."
+          curl -v -L -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+          -b cookies.txt -c cookies.txt \
+          https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/
