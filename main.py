@@ -279,9 +279,10 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 7. 永動機排程與廣播發射核心 (最終穩定版 V45.4.1) ---
+# --- 7. 永動機排程與廣播發射核心 (最終穩定 API 觸發版) ---
 params = st.query_params
 
+# 1. 優先擊發機制：在任何 UI 渲染前，直接攔截 API 請求
 if params.get("action") == "trigger_push":
     trigger_key = params.get("key")
     if trigger_key == TRIGGER_KEY:
@@ -289,14 +290,15 @@ if params.get("action") == "trigger_push":
         date_today = current_tw.strftime("%Y-%m-%d")
         
         cron_cfg = load_engine_config()
-        if not cron_cfg.get("global_enabled", True): st.stop()
+        # 全域開關檢查
+        if not cron_cfg.get("global_enabled", True): 
+            st.write("CRON_SKIPPED_GLOBAL_DISABLED")
+            st.stop()
 
         target_schedules = []
-        
-        # 強制修正排程字串，確保 UI 保存的 12:00 被正確讀取
-        # 當偵測到邏輯開關開啟時，直接從 cfg 讀取最新的 schedule 字串
         is_spec_day = cron_cfg.get(f"spec_{date_today}_enabled", False)
         
+        # 排程解析邏輯
         if is_spec_day:
             s_times = cron_cfg.get(f"spec_{date_today}_schedule", "09:00,12:00,21:00").replace(" ", "").split(",")
             for idx, s in enumerate(s_times, 1):
@@ -304,22 +306,20 @@ if params.get("action") == "trigger_push":
                     target_schedules.append(s.strip())
         else:
             if cron_cfg.get("daily_enabled", True):
-                # 這裡直接從 config 獲取最新的 schedule 字串 (由 UI 保存按鈕寫入)
                 d_times = cron_cfg.get("daily_schedule", "09:00,12:00,21:00").replace(" ", "").split(",")
                 for idx, s in enumerate(d_times, 1):
-                    # 確保索引不越界
                     if idx <= 3 and cron_cfg.get(f"daily_t{idx}_enabled", True) and ":" in s:
                         target_schedules.append(s.strip())
 
-        # 執行發射邏輯 (同前，使用鎖保護)
+        # 執行發射邏輯
         db_lock = threading.Lock()
         for s in target_schedules:
             try:
                 sched_h, sched_m = map(int, s.split(":"))
                 target_time = current_tw.replace(hour=sched_h, minute=sched_m, second=0, microsecond=0)
                 
-                # 10分鐘容錯視窗 (對應每 10 分鐘喚醒一次的 GitHub Action)
-                if abs((current_tw - target_time).total_seconds()) <= 600:
+                # 擴大容錯視窗至 1800 秒 (30 分鐘)，確保雲端冷啟動延遲不影響發送
+                if abs((current_tw - target_time).total_seconds()) <= 1800:
                     with db_lock:
                         history_data = []
                         if os.path.exists(DB_FILE):
@@ -333,17 +333,19 @@ if params.get("action") == "trigger_push":
                                            for h in history_data)
                         
                         if not already_sent:
-                            bot = LineBotApi(get_cfg("LINE_ACCESS_TOKEN", ""))
+                            # 執行生成與推播
                             output = execute_ai_safe_generation(
                                 target_model_id=cron_cfg.get("fixed_model_id", "gemini-2.5-flash"), 
                                 target_api_key=cron_cfg.get("fixed_key_val") or get_cfg("GEMINI_API_KEY", ""), 
                                 mode="聖經經文"
                             )
-                            bot.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output}"))
+                            line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output}"))
                             save_to_history("排程推送", output)
             except Exception as e:
+                print(f"DEBUG: 發送發生錯誤: {str(e)}")
                 continue
         
+        # 2. 強制輸出關鍵字給 UptimeRobot 讀取，並立即結束程序
         st.write("CRON_TRIGGERED_SUCCESS")
         st.stop()
 
