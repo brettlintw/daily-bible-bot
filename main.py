@@ -118,7 +118,7 @@ st.markdown("<h1>🛡️ 聖經任務控制台</h1>", unsafe_allow_html=True)
 # [其餘 UI 代碼保持不變，直接續接在下方...]
     
 # --- 系統版本宣告 ---
-SYSTEM_VERSION = "V47.0 正式版"
+SYSTEM_VERSION = "v50.0 正式版"
 run_auto_schedule_if_needed()
 # --- 5. 頁面配置 (旗艦一頁式極簡美學 ── 強裝標題絕對不折行盔甲) ---
 st.set_page_config(page_title=f"聖經控制台 {SYSTEM_VERSION}", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
