@@ -7,7 +7,7 @@ import threading
 import json
 import os
 
-# --- 系統版本宣告 ---
+# ---0. 系統版本宣告 ---
 SYSTEM_VERSION = "V47.1 正式版"
 
 # --- 1. 核心時區與全域時間配置 ---
@@ -91,7 +91,7 @@ def discover_supported_models(target_key):
         discovered_options["🚀 gemini-2.5-flash ── [免費版] 系統防護保底核心"] = {"model_id": "gemini-2.5-flash", "billing": "免費版"}
     return discovered_options
 
-#0 --- 修改後的自動驅動檢查器 (加入詳細診斷與 token 檢查) ---
+# ---3. 修改後的自動驅動檢查器 (加入詳細診斷與 token 檢查) ---
 def run_auto_schedule_if_needed():
     # 1. 載入配置
     config = load_engine_config()
@@ -158,7 +158,7 @@ def run_auto_schedule_if_needed():
             else:
                 print(f"DEBUG: 今日 {target} 已發送過，跳過")
    
-# --- 3. 配置管理 (工業級同步版 V45.3) ---
+# --- 4. 配置管理 (工業級同步版 V45.3) ---
 def load_engine_config():
     default_config = {
         "global_enabled": True,
@@ -220,7 +220,7 @@ def save_to_history(category, content):
                 json.dump(data, f, ensure_ascii=False, indent=4)
         except: pass
 
-# --- 4. 終極生成核心 (token 4096防線) ---
+# --- 5. 終極生成核心 (token 4096防線) ---
 def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經文", custom_mood=None, custom_persona="暖心"):
     if not target_api_key: return "燃料短缺，發射中止。"
     
@@ -245,7 +245,7 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
     return "系統稍後恢復，請稍後。"
     
 run_auto_schedule_if_needed()
-# --- 5. 頁面配置 (旗艦一頁式極簡美學 ── 強裝標題絕對不折行盔甲) ---
+# --- 6. 頁面配置 (旗艦一頁式極簡美學 ── 強裝標題絕對不折行盔甲) ---
 st.set_page_config(page_title=f"聖經控制台 {SYSTEM_VERSION}", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
 
 st.markdown("""
@@ -279,7 +279,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 6. 永動機排程與廣播發射核心 (最終穩定版 V45.4.1) ---
+# --- 7. 永動機排程與廣播發射核心 (最終穩定版 V45.4.1) ---
 params = st.query_params
 
 if params.get("action") == "trigger_push":
@@ -348,7 +348,7 @@ if params.get("action") == "trigger_push":
         st.stop()
 
 
-# --- 7. UI 佈局 ---
+# --- 8. UI 佈局 ---
 st.markdown(f"<h1>🛡️ 聖經任務控制台 {SYSTEM_VERSION} <span class='status-tag'>🛰️ 聯邦制導</span><span class='status-tag' style='background:#00E676; color:black;'>全時自動巡航體</span></h1>", unsafe_allow_html=True)
 # --- 確保時間渲染變數已準備好 (請放在 st.caption 之前) ---
 local_render_tw = datetime.now(TZ_TW)
@@ -430,7 +430,7 @@ if CURRENT_KEY_VAL:
 
 st.markdown("---")
    
-# --- 8. 自動巡航排程設定面板 ---
+# --- 9. 自動巡航排程設定面板 ---
 st.markdown("### ⏰ 自動巡航排程設定面板")
 
 # 舊配置還原
@@ -485,7 +485,7 @@ with tab_specific:
 
 st.markdown("<div style='margin-top:5px;'></div>", unsafe_allow_html=True)
 
-# ---9 修正後的儲存按鈕邏輯 (確保抓取最新 UI 狀態) ---
+# ---10. 修正後的儲存按鈕邏輯 (確保抓取最新 UI 狀態) ---
 if st.button("💾 保存雙模式平行共存排程設定", key="SAVE_V41_3_4"):
     # 從 session_state 直接獲取 time_input 的最新值
     new_d_t1 = st.session_state.get("ui_d_t1")
@@ -522,7 +522,7 @@ if st.button("💾 保存雙模式平行共存排程設定", key="SAVE_V41_3_4")
     st.rerun()
 
 
-# ---10 手動精準推送中樞 ---
+# ---11. 手動精準推送中樞 ---
 st.markdown("---")
 st.subheader("✍️ 手動精準推送中樞")
 
@@ -571,7 +571,7 @@ with st.form("manual_制導form_v41_2", clear_on_submit=False):
 
 st.markdown("---")
 
-# 11 AI 智慧廣播
+# ----12. AI 智慧廣播
 st.subheader("🤖 AI 智慧廣播")
 c1, c2, c3 = st.columns([1, 1, 1])
 with c1: mood_input = st.text_input("心情主題：", placeholder="心情主題...", label_visibility="collapsed")
@@ -603,7 +603,7 @@ if st.button("✨ 啟動 AI 廣播"):
 
 st.markdown("---")
 
-# ---12 歷史經文典藏管理庫 (V43.1 精簡互動版) ---
+# ---13. 歷史經文典藏管理庫 (V43.1 精簡互動版) ---
 st.subheader("📚 歷史經文典藏管理庫")
 history_data = []
 if os.path.exists(DB_FILE):
@@ -666,7 +666,7 @@ if history_data:
 else:
     st.info("⚠️ 儲存艙目前尚無歷史保存紀錄。")
     
-    # ---13 LINE API 狀態診斷小工具 ---
+    # ---14. LINE API 狀態診斷小工具 ---
 if st.button("🛠️ 測試 LINE 連線狀態"):
     try:
         # 直接呼叫 API 取得機器人資訊
