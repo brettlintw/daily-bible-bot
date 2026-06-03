@@ -405,7 +405,7 @@ st.markdown("---")
 default_key_idx = 0
 if cfg.get("fixed_key_label") in available_keys:
     default_key_idx = available_keys.index(cfg["fixed_key_label"])
-chosen_key_label = st.selectbox("🔑 1. 請選擇任務 API 金鑰：", options=available_keys, index=default_key_idx)
+chosen_key_label = st.selectbox("請選擇任務 API 金鑰：", options=available_keys, index=default_key_idx)
 CURRENT_KEY_VAL = KEY_POOL[chosen_key_label]
 
 MODEL_REGISTRY = discover_supported_models(CURRENT_KEY_VAL)
@@ -418,7 +418,7 @@ for l, data in MODEL_REGISTRY.items():
         default_model_idx = available_models_labels.index(l)
         break
 
-chosen_model_label = st.selectbox("🤖 2. 該金鑰自動辨識支持之費用模型選單：", options=available_models_labels, index=default_model_idx)
+chosen_model_label = st.selectbox("該金鑰自動辨識支持之費用模型選單：", options=available_models_labels, index=default_model_idx)
 CURRENT_MODEL_ID = MODEL_REGISTRY[chosen_model_label]["model_id"]
 CURRENT_BILLING_STATUS = MODEL_REGISTRY[chosen_model_label]["billing"]
 
