@@ -7,74 +7,8 @@ import threading
 import json
 import os
 
-#0 --- 修改後的自動驅動檢查器 (加入詳細診斷與 token 檢查) ---
-def run_auto_schedule_if_needed():
-    # 1. 載入配置
-    config = load_engine_config()
-    if not config.get("global_enabled", True): 
-        print("DEBUG: Global disabled, skipping.")
-        return
-    
-    now_time = datetime.now(TZ_TW).time()
-    today_str = datetime.now(TZ_TW).strftime("%Y-%m-%d")
-    print(f"DEBUG: 檢查點啟動，當前時間: {now_time}")
-    
-    # 2. 讀取歷史資料庫
-    history_data = []
-    if os.path.exists(DB_FILE):
-        try:
-            with open(DB_FILE, "r", encoding="utf-8") as f:
-                history_data = json.load(f)
-        except: pass
-
-    # 3. 解析排程 (擴大視窗至 1800 秒 = 30 分鐘)
-    sched_str = config.get("daily_schedule", "09:00,12:00,21:00")
-    sched_list = [datetime.strptime(t.strip(), "%H:%M").time() for t in sched_str.split(",")]
-    
-    # 4. 執行時間檢查與補發邏輯
-    for target in sched_list:
-        target_dt = datetime.combine(date.today(), target)
-        now_dt = datetime.combine(date.today(), now_time)
-        
-        # 判定：在目標時間後的 30 分鐘 (1800秒) 視窗內，且尚未發送
-        diff = (now_dt - target_dt).total_seconds()
-        if 0 <= diff <= 1800:
-            print(f"DEBUG: 時間視窗吻合 (目標: {target}, 誤差: {diff}s)")
-            
-            # 檢查是否已存在今日該時段的紀錄
-            already_sent = any(
-                h['date'] == today_str and 
-                h['category'] == "排程推送" and
-                abs(datetime.strptime(h['time'], "%H:%M:%S").time().hour * 3600 + 
-                    datetime.strptime(h['time'], "%H:%M:%S").time().minute * 60 - 
-                    (target.hour * 3600 + target.minute * 60)) < 900
-                for h in history_data
-            )
-            
-            if not already_sent:
-                # --- 環境變數檢查 ---
-                current_token = get_cfg("LINE_ACCESS_TOKEN", "")
-                if not current_token:
-                    print("CRITICAL: LINE_TOKEN IS EMPTY! 發射終止")
-                    return
-                
-                print(f"DEBUG: 準備呼叫 Gemini API 發送 {target} 的推送")
-                
-                # 執行 AI 生成與發送
-                output = execute_ai_safe_generation(
-                    target_model_id=config.get("fixed_model_id", "gemini-2.5-flash"), 
-                    target_api_key=config.get("fixed_key_val") or get_cfg("GEMINI_API_KEY", ""), 
-                    mode="聖經經文"
-                )
-                
-                line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output}"))
-                save_to_history("排程推送", output)
-                print(f"DEBUG: 推送成功已發送至 LINE")
-                st.toast(f"✅ 自動排程補發任務已於 {target.strftime('%H:%M')} 執行！")
-            else:
-                print(f"DEBUG: 今日 {target} 已發送過，跳過")
-
-
+# --- 系統版本宣告 ---
+SYSTEM_VERSION = "V47.1 正式版"
 
 # --- 1. 核心時區與全域時間配置 ---
 # 確保在任何時間函式呼叫前設定環境變數
@@ -156,7 +90,74 @@ def discover_supported_models(target_key):
     if not discovered_options:
         discovered_options["🚀 gemini-2.5-flash ── [免費版] 系統防護保底核心"] = {"model_id": "gemini-2.5-flash", "billing": "免費版"}
     return discovered_options
+
+#0 --- 修改後的自動驅動檢查器 (加入詳細診斷與 token 檢查) ---
+def run_auto_schedule_if_needed():
+    # 1. 載入配置
+    config = load_engine_config()
+    if not config.get("global_enabled", True): 
+        print("DEBUG: Global disabled, skipping.")
+        return
     
+    now_time = datetime.now(TZ_TW).time()
+    today_str = datetime.now(TZ_TW).strftime("%Y-%m-%d")
+    print(f"DEBUG: 檢查點啟動，當前時間: {now_time}")
+    
+    # 2. 讀取歷史資料庫
+    history_data = []
+    if os.path.exists(DB_FILE):
+        try:
+            with open(DB_FILE, "r", encoding="utf-8") as f:
+                history_data = json.load(f)
+        except: pass
+
+    # 3. 解析排程 (擴大視窗至 1800 秒 = 30 分鐘)
+    sched_str = config.get("daily_schedule", "09:00,12:00,21:00")
+    sched_list = [datetime.strptime(t.strip(), "%H:%M").time() for t in sched_str.split(",")]
+    
+    # 4. 執行時間檢查與補發邏輯
+    for target in sched_list:
+        target_dt = datetime.combine(date.today(), target)
+        now_dt = datetime.combine(date.today(), now_time)
+        
+        # 判定：在目標時間後的 30 分鐘 (1800秒) 視窗內，且尚未發送
+        diff = (now_dt - target_dt).total_seconds()
+        if 0 <= diff <= 1800:
+            print(f"DEBUG: 時間視窗吻合 (目標: {target}, 誤差: {diff}s)")
+            
+            # 檢查是否已存在今日該時段的紀錄
+            already_sent = any(
+                h['date'] == today_str and 
+                h['category'] == "排程推送" and
+                abs(datetime.strptime(h['time'], "%H:%M:%S").time().hour * 3600 + 
+                    datetime.strptime(h['time'], "%H:%M:%S").time().minute * 60 - 
+                    (target.hour * 3600 + target.minute * 60)) < 900
+                for h in history_data
+            )
+            
+            if not already_sent:
+                # --- 環境變數檢查 ---
+                current_token = get_cfg("LINE_ACCESS_TOKEN", "")
+                if not current_token:
+                    print("CRITICAL: LINE_TOKEN IS EMPTY! 發射終止")
+                    return
+                
+                print(f"DEBUG: 準備呼叫 Gemini API 發送 {target} 的推送")
+                
+                # 執行 AI 生成與發送
+                output = execute_ai_safe_generation(
+                    target_model_id=config.get("fixed_model_id", "gemini-2.5-flash"), 
+                    target_api_key=config.get("fixed_key_val") or get_cfg("GEMINI_API_KEY", ""), 
+                    mode="聖經經文"
+                )
+                
+                line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output}"))
+                save_to_history("排程推送", output)
+                print(f"DEBUG: 推送成功已發送至 LINE")
+                st.toast(f"✅ 自動排程補發任務已於 {target.strftime('%H:%M')} 執行！")
+            else:
+                print(f"DEBUG: 今日 {target} 已發送過，跳過")
+   
 # --- 3. 配置管理 (工業級同步版 V45.3) ---
 def load_engine_config():
     default_config = {
@@ -243,8 +244,6 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
         time.sleep(2) # 增加重試間隔
     return "系統稍後恢復，請稍後。"
     
-# --- 系統版本宣告 ---
-SYSTEM_VERSION = "V47.0 正式版"
 run_auto_schedule_if_needed()
 # --- 5. 頁面配置 (旗艦一頁式極簡美學 ── 強裝標題絕對不折行盔甲) ---
 st.set_page_config(page_title=f"聖經控制台 {SYSTEM_VERSION}", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
