@@ -1,5 +1,23 @@
-- name: Send Heartbeat
+name: KITT Bible Trigger
+
+on:
+  schedule:
+    # 每 10 分鐘觸發一次，避開過於頻繁的偵測
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Heartbeat
         run: |
-          curl -v -L -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+          echo "Starting trigger with Cookie Persistence..."
+          # 使用 curl 模擬真實瀏覽器，並保存 cookies.txt 以維持 Session
+          curl -v -L \
+          -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36" \
           -b cookies.txt -c cookies.txt \
+          --connect-timeout 20 \
+          --max-time 60 \
           https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/
+          echo "Trigger completed."
