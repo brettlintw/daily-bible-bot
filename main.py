@@ -7,16 +7,19 @@ import threading
 import json
 import os
 
-# --- 0.輔助函式：自我驅動檢查器 (請放在此處) ---
+# --- 修改後的自動驅動檢查器 (加入詳細診斷與 token 檢查) ---
 def run_auto_schedule_if_needed():
-    # 1. 載入配置與時間環境
+    # 1. 載入配置
     config = load_engine_config()
-    if not config.get("global_enabled", True): return
+    if not config.get("global_enabled", True): 
+        print("DEBUG: Global disabled, skipping.")
+        return
     
     now_time = datetime.now(TZ_TW).time()
     today_str = datetime.now(TZ_TW).strftime("%Y-%m-%d")
+    print(f"DEBUG: 檢查點啟動，當前時間: {now_time}")
     
-    # 2. 讀取歷史資料庫 (用於防重複比對)
+    # 2. 讀取歷史資料庫
     history_data = []
     if os.path.exists(DB_FILE):
         try:
@@ -24,7 +27,7 @@ def run_auto_schedule_if_needed():
                 history_data = json.load(f)
         except: pass
 
-    # 3. 解析目標時間清單
+    # 3. 解析排程 (擴大視窗至 1800 秒 = 30 分鐘)
     sched_str = config.get("daily_schedule", "09:00,12:00,21:00")
     sched_list = [datetime.strptime(t.strip(), "%H:%M").time() for t in sched_str.split(",")]
     
@@ -34,7 +37,9 @@ def run_auto_schedule_if_needed():
         now_dt = datetime.combine(date.today(), now_time)
         
         # 判定：在目標時間後的 30 分鐘 (1800秒) 視窗內，且尚未發送
-        if 0 <= (now_dt - target_dt).total_seconds() <= 1800:
+        diff = (now_dt - target_dt).total_seconds()
+        if 0 <= diff <= 1800:
+            print(f"DEBUG: 時間視窗吻合 (目標: {target}, 誤差: {diff}s)")
             
             # 檢查是否已存在今日該時段的紀錄
             already_sent = any(
@@ -47,15 +52,27 @@ def run_auto_schedule_if_needed():
             )
             
             if not already_sent:
+                # --- 環境變數檢查 ---
+                current_token = get_cfg("LINE_ACCESS_TOKEN", "")
+                if not current_token:
+                    print("CRITICAL: LINE_TOKEN IS EMPTY! 發射終止")
+                    return
+                
+                print(f"DEBUG: 準備呼叫 Gemini API 發送 {target} 的推送")
+                
                 # 執行 AI 生成與發送
                 output = execute_ai_safe_generation(
                     target_model_id=config.get("fixed_model_id", "gemini-2.5-flash"), 
                     target_api_key=config.get("fixed_key_val") or get_cfg("GEMINI_API_KEY", ""), 
                     mode="聖經經文"
                 )
+                
                 line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output}"))
                 save_to_history("排程推送", output)
+                print(f"DEBUG: 推送成功已發送至 LINE")
                 st.toast(f"✅ 自動排程補發任務已於 {target.strftime('%H:%M')} 執行！")
+            else:
+                print(f"DEBUG: 今日 {target} 已發送過，跳過")
 
 # --- 系統版本宣告 ---
 SYSTEM_VERSION = "V46.0正式版"
