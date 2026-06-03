@@ -244,7 +244,7 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
     return "系統稍後恢復，請稍後。"
     
 # --- 系統版本宣告 ---
-SYSTEM_VERSION = "V46.1正式版"
+SYSTEM_VERSION = "V47.0 正式版"
 run_auto_schedule_if_needed()
 # --- 5. 頁面配置 (旗艦一頁式極簡美學 ── 強裝標題絕對不折行盔甲) ---
 st.set_page_config(page_title=f"聖經控制台 {SYSTEM_VERSION}", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
@@ -431,7 +431,7 @@ if CURRENT_KEY_VAL:
 
 st.markdown("---")
    
-# --- ⏰ 8. 自動巡航排程設定面板 ---
+# --- 8. 自動巡航排程設定面板 ---
 st.markdown("### ⏰ 自動巡航排程設定面板")
 
 # 舊配置還原
@@ -486,7 +486,7 @@ with tab_specific:
 
 st.markdown("<div style='margin-top:5px;'></div>", unsafe_allow_html=True)
 
-# --- 修正後的儲存按鈕邏輯 (確保抓取最新 UI 狀態) ---
+# ---9 修正後的儲存按鈕邏輯 (確保抓取最新 UI 狀態) ---
 if st.button("💾 保存雙模式平行共存排程設定", key="SAVE_V41_3_4"):
     # 從 session_state 直接獲取 time_input 的最新值
     new_d_t1 = st.session_state.get("ui_d_t1")
@@ -523,7 +523,7 @@ if st.button("💾 保存雙模式平行共存排程設定", key="SAVE_V41_3_4")
     st.rerun()
 
 
-# --- 手動精準推送中樞 ---
+# ---10 手動精準推送中樞 ---
 st.markdown("---")
 st.subheader("✍️ 手動精準推送中樞")
 
@@ -572,7 +572,7 @@ with st.form("manual_制導form_v41_2", clear_on_submit=False):
 
 st.markdown("---")
 
-# AI 智慧廣播
+# 11 AI 智慧廣播
 st.subheader("🤖 AI 智慧廣播")
 c1, c2, c3 = st.columns([1, 1, 1])
 with c1: mood_input = st.text_input("心情主題：", placeholder="心情主題...", label_visibility="collapsed")
@@ -604,7 +604,7 @@ if st.button("✨ 啟動 AI 廣播"):
 
 st.markdown("---")
 
-# --- 歷史經文典藏管理庫 (V43.1 精簡互動版) ---
+# ---12 歷史經文典藏管理庫 (V43.1 精簡互動版) ---
 st.subheader("📚 歷史經文典藏管理庫")
 history_data = []
 if os.path.exists(DB_FILE):
@@ -667,7 +667,7 @@ if history_data:
 else:
     st.info("⚠️ 儲存艙目前尚無歷史保存紀錄。")
     
-    # --- LINE API 狀態診斷小工具 ---
+    # ---13 LINE API 狀態診斷小工具 ---
 if st.button("🛠️ 測試 LINE 連線狀態"):
     try:
         # 直接呼叫 API 取得機器人資訊
