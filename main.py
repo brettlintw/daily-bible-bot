@@ -147,6 +147,7 @@ def scan_secret_keys():
     return pool
 
 KEY_POOL = scan_secret_keys()
+run_auto_schedule_if_needed()
 
 def discover_supported_models(target_key):
     if not target_key:
@@ -191,7 +192,7 @@ def discover_supported_models(target_key):
     if not discovered_options:
         discovered_options["🚀 gemini-2.5-flash ── [免費版] 系統防護保底核心"] = {"model_id": "gemini-2.5-flash", "billing": "免費版"}
     return discovered_options
-
+    
 # --- 4. 配置管理 (工業級同步版 V45.3) ---
 def load_engine_config():
     default_config = {
@@ -429,8 +430,7 @@ if CURRENT_KEY_VAL:
 
 st.markdown("---")
 if __name__ == "__main__":
-    run_auto_schedule_if_needed()
-
+   
 # --- ⏰ 3. 自動巡航排程設定面板 ---
 st.markdown("### ⏰ 3. 自動巡航排程設定面板")
 
