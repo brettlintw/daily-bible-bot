@@ -1,22 +1,14 @@
 name: KITT Bible Trigger
 
 on:
+  # 將 cron 修改為一個永不會觸發的時間，例如 2月30日 (系統會忽略)
   schedule:
-    # 設定為每 10 分鐘檢查一次
-    - cron: '*/10 * * * *'
+    - cron: '0 0 30 2 *' 
   workflow_dispatch:
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Send API Trigger
-        run: |
-          echo "Initiating Direct API Trigger..."
-          # 直接呼叫 API 參數，繞過 UI 渲染與 JavaScript 驗證牆
-          # 注意：key 必須與您 main.py 中的 TRIGGER_KEY 完全一致
-          curl -v -L \
-          -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) KITT-Automation-Agent/1.0" \
-          'https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/?action=trigger_push&key=KITT_SECURE_KEY_2026'
-          
-          echo "API Trigger completed."
+      - name: Disabled
+        run: echo "Trigger is currently disabled in favor of UptimeRobot."
