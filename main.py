@@ -6,179 +6,35 @@ import time
 import threading
 import json
 import os
-
-#0 --- 修改後的自動驅動檢查器 (加入詳細診斷與 token 檢查) ---
-def run_auto_schedule_if_needed():
-    # 1. 載入配置
-    config = load_engine_config()
-    if not config.get("global_enabled", True): 
-        print("DEBUG: Global disabled, skipping.")
-        return
-    
-    now_time = datetime.now(TZ_TW).time()
-    today_str = datetime.now(TZ_TW).strftime("%Y-%m-%d")
-    print(f"DEBUG: 檢查點啟動，當前時間: {now_time}")
-    
-    # 2. 讀取歷史資料庫
-    history_data = []
-    if os.path.exists(DB_FILE):
-        try:
-            with open(DB_FILE, "r", encoding="utf-8") as f:
-                history_data = json.load(f)
-        except: pass
-
-    # 3. 解析排程 (擴大視窗至 1800 秒 = 30 分鐘)
-    sched_str = config.get("daily_schedule", "09:00,12:00,21:00")
-    sched_list = [datetime.strptime(t.strip(), "%H:%M").time() for t in sched_str.split(",")]
-    
-    # 4. 執行時間檢查與補發邏輯
-    for target in sched_list:
-        target_dt = datetime.combine(date.today(), target)
-        now_dt = datetime.combine(date.today(), now_time)
-        
-        # 判定：在目標時間後的 30 分鐘 (1800秒) 視窗內，且尚未發送
-        diff = (now_dt - target_dt).total_seconds()
-        if 0 <= diff <= 1800:
-            print(f"DEBUG: 時間視窗吻合 (目標: {target}, 誤差: {diff}s)")
-            
-            # 檢查是否已存在今日該時段的紀錄
-            already_sent = any(
-                h['date'] == today_str and 
-                h['category'] == "排程推送" and
-                abs(datetime.strptime(h['time'], "%H:%M:%S").time().hour * 3600 + 
-                    datetime.strptime(h['time'], "%H:%M:%S").time().minute * 60 - 
-                    (target.hour * 3600 + target.minute * 60)) < 900
-                for h in history_data
-            )
-            
-            if not already_sent:
-                # --- 環境變數檢查 ---
-                current_token = get_cfg("LINE_ACCESS_TOKEN", "")
-                if not current_token:
-                    print("CRITICAL: LINE_TOKEN IS EMPTY! 發射終止")
-                    return
-                
-                print(f"DEBUG: 準備呼叫 Gemini API 發送 {target} 的推送")
-                
-                # 執行 AI 生成與發送
-                output = execute_ai_safe_generation(
-                    target_model_id=config.get("fixed_model_id", "gemini-2.5-flash"), 
-                    target_api_key=config.get("fixed_key_val") or get_cfg("GEMINI_API_KEY", ""), 
-                    mode="聖經經文"
-                )
-                
-                line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output}"))
-                save_to_history("排程推送", output)
-                print(f"DEBUG: 推送成功已發送至 LINE")
-                st.toast(f"✅ 自動排程補發任務已於 {target.strftime('%H:%M')} 執行！")
-            else:
-                print(f"DEBUG: 今日 {target} 已發送過，跳過")
-
-
-
-# --- 1. 核心時區與全域時間配置 ---
-# 確保在任何時間函式呼叫前設定環境變數
-TZ_TW = timezone(timedelta(hours=8))
-def get_cfg(key, fallback):
-    try: 
-        return st.secrets.get(key, fallback) or fallback
-    except: 
-        return fallback
-
-LINE_TOKEN = get_cfg("LINE_ACCESS_TOKEN", "")
-TRIGGER_KEY = get_cfg("TRIGGER_KEY", "KITT_SECURE_KEY_2026")
-
 from linebot import LineBotApi
 from linebot.models import TextSendMessage
 
-# 確保 line_api 在全域範圍內初始化
-line_api = LineBotApi(LINE_TOKEN)
-
+# --- 1. 核心環境設定 ---
+TZ_TW = timezone(timedelta(hours=8))
 DB_FILE = "bible_history.json"
 CONFIG_FILE = "engine_config.json"
 RADAR_TRACK_FILE = "radar_user_track.json"
+SYSTEM_VERSION = "V47.0 正式版"
 
-# --- 2. 金鑰與模型動態探測中樞 ---
-def scan_secret_keys():
-    key_names = ["GEMINI_API_KEY", "GEMINI_API_KEY_2", "GEMINI_API_KEY_3", "GEMINI_API_KEY_4", "GEMINI_API_KEY_5"]
-    pool = {}
-    for idx, name in enumerate(key_names, start=1):
-        v = get_cfg(name, "")
-        if v and len(v) > 5:
-            masked_key = f"***{v[-4:]}"
-            pool[f"🔑 金鑰密鑰順位 #{idx} ({masked_key})"] = v
-    if not pool:
-        pool["⚠️ 未偵測到任何 Key (請檢查 Secrets)"] = ""
-    return pool
+def get_cfg(key, fallback):
+    try: return st.secrets.get(key, fallback) or fallback
+    except: return fallback
 
-KEY_POOL = scan_secret_keys()
+LINE_TOKEN = get_cfg("LINE_ACCESS_TOKEN", "")
+TRIGGER_KEY = get_cfg("TRIGGER_KEY", "KITT_SECURE_KEY_2026")
+line_api = LineBotApi(LINE_TOKEN)
 
-def discover_supported_models(target_key):
-    if not target_key:
-        return {"⚠️ 請先選擇有效金鑰": {"model_id": "gemini-2.5-flash", "billing": "免費版"}}
-        
-    util_registry = {
-        "gemini-2.5-flash": "【極速輕量型】日常秒發、高頻率首選核心",
-        "gemini-2.5-pro":   "【深度推理型】適合複雜語意、長篇靈修反思",
-        "gemini-1.5-pro":   "【百萬文本型】具備超長記憶，適合大篇幅卷軸分析",
-        "gemini-1.5-flash": "【穩健平衡型】經典速度型核心，兼顧穩定度",
-        "gemma-2-27b-it":   "【敏捷極客型】適合超精煉短句與嚴格字數控制"
-    }
-    
-    discovered_options = {}
-    try:
-        genai.configure(api_key=target_key)
-        online_models = genai.list_models()
-        
-        model_quota_map = {}
-        for m in online_models:
-            m_short_id = m.name.split('/')[-1]
-            is_free_tier = True
-            if "generateContent" in m.supported_generation_methods:
-                if hasattr(m, "text_to_image_count_limit") or m.name.endswith("-search") or "lite" in m.name:
-                    is_free_tier = True
-                else:
-                    is_free_tier = False
-                model_quota_map[m_short_id] = "免費版" if is_free_tier else "付費版"
-        
-        match_count = 0
-        for m_id, desc in util_registry.items():
-            if any(m_id in m.name for m in genai.list_models()) and match_count < 5:
-                tier_status = model_quota_map.get(m_id, "付費版")
-                label = f"🚀 {m_id} ── [{tier_status}] {desc}"
-                discovered_options[label] = {
-                    "model_id": m_id,
-                    "billing": tier_status
-                }
-                match_count += 1
-    except: pass
-        
-    if not discovered_options:
-        discovered_options["🚀 gemini-2.5-flash ── [免費版] 系統防護保底核心"] = {"model_id": "gemini-2.5-flash", "billing": "免費版"}
-    return discovered_options
-    
-# --- 3. 配置管理 (工業級同步版 V45.3) ---
+# --- 2. 函式定義區 (確保先定義後呼叫) ---
 def load_engine_config():
     default_config = {
         "global_enabled": True,
         "daily_enabled": True,
-        "daily_t1_enabled": True,
-        "daily_t2_enabled": True,
-        "daily_t3_enabled": True,
         "daily_schedule": "09:00,12:00,21:00",
-        
         "specific_enabled": False,
-        "specific_t1_enabled": True,
-        "specific_t2_enabled": True,
-        "specific_t3_enabled": True,
         "specific_schedule": "09:00,12:00,21:00",
         "specific_date": datetime.now(TZ_TW).strftime("%Y-%m-%d"),
-        
-        "fixed_key_label": list(KEY_POOL.keys())[0] if KEY_POOL else "",
-        "fixed_model_id": "gemini-2.5-flash",
-        "fixed_key_val": ""
+        "fixed_model_id": "gemini-2.5-flash"
     }
-    
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
@@ -190,19 +46,11 @@ def load_engine_config():
         except: pass
     return default_config
 
-def save_engine_config(config_data):
-    try:
-        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-            json.dump(config_data, f, ensure_ascii=False, indent=4)
-    except Exception as e:
-        st.error(f"核心配置存檔失敗: {str(e)}")
-
 def save_to_history(category, content):
-    current_tw = datetime.now(TZ_TW)
     new_entry = {
         "id": int(time.time() * 1000),
-        "date": current_tw.strftime("%Y-%m-%d"),
-        "time": current_tw.strftime("%H:%M:%S"),
+        "date": datetime.now(TZ_TW).strftime("%Y-%m-%d"),
+        "time": datetime.now(TZ_TW).strftime("%H:%M:%S"),
         "category": category,
         "content": content
     }
@@ -212,36 +60,62 @@ def save_to_history(category, content):
         if os.path.exists(DB_FILE):
             try:
                 with open(DB_FILE, "r", encoding="utf-8") as f: data = json.load(f)
-            except: data = []
+            except: pass
         data.insert(0, new_entry)
-        try:
-            with open(DB_FILE, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=4)
-        except: pass
+        with open(DB_FILE, "w", encoding="utf-8") as f: json.dump(data, f, ensure_ascii=False, indent=4)
 
-# --- 4. 終極生成核心 (token 4096防線) ---
 def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經文", custom_mood=None, custom_persona="暖心"):
     if not target_api_key: return "燃料短缺，發射中止。"
-    
     genai.configure(api_key=target_api_key)
     model = genai.GenerativeModel(model_name=target_model_id)
+    prompt = f"你是溫柔牧者。請精選一段聖經經文，並給予深度反思。確保內容完整，請以句號結尾。"
+    try:
+        res = model.generate_content(prompt, generation_config=genai.types.GenerationConfig(temperature=0.7, max_output_tokens=4096))
+        return res.text if res else "系統稍後恢復。"
+    except: return "生成失敗，請檢查金鑰。"
+
+def run_auto_schedule_if_needed():
+    config = load_engine_config()
+    if not config.get("global_enabled", True): return
     
-    # 調整 Prompt：加入「嚴格不要中斷」的指示
-    prompt = f"你是溫柔牧者。請精選一段聖經經文，並給予深度反思。請確保內容完整，絕對不要在句子中間截斷。如果內容過長，請精簡，但必須要有一個完整的收尾。\n\n【輸出順序】\n【經文內容】\n【經文章節】\n【領受與感悟】\n\n以句號結尾。"
+    now_time = datetime.now(TZ_TW).time()
+    today_str = datetime.now(TZ_TW).strftime("%Y-%m-%d")
     
-    for attempt in range(3):
+    history_data = []
+    if os.path.exists(DB_FILE):
         try:
-            # 提升 Token 額度到 4096
-            res = model.generate_content(prompt, generation_config=genai.types.GenerationConfig(temperature=0.7, max_output_tokens=4096))
-            if res and res.text:
-                text = str(res.text).strip()
-                # 容錯邏輯：如果沒有句號，強行補上，確保閱讀體驗
-                if not (text.endswith('。') or text.endswith('！') or text.endswith(')')):
-                    text += "。"
-                return text
+            with open(DB_FILE, "r", encoding="utf-8") as f: history_data = json.load(f)
         except: pass
-        time.sleep(2) # 增加重試間隔
-    return "系統稍後恢復，請稍後。"
+
+    sched_str = config.get("daily_schedule", "09:00,12:00,21:00")
+    sched_list = [datetime.strptime(t.strip(), "%H:%M").time() for t in sched_str.split(",")]
+    
+    for target in sched_list:
+        target_dt = datetime.combine(date.today(), target)
+        now_dt = datetime.combine(date.today(), now_time)
+        diff = (now_dt - target_dt).total_seconds()
+        
+        # 30分鐘 (1800秒) 容錯視窗
+        if 0 <= diff <= 1800:
+            already_sent = any(h['date'] == today_str and h['category'] == "排程推送" and
+                               abs(datetime.strptime(h['time'], "%H:%M:%S").time().hour * 3600 + 
+                                   datetime.strptime(h['time'], "%H:%M:%S").time().minute * 60 - 
+                                   (target.hour * 3600 + target.minute * 60)) < 900
+                               for h in history_data)
+            if not already_sent:
+                token = get_cfg("LINE_ACCESS_TOKEN", "")
+                if not token: return
+                output = execute_ai_safe_generation(config.get("fixed_model_id", "gemini-2.5-flash"), get_cfg("GEMINI_API_KEY", ""))
+                line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output}"))
+                save_to_history("排程推送", output)
+
+# --- 3. 系統即時觸發與 UI 佈局 ---
+run_auto_schedule_if_needed()
+
+st.set_page_config(page_title=f"聖經控制台 {SYSTEM_VERSION}", layout="centered")
+st.markdown("<h1>🛡️ 聖經任務控制台</h1>", unsafe_allow_html=True)
+
+# [其餘 UI 代碼保持不變，直接續接在下方...]
     
 # --- 系統版本宣告 ---
 SYSTEM_VERSION = "V47.0 正式版"
