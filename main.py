@@ -7,7 +7,7 @@ import threading
 import json
 import os
 
-# --- 修改後的自動驅動檢查器 (加入詳細診斷與 token 檢查) ---
+#0 --- 修改後的自動驅動檢查器 (加入詳細診斷與 token 檢查) ---
 def run_auto_schedule_if_needed():
     # 1. 載入配置
     config = load_engine_config()
@@ -76,7 +76,7 @@ def run_auto_schedule_if_needed():
 
 
 
-# --- 2. 核心時區與全域時間配置 ---
+# --- 1. 核心時區與全域時間配置 ---
 # 確保在任何時間函式呼叫前設定環境變數
 TZ_TW = timezone(timedelta(hours=8))
 def get_cfg(key, fallback):
@@ -98,7 +98,7 @@ DB_FILE = "bible_history.json"
 CONFIG_FILE = "engine_config.json"
 RADAR_TRACK_FILE = "radar_user_track.json"
 
-# --- 3. 金鑰與模型動態探測中樞 ---
+# --- 2. 金鑰與模型動態探測中樞 ---
 def scan_secret_keys():
     key_names = ["GEMINI_API_KEY", "GEMINI_API_KEY_2", "GEMINI_API_KEY_3", "GEMINI_API_KEY_4", "GEMINI_API_KEY_5"]
     pool = {}
@@ -157,7 +157,7 @@ def discover_supported_models(target_key):
         discovered_options["🚀 gemini-2.5-flash ── [免費版] 系統防護保底核心"] = {"model_id": "gemini-2.5-flash", "billing": "免費版"}
     return discovered_options
     
-# --- 4. 配置管理 (工業級同步版 V45.3) ---
+# --- 3. 配置管理 (工業級同步版 V45.3) ---
 def load_engine_config():
     default_config = {
         "global_enabled": True,
@@ -219,7 +219,7 @@ def save_to_history(category, content):
                 json.dump(data, f, ensure_ascii=False, indent=4)
         except: pass
 
-# --- 5. 終極生成核心 (token 4096防線) ---
+# --- 4. 終極生成核心 (token 4096防線) ---
 def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經文", custom_mood=None, custom_persona="暖心"):
     if not target_api_key: return "燃料短缺，發射中止。"
     
@@ -244,9 +244,9 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
     return "系統稍後恢復，請稍後。"
     
 # --- 系統版本宣告 ---
-SYSTEM_VERSION = "V46.0正式版"
+SYSTEM_VERSION = "V46.1正式版"
 run_auto_schedule_if_needed()
-# --- 1. 頁面配置 (旗艦一頁式極簡美學 ── 強裝標題絕對不折行盔甲) ---
+# --- 5. 頁面配置 (旗艦一頁式極簡美學 ── 強裝標題絕對不折行盔甲) ---
 st.set_page_config(page_title=f"聖經控制台 {SYSTEM_VERSION}", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
 
 st.markdown("""
@@ -431,8 +431,8 @@ if CURRENT_KEY_VAL:
 
 st.markdown("---")
    
-# --- ⏰ 3. 自動巡航排程設定面板 ---
-st.markdown("### ⏰ 3. 自動巡航排程設定面板")
+# --- ⏰ 8. 自動巡航排程設定面板 ---
+st.markdown("### ⏰ 自動巡航排程設定面板")
 
 # 舊配置還原
 d_parts = cfg.get("daily_schedule", "09:00,15:30,21:00").split(",")
