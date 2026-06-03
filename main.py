@@ -347,6 +347,8 @@ if params.get("action") == "trigger_push":
         
         # 2. 強制輸出關鍵字給 UptimeRobot 讀取，並立即結束程序
         st.write("CRON_TRIGGERED_SUCCESS")
+        # 為了確保 HTML 包含此字串，我們增加一行原始 HTML 輸出
+        st.markdown("<div id='status'>CRON_TRIGGERED_SUCCESS</div>", unsafe_allow_html=True)
         st.stop()
 
 
