@@ -67,8 +67,13 @@ def run_autonomous_scheduler():
     except Exception as e:
         print(f"DEBUG: 自動排程器執行異常: {str(e)}")
 
-# --- 啟動執行 ---
-run_autonomous_scheduler()
+# --- [自動巡航後台檢查 - 強制偵測] ---
+try:
+    print("DEBUG: 系統啟動，正在執行自動巡航檢查...")
+    run_autonomous_scheduler()
+    print("DEBUG: 自動巡航檢查完成。")
+except Exception as e:
+    print(f"DEBUG: 檢查器異常: {str(e)}")
 
 # ---1. 系統版本宣告 ---
 SYSTEM_VERSION = "V50.0 正式版"
