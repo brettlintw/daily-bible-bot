@@ -244,7 +244,6 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
         time.sleep(2) # 增加重試間隔
     return "系統稍後恢復，請稍後。"
     
-run_auto_schedule_if_needed()
 # --- 6. 頁面配置 (旗艦一頁式極簡美學 ── 強裝標題絕對不折行盔甲) ---
 st.set_page_config(page_title=f"聖經控制台 {SYSTEM_VERSION}", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
 
@@ -339,6 +338,8 @@ if params.get("action") == "trigger_push":
                 except Exception as e:
                     print(f"DEBUG: 發送錯誤: {str(e)}")
                     continue
+
+        run_auto_schedule_if_needed()
         
         # 結束處理：簡單回傳成功訊號給 GAS 的 Log 即可
         st.write("TRIGGER_DONE")
