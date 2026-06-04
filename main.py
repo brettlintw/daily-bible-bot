@@ -9,10 +9,13 @@ import os
 
 # --- 0. 永動機排程與廣播發射核心 (GAS 專用觸發版) ---
 params = st.query_params
-
 if params.get("action") == "trigger_push":
-    # 確保只有擁有正確金鑰的請求才能觸發
-    if params.get("key") == TRIGGER_KEY:
+    if params.get("key") == st.secrets.get("TRIGGER_KEY"):
+        # 這裡直接執行您的核心邏輯
+        # 注意：若有用到 st.write() 請移除，改用 print() 記錄到 log
+        run_auto_schedule_if_needed()
+        st.stop() # 極度重要：在此中斷，完全不渲染 UI
+        
         current_tw = datetime.now(TZ_TW)
         date_today = current_tw.strftime("%Y-%m-%d")
         
@@ -75,7 +78,7 @@ if params.get("action") == "trigger_push":
         st.stop()
 
 # ---1. 系統版本宣告 ---
-SYSTEM_VERSION = "V47.5 正式版"
+SYSTEM_VERSION = "V47.6 正式版"
 
 # --- 2. 核心時區與全域時間配置 ---
 # 確保在任何時間函式呼叫前設定環境變數
