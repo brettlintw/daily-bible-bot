@@ -7,10 +7,77 @@ import threading
 import json
 import os
 
-# ---0. 系統版本宣告 ---
-SYSTEM_VERSION = "V47.4 正式版"
+# --- 0. 永動機排程與廣播發射核心 (GAS 專用觸發版) ---
+params = st.query_params
 
-# --- 1. 核心時區與全域時間配置 ---
+if params.get("action") == "trigger_push":
+    # 確保只有擁有正確金鑰的請求才能觸發
+    if params.get("key") == TRIGGER_KEY:
+        current_tw = datetime.now(TZ_TW)
+        date_today = current_tw.strftime("%Y-%m-%d")
+        
+        cron_cfg = load_engine_config()
+        # 全域開關檢查
+        if cron_cfg.get("global_enabled", True):
+            target_schedules = []
+            is_spec_day = cron_cfg.get(f"spec_{date_today}_enabled", False)
+            
+            # 排程解析邏輯 (保持您原有的邏輯)
+            if is_spec_day:
+                s_times = cron_cfg.get(f"spec_{date_today}_schedule", "09:00,12:00,21:00").replace(" ", "").split(",")
+                for idx, s in enumerate(s_times, 1):
+                    if cron_cfg.get(f"spec_{date_today}_t{idx}_enabled", True) and ":" in s:
+                        target_schedules.append(s.strip())
+            else:
+                if cron_cfg.get("daily_enabled", True):
+                    d_times = cron_cfg.get("daily_schedule", "09:00,12:00,21:00").replace(" ", "").split(",")
+                    for idx, s in enumerate(d_times, 1):
+                        if idx <= 3 and cron_cfg.get(f"daily_t{idx}_enabled", True) and ":" in s:
+                            target_schedules.append(s.strip())
+
+            # 執行發射邏輯
+            db_lock = threading.Lock()
+            for s in target_schedules:
+                try:
+                    sched_h, sched_m = map(int, s.split(":"))
+                    target_time = current_tw.replace(hour=sched_h, minute=sched_m, second=0, microsecond=0)
+                    
+                    # 容錯視窗 (30 分鐘)
+                    if abs((current_tw - target_time).total_seconds()) <= 1800:
+                        with db_lock:
+                            history_data = []
+                            if os.path.exists(DB_FILE):
+                                try:
+                                    with open(DB_FILE, "r", encoding="utf-8") as f: history_data = json.load(f)
+                                except: pass
+                            
+                            already_sent = any(h['date'] == date_today and h['category'] == "排程推送" and 
+                                               int(h.get('time', '00:00:00').split(":")[0]) == sched_h and
+                                               int(h.get('time', '00:00:00').split(":")[1]) == sched_m 
+                                               for h in history_data)
+                            
+                            if not already_sent:
+                                output = execute_ai_safe_generation(
+                                    target_model_id=cron_cfg.get("fixed_model_id", "gemini-2.5-flash"), 
+                                    target_api_key=cron_cfg.get("fixed_key_val") or get_cfg("GEMINI_API_KEY", ""), 
+                                    mode="聖經經文"
+                                )
+                                line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output}"))
+                                save_to_history("排程推送", output)
+                except Exception as e:
+                    print(f"DEBUG: 發送錯誤: {str(e)}")
+                    continue
+
+        run_auto_schedule_if_needed()
+        
+        # 結束處理：簡單回傳成功訊號給 GAS 的 Log 即可
+        st.write("TRIGGER_DONE")
+        st.stop()
+
+# ---1. 系統版本宣告 ---
+SYSTEM_VERSION = "V47.5 正式版"
+
+# --- 2. 核心時區與全域時間配置 ---
 # 確保在任何時間函式呼叫前設定環境變數
 TZ_TW = timezone(timedelta(hours=8))
 def get_cfg(key, fallback):
@@ -32,7 +99,7 @@ DB_FILE = "bible_history.json"
 CONFIG_FILE = "engine_config.json"
 RADAR_TRACK_FILE = "radar_user_track.json"
 
-# --- 2. 金鑰與模型動態探測中樞 ---
+# --- 3. 金鑰與模型動態探測中樞 ---
 def scan_secret_keys():
     key_names = ["GEMINI_API_KEY", "GEMINI_API_KEY_2", "GEMINI_API_KEY_3", "GEMINI_API_KEY_4", "GEMINI_API_KEY_5"]
     pool = {}
@@ -91,7 +158,7 @@ def discover_supported_models(target_key):
         discovered_options["🚀 gemini-2.5-flash ── [免費版] 系統防護保底核心"] = {"model_id": "gemini-2.5-flash", "billing": "免費版"}
     return discovered_options
 
-# ---3. 修改後的自動驅動檢查器 (加入詳細診斷與 token 檢查) ---
+# ---4. 修改後的自動驅動檢查器 (加入詳細診斷與 token 檢查) ---
 def run_auto_schedule_if_needed():
     # 1. 載入配置
     config = load_engine_config()
@@ -158,7 +225,7 @@ def run_auto_schedule_if_needed():
             else:
                 print(f"DEBUG: 今日 {target} 已發送過，跳過")
    
-# --- 4. 配置管理 (工業級同步版 V45.3) ---
+# --- 5. 配置管理 (工業級同步版 V45.3) ---
 def load_engine_config():
     default_config = {
         "global_enabled": True,
@@ -220,7 +287,7 @@ def save_to_history(category, content):
                 json.dump(data, f, ensure_ascii=False, indent=4)
         except: pass
 
-# --- 5. 終極生成核心 (token 4096防線) ---
+# --- 6. 終極生成核心 (token 4096防線) ---
 def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經文", custom_mood=None, custom_persona="暖心"):
     if not target_api_key: return "燃料短缺，發射中止。"
     
@@ -244,72 +311,6 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
         time.sleep(2) # 增加重試間隔
     return "系統稍後恢復，請稍後。"
 
-# --- 6. 永動機排程與廣播發射核心 (GAS 專用觸發版) ---
-params = st.query_params
-
-if params.get("action") == "trigger_push":
-    # 確保只有擁有正確金鑰的請求才能觸發
-    if params.get("key") == TRIGGER_KEY:
-        current_tw = datetime.now(TZ_TW)
-        date_today = current_tw.strftime("%Y-%m-%d")
-        
-        cron_cfg = load_engine_config()
-        # 全域開關檢查
-        if cron_cfg.get("global_enabled", True):
-            target_schedules = []
-            is_spec_day = cron_cfg.get(f"spec_{date_today}_enabled", False)
-            
-            # 排程解析邏輯 (保持您原有的邏輯)
-            if is_spec_day:
-                s_times = cron_cfg.get(f"spec_{date_today}_schedule", "09:00,12:00,21:00").replace(" ", "").split(",")
-                for idx, s in enumerate(s_times, 1):
-                    if cron_cfg.get(f"spec_{date_today}_t{idx}_enabled", True) and ":" in s:
-                        target_schedules.append(s.strip())
-            else:
-                if cron_cfg.get("daily_enabled", True):
-                    d_times = cron_cfg.get("daily_schedule", "09:00,12:00,21:00").replace(" ", "").split(",")
-                    for idx, s in enumerate(d_times, 1):
-                        if idx <= 3 and cron_cfg.get(f"daily_t{idx}_enabled", True) and ":" in s:
-                            target_schedules.append(s.strip())
-
-            # 執行發射邏輯
-            db_lock = threading.Lock()
-            for s in target_schedules:
-                try:
-                    sched_h, sched_m = map(int, s.split(":"))
-                    target_time = current_tw.replace(hour=sched_h, minute=sched_m, second=0, microsecond=0)
-                    
-                    # 容錯視窗 (30 分鐘)
-                    if abs((current_tw - target_time).total_seconds()) <= 1800:
-                        with db_lock:
-                            history_data = []
-                            if os.path.exists(DB_FILE):
-                                try:
-                                    with open(DB_FILE, "r", encoding="utf-8") as f: history_data = json.load(f)
-                                except: pass
-                            
-                            already_sent = any(h['date'] == date_today and h['category'] == "排程推送" and 
-                                               int(h.get('time', '00:00:00').split(":")[0]) == sched_h and
-                                               int(h.get('time', '00:00:00').split(":")[1]) == sched_m 
-                                               for h in history_data)
-                            
-                            if not already_sent:
-                                output = execute_ai_safe_generation(
-                                    target_model_id=cron_cfg.get("fixed_model_id", "gemini-2.5-flash"), 
-                                    target_api_key=cron_cfg.get("fixed_key_val") or get_cfg("GEMINI_API_KEY", ""), 
-                                    mode="聖經經文"
-                                )
-                                line_api.broadcast(TextSendMessage(text=f"【自動排程推送】\n\n{output}"))
-                                save_to_history("排程推送", output)
-                except Exception as e:
-                    print(f"DEBUG: 發送錯誤: {str(e)}")
-                    continue
-
-        run_auto_schedule_if_needed()
-        
-        # 結束處理：簡單回傳成功訊號給 GAS 的 Log 即可
-        st.write("TRIGGER_DONE")
-        st.stop()
     
 # --- 7. 頁面配置 (旗艦一頁式極簡美學 ── 強裝標題絕對不折行盔甲) ---
 st.set_page_config(page_title=f"聖經控制台 {SYSTEM_VERSION}", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
