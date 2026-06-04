@@ -67,16 +67,9 @@ def run_autonomous_scheduler():
     except Exception as e:
         print(f"DEBUG: 自動排程器執行異常: {str(e)}")
 
-# --- [自動巡航後台檢查 - 強制偵測] ---
-try:
-    print("DEBUG: 系統啟動，正在執行自動巡航檢查...")
-    run_autonomous_scheduler()
-    print("DEBUG: 自動巡航檢查完成。")
-except Exception as e:
-    print(f"DEBUG: 檢查器異常: {str(e)}")
 
 # ---1. 系統版本宣告 ---
-SYSTEM_VERSION = "V50.0 正式版"
+SYSTEM_VERSION = "V50.1 正式版"
 
 # --- 2. 核心時區與全域時間配置 ---
 # 確保在任何時間函式呼叫前設定環境變數
@@ -312,6 +305,13 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
         time.sleep(2) # 增加重試間隔
     return "系統稍後恢復，請稍後。"
 
+# --- [自動巡航後台檢查 - 強制偵測] ---
+try:
+    print("DEBUG: 系統啟動，正在執行自動巡航檢查...")
+    run_autonomous_scheduler()
+    print("DEBUG: 自動巡航檢查完成。")
+except Exception as e:
+    print(f"DEBUG: 檢查器異常: {str(e)}")
     
 # --- 7. 頁面配置 (旗艦一頁式極簡美學 ── 強裝標題絕對不折行盔甲) ---
 st.set_page_config(page_title=f"聖經控制台 {SYSTEM_VERSION}", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
