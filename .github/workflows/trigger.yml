@@ -1,14 +1,14 @@
-name: KITT Bible Trigger
-
+name: Bible Bot Scheduler
 on:
-  # 將 cron 修改為一個永不會觸發的時間，例如 2月30日 (系統會忽略)
   schedule:
-    - cron: '0 0 30 2 *' 
-  workflow_dispatch:
+    - cron: '*/10 * * * *' # 每 10 分鐘執行一次
+  workflow_dispatch: # 允許手動測試
 
 jobs:
-  ping:
+  trigger:
     runs-on: ubuntu-latest
     steps:
-      - name: Disabled
-        run: echo "Trigger is currently disabled in favor of UptimeRobot."
+      - name: Trigger Streamlit App
+        # 使用 curl 直接呼叫，這不會被 Streamlit 轉向機制攔截
+        run: |
+          curl -L "https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/?action=trigger_push&key=${{ secrets.TRIGGER_KEY }}"
