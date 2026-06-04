@@ -1,0 +1,5 @@
+{
+    "global_enabled": true,
+    "daily_enabled": true,
+    "daily_schedule": "09:00,12:00,21:00"
+}
