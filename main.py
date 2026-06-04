@@ -8,7 +8,7 @@ import json
 import os
 
 # ---0. 系統版本宣告 ---
-SYSTEM_VERSION = "V47.3 正式版"
+SYSTEM_VERSION = "V47.4 正式版"
 
 # --- 1. 核心時區與全域時間配置 ---
 # 確保在任何時間函式呼叫前設定環境變數
@@ -243,42 +243,8 @@ def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經�
         except: pass
         time.sleep(2) # 增加重試間隔
     return "系統稍後恢復，請稍後。"
-    
-# --- 6. 頁面配置 (旗艦一頁式極簡美學 ── 強裝標題絕對不折行盔甲) ---
-st.set_page_config(page_title=f"聖經控制台 {SYSTEM_VERSION}", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
 
-st.markdown("""
-    <style>
-    .main .block-container { max-width: 80% !important; padding: 0.3rem 1rem !important; }
-    @media (max-width: 1023px) { 
-        .main .block-container { max-width: 100% !important; padding: 0.2rem 0.5rem !important; } 
-        h1 { font-size: 0.95rem !important; white-space: nowrap !important; display: flex !important; align-items: center !important; flex-wrap: nowrap !important; }
-        .status-tag { font-size: 0.6rem !important; padding: 1px 4px !important; margin-left: 4px !important; white-space: nowrap !important; }
-        .schedule-radar-box { padding: 8px !important; }
-        .schedule-radar-box code { font-size: 0.95rem !important; }
-        .api-active-tag { display: inline-block; margin-top: 4px; padding: 4px 6px !important; font-size: 0.7rem !important; line-height: 1.2 !important; }
-    }
-    h1 { font-size: 1.15rem !important; margin: 0 !important; line-height: 1.1 !important; color: #E0E0E0; white-space: nowrap !important; }
-    .stTextArea>div>div>textarea { height: 55px !important; border-radius: 8px; }
-    .stTextInput>div>div>input { height: 2.1rem !important; border-radius: 8px; }
-    .stButton>button { border-radius: 8px; height: 2.5rem; font-weight: bold; }
-    .status-tag { font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; background: #00E676; color: black; margin-left: 10px; white-space: nowrap !important; border: none !important; display: inline-block !important; }
-    .history-card { background: #1E1E1E; padding: 10px; border-radius: 8px; border-left: 5px solid #00E676; margin-bottom: 8px; color: #E0E0E0; }
-    .type-tag-auto { background: #2E7D32; color: white; padding: 1px 6px; border-radius: 4px; font-size: 0.65rem; }
-    .type-tag-manual { background: #C62828; color: white; padding: 1px 6px; border-radius: 4px; font-size: 0.65rem; }
-    .type-tag-multicast { background: #E65100; color: white; padding: 1px 6px; border-radius: 4px; font-size: 0.65rem; }
-    .type-tag-ai { background: #1565C0; color: white; padding: 1px 6px; border-radius: 4px; font-size: 0.65rem; }
-    .radar-tag { background: #1A237E; color: #00E676; padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; font-family: monospace; font-weight: bold; margin-right: 6px; border: 1px solid #00E676; display: inline-block; }
-    .api-active-tag { background: #E0F2F1; color: #004D40; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; white-space: normal !important; word-break: break-all !important; }
-    .billing-free { color: #FF9100; font-weight: bold; font-family: monospace; }
-    .billing-paid { color: #00E676; font-weight: bold; font-family: monospace; }
-    .self-radar-box { background: #3E2723; border: 1px dashed #FF9100; border-radius: 8px; padding: 10px; margin-bottom: 15px; color: #FFD180; font-family: monospace; font-size: 0.85rem; }
-    .schedule-radar-box { background: #1A237E; border: 1px solid #00E676; border-radius: 8px; padding: 10px; margin-bottom: 15px; color: #00E676; font-family: monospace; font-size: 0.85rem; width: 100%; box-sizing: border-box; }
-    [data-testid="stHeader"], footer, #MainMenu { visibility: hidden; height: 0; }
-    </style>
-    """, unsafe_allow_html=True)
-
-# --- 7. 永動機排程與廣播發射核心 (GAS 專用觸發版) ---
+# --- 6. 永動機排程與廣播發射核心 (GAS 專用觸發版) ---
 params = st.query_params
 
 if params.get("action") == "trigger_push":
@@ -344,7 +310,40 @@ if params.get("action") == "trigger_push":
         # 結束處理：簡單回傳成功訊號給 GAS 的 Log 即可
         st.write("TRIGGER_DONE")
         st.stop()
+    
+# --- 7. 頁面配置 (旗艦一頁式極簡美學 ── 強裝標題絕對不折行盔甲) ---
+st.set_page_config(page_title=f"聖經控制台 {SYSTEM_VERSION}", page_icon="🛡️", layout="centered", initial_sidebar_state="collapsed")
 
+st.markdown("""
+    <style>
+    .main .block-container { max-width: 80% !important; padding: 0.3rem 1rem !important; }
+    @media (max-width: 1023px) { 
+        .main .block-container { max-width: 100% !important; padding: 0.2rem 0.5rem !important; } 
+        h1 { font-size: 0.95rem !important; white-space: nowrap !important; display: flex !important; align-items: center !important; flex-wrap: nowrap !important; }
+        .status-tag { font-size: 0.6rem !important; padding: 1px 4px !important; margin-left: 4px !important; white-space: nowrap !important; }
+        .schedule-radar-box { padding: 8px !important; }
+        .schedule-radar-box code { font-size: 0.95rem !important; }
+        .api-active-tag { display: inline-block; margin-top: 4px; padding: 4px 6px !important; font-size: 0.7rem !important; line-height: 1.2 !important; }
+    }
+    h1 { font-size: 1.15rem !important; margin: 0 !important; line-height: 1.1 !important; color: #E0E0E0; white-space: nowrap !important; }
+    .stTextArea>div>div>textarea { height: 55px !important; border-radius: 8px; }
+    .stTextInput>div>div>input { height: 2.1rem !important; border-radius: 8px; }
+    .stButton>button { border-radius: 8px; height: 2.5rem; font-weight: bold; }
+    .status-tag { font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; background: #00E676; color: black; margin-left: 10px; white-space: nowrap !important; border: none !important; display: inline-block !important; }
+    .history-card { background: #1E1E1E; padding: 10px; border-radius: 8px; border-left: 5px solid #00E676; margin-bottom: 8px; color: #E0E0E0; }
+    .type-tag-auto { background: #2E7D32; color: white; padding: 1px 6px; border-radius: 4px; font-size: 0.65rem; }
+    .type-tag-manual { background: #C62828; color: white; padding: 1px 6px; border-radius: 4px; font-size: 0.65rem; }
+    .type-tag-multicast { background: #E65100; color: white; padding: 1px 6px; border-radius: 4px; font-size: 0.65rem; }
+    .type-tag-ai { background: #1565C0; color: white; padding: 1px 6px; border-radius: 4px; font-size: 0.65rem; }
+    .radar-tag { background: #1A237E; color: #00E676; padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; font-family: monospace; font-weight: bold; margin-right: 6px; border: 1px solid #00E676; display: inline-block; }
+    .api-active-tag { background: #E0F2F1; color: #004D40; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; white-space: normal !important; word-break: break-all !important; }
+    .billing-free { color: #FF9100; font-weight: bold; font-family: monospace; }
+    .billing-paid { color: #00E676; font-weight: bold; font-family: monospace; }
+    .self-radar-box { background: #3E2723; border: 1px dashed #FF9100; border-radius: 8px; padding: 10px; margin-bottom: 15px; color: #FFD180; font-family: monospace; font-size: 0.85rem; }
+    .schedule-radar-box { background: #1A237E; border: 1px solid #00E676; border-radius: 8px; padding: 10px; margin-bottom: 15px; color: #00E676; font-family: monospace; font-size: 0.85rem; width: 100%; box-sizing: border-box; }
+    [data-testid="stHeader"], footer, #MainMenu { visibility: hidden; height: 0; }
+    </style>
+    """, unsafe_allow_html=True)
 
 # --- 8. UI 佈局 ---
 st.markdown(f"<h1>🛡️ 聖經任務控制台 {SYSTEM_VERSION} <span class='status-tag'>🛰️ 聯邦制導</span><span class='status-tag' style='background:#00E676; color:black;'>全時自動巡航體</span></h1>", unsafe_allow_html=True)
