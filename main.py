@@ -6,8 +6,8 @@ import os
 from linebot import LineBotApi
 from linebot.models import TextSendMessage
 
-# --- 1. 系統宣告 ---
-SYSTEM_VERSION = "V52.8 最終修正版"
+# --- 1. 系統宣告與初始化 ---
+SYSTEM_VERSION = "V52.9 旗艦最終版"
 TZ_TW = timezone(timedelta(hours=8))
 DB_FILE = "bible_history.json"
 CONFIG_FILE = "engine_config.json"
@@ -45,8 +45,17 @@ def discover_supported_models(target_key):
 def execute_ai_safe_generation(target_model_id, target_api_key, custom_mood="", custom_persona="暖心"):
     genai.configure(api_key=target_api_key)
     model = genai.GenerativeModel(model_name=target_model_id)
-    prompt = f"你是{custom_persona}牧者。{f'心情主題:{custom_mood}' if custom_mood else ''} 請精選聖經經文並深度反思。內容務必完整，請勿中斷。"
-    res = model.generate_content(prompt, generation_config=genai.types.GenerationConfig(max_output_tokens=4096))
+    prompt = f"""
+    你是{custom_persona}牧者。{f'心情主題:{custom_mood}' if custom_mood else ''} 請精選聖經經文進行分享，嚴格遵守格式規範：
+    【經文內容】
+    (在此輸出經文，結尾必須加上 (阿們。))
+    【經文章節】
+    (在此輸出經文章節，例如：(詩篇 4:8))
+    【領受與感悟】
+    (撰寫深度溫暖的靈修反思)
+    --- 鐵律：嚴禁引言贅字，總字數壓在 600 字內 ---
+    """
+    res = model.generate_content(prompt, generation_config=genai.types.GenerationConfig(temperature=0.4, max_output_tokens=1000))
     return res.text if res else "發射中止。"
 
 def save_to_history(category, content):
@@ -54,12 +63,10 @@ def save_to_history(category, content):
     data = []
     if os.path.exists(DB_FILE):
         try:
-            with open(DB_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
+            with open(DB_FILE, "r", encoding="utf-8") as f: data = json.load(f)
         except: pass
     data.insert(0, {"date": current_tw.strftime("%Y-%m-%d"), "time": current_tw.strftime("%H:%M:%S"), "category": category, "content": content})
-    with open(DB_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
+    with open(DB_FILE, "w", encoding="utf-8") as f: json.dump(data, f, ensure_ascii=False, indent=4)
 
 # --- 3. 外部觸發入口 ---
 params = st.query_params
@@ -70,43 +77,36 @@ if params.get("action") == "fixed_push" and params.get("key") == get_cfg("TRIGGE
     save_to_history("排程推送", output)
     st.write("PUSH_DONE"); st.stop()
 
-# --- 4. UI 介面與歷史經文庫 ---
+# --- 4. UI 介面 ---
 st.set_page_config(page_title="聖經控制台", layout="centered")
 st.title(f"🛡️ 聖經任務控制台 {SYSTEM_VERSION}")
 
 KEY_POOL = scan_secret_keys()
-chosen_key = st.selectbox("🔑 請選擇金鑰：", options=list(KEY_POOL.keys()))
+chosen_key = st.selectbox("🔑 金鑰：", options=list(KEY_POOL.keys()))
 MODEL_REGISTRY = discover_supported_models(KEY_POOL[chosen_key])
-chosen_model = st.selectbox("🚀 請選擇模型：", options=list(MODEL_REGISTRY.keys()))
+chosen_model = st.selectbox("🚀 模型：", options=list(MODEL_REGISTRY.keys()))
 
-st.subheader("🎯 推送控制中心")
+# 精準與 AI 推送
 mode = st.radio("維度：", ["全員廣播", "精準推送", "AI 智慧廣播"], horizontal=True)
-
-with st.form("manual_push_form"):
-    uids = st.text_input("目標 User ID (逗號分隔):") if mode == "精準推送" else ""
+with st.form("manual_push"):
+    uids = st.text_input("目標 ID (逗號分隔):") if mode == "精準推送" else ""
     mood = st.text_input("心情主題:") if mode == "AI 智慧廣播" else ""
     text = st.text_area("內文:") if mode != "AI 智慧廣播" else ""
-    if st.form_submit_button("🚀 執行發射"):
+    if st.form_submit_button("🚀 發射"):
         if mode == "AI 智慧廣播":
             payload = execute_ai_safe_generation(MODEL_REGISTRY[chosen_model]["model_id"], KEY_POOL[chosen_key], mood)
-            line_api.broadcast(TextSendMessage(text=f"【AI智慧廣播】\n\n{payload}"))
-            save_to_history("AI智慧廣播", payload)
+            line_api.broadcast(TextSendMessage(text=payload)); save_to_history("AI智慧廣播", payload)
         elif mode == "全員廣播":
-            line_api.broadcast(TextSendMessage(text=text))
-            save_to_history("手動全員廣播", text)
+            line_api.broadcast(TextSendMessage(text=text)); save_to_history("手動全員廣播", text)
         else:
-            line_api.multicast([i.strip() for i in uids.split(",")], TextSendMessage(text=text))
-            save_to_history("手動精準推送", text)
+            line_api.multicast([i.strip() for i in uids.split(",")], TextSendMessage(text=text)); save_to_history("手動精準推送", text)
         st.success("✅ 發射成功")
 
+# --- 5. 歷史經文典藏管理庫 ---
 st.subheader("📚 歷史經文典藏管理庫")
 if os.path.exists(DB_FILE):
-    try:
-        with open(DB_FILE, "r", encoding="utf-8") as f:
-            history_data = json.load(f)
-    except: history_data = []
-    
+    with open(DB_FILE, "r", encoding="utf-8") as f: history_data = json.load(f)
     if st.button("⚠️ 清除記錄"): os.remove(DB_FILE); st.rerun()
     for item in history_data:
-        with st.expander(f"📅 {item['date']} ⏰ {item['time']} - {item['category']}", expanded=False):
+        with st.expander(f"📅 {item['date']} ⏰ {item['time']} - {item['category']}"):
             st.markdown(item['content'])
