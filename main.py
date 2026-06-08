@@ -7,7 +7,7 @@ from linebot import LineBotApi
 from linebot.models import TextSendMessage
 
 # --- 1. 系統宣告 ---
-SYSTEM_VERSION = "V52.7 全能旗艦整合完整版"
+SYSTEM_VERSION = "V52.8 最終修正版"
 TZ_TW = timezone(timedelta(hours=8))
 DB_FILE = "bible_history.json"
 CONFIG_FILE = "engine_config.json"
@@ -53,10 +53,13 @@ def save_to_history(category, content):
     current_tw = datetime.now(TZ_TW)
     data = []
     if os.path.exists(DB_FILE):
-        try: with open(DB_FILE, "r", encoding="utf-8") as f: data = json.load(f)
+        try:
+            with open(DB_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
         except: pass
     data.insert(0, {"date": current_tw.strftime("%Y-%m-%d"), "time": current_tw.strftime("%H:%M:%S"), "category": category, "content": content})
-    with open(DB_FILE, "w", encoding="utf-8") as f: json.dump(data, f, ensure_ascii=False, indent=4)
+    with open(DB_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
 
 # --- 3. 外部觸發入口 ---
 params = st.query_params
@@ -67,9 +70,8 @@ if params.get("action") == "fixed_push" and params.get("key") == get_cfg("TRIGGE
     save_to_history("排程推送", output)
     st.write("PUSH_DONE"); st.stop()
 
-# --- 4. UI 介面 ---
+# --- 4. UI 介面與歷史經文庫 ---
 st.set_page_config(page_title="聖經控制台", layout="centered")
-st.markdown("<style>.type-tag { font-size:0.7rem; padding:1px 6px; border-radius:4px; color:white; }</style>", unsafe_allow_html=True)
 st.title(f"🛡️ 聖經任務控制台 {SYSTEM_VERSION}")
 
 KEY_POOL = scan_secret_keys()
@@ -97,26 +99,14 @@ with st.form("manual_push_form"):
             save_to_history("手動精準推送", text)
         st.success("✅ 發射成功")
 
-# --- 5. 歷史經文典藏管理庫 (整合版) ---
 st.subheader("📚 歷史經文典藏管理庫")
-history_data = []
 if os.path.exists(DB_FILE):
-    try: with open(DB_FILE, "r", encoding="utf-8") as f: history_data = json.load(f)
-    except: pass
-
-if history_data:
-    # 匯出報告模組
-    html_report = "<html><head><meta charset='utf-8'><style>body{font-family:sans-serif;}.card{border:1px solid #ddd;padding:10px;margin-bottom:10px;}</style></head><body><h2>🛡️ 經文報告</h2>"
-    for h in history_data:
-        html_report += f"<div class='card'><b>📅 {h['date']} ⏰ {h['time']} | {h['category']}</b><br>{h['content'].replace(chr(10), '<br>')}</div>"
-    html_report += "</body></html>"
+    try:
+        with open(DB_FILE, "r", encoding="utf-8") as f:
+            history_data = json.load(f)
+    except: history_data = []
     
-    col1, col2 = st.columns(2)
-    with col1: st.download_button("📥 下載 TXT", "".join([f"{h['date']} {h['time']} | {h['category']}\n{h['content']}\n---\n" for h in history_data]), "history.txt")
-    with col2: st.download_button("🖨️ 匯出 PDF 報告", html_report, "report.html", "text/html")
-    if st.button("⚠️ 清除所有記錄"): os.remove(DB_FILE); st.rerun()
-
+    if st.button("⚠️ 清除記錄"): os.remove(DB_FILE); st.rerun()
     for item in history_data:
         with st.expander(f"📅 {item['date']} ⏰ {item['time']} - {item['category']}", expanded=False):
             st.markdown(item['content'])
-else: st.info("尚無記錄。")
