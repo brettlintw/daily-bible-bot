@@ -10,7 +10,7 @@ from linebot import LineBotApi
 from linebot.models import TextSendMessage
 
 # --- 1. 系統宣告與初始化 ---
-SYSTEM_VERSION = "V52.9 穩定不斷文修正版"
+SYSTEM_VERSION = "V52.9 "
 TZ_TW = timezone(timedelta(hours=8))
 DB_FILE = "bible_history.json"
 CONFIG_FILE = "engine_config.json"
