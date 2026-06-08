@@ -8,7 +8,7 @@ from linebot import LineBotApi
 from linebot.models import TextSendMessage
 
 # --- 1. 系統宣告與環境初始化 ---
-SYSTEM_VERSION = "V52.2 全能旗艦版"
+SYSTEM_VERSION = "V52.3 最終修復版"
 TZ_TW = timezone(timedelta(hours=8))
 DB_FILE = "bible_history.json"
 CONFIG_FILE = "engine_config.json"
@@ -20,9 +20,37 @@ def get_cfg(key, fallback):
 LINE_TOKEN = get_cfg("LINE_ACCESS_TOKEN", "")
 line_api = LineBotApi(LINE_TOKEN)
 
-# --- 2. 核心邏輯區 ---
+# --- 2. 必須放在最前面的函式定義 ---
+def load_engine_config():
+    default_config = {"daily_schedule": "09:00,12:00,21:00", "fixed_model_id": "gemini-2.5-flash"}
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return {**default_config, **data}
+        except: pass
+    return default_config
+
+def save_to_history(category, content):
+    current_tw = datetime.now(TZ_TW)
+    new_entry = {"date": current_tw.strftime("%Y-%m-%d"), "time": current_tw.strftime("%H:%M:%S"), "category": category, "content": content}
+    data = []
+    if os.path.exists(DB_FILE):
+        try:
+            with open(DB_FILE, "r", encoding="utf-8") as f: data = json.load(f)
+        except: pass
+    data.insert(0, new_entry)
+    with open(DB_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
+
+def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經文", custom_mood="", custom_persona="暖心"):
+    genai.configure(api_key=target_api_key)
+    model = genai.GenerativeModel(model_name=target_model_id)
+    prompt = f"你是{custom_persona}牧者。{f'心情主題是:{custom_mood}' if custom_mood else ''} 請精選聖經經文並深度反思。內容務必完整，請勿中斷。"
+    res = model.generate_content(prompt, generation_config=genai.types.GenerationConfig(max_output_tokens=4096))
+    return res.text if res else "發射中止。"
+
 def execute_fixed_push():
-    """GitHub Actions 外部觸發用"""
     config = load_engine_config()
     output = execute_ai_safe_generation(
         target_model_id=config.get("fixed_model_id", "gemini-2.5-flash"), 
@@ -31,13 +59,6 @@ def execute_fixed_push():
     )
     line_api.broadcast(TextSendMessage(text=f"【每日固定推送】\n\n{output}"))
     save_to_history("排程推送", output)
-
-def execute_ai_safe_generation(target_model_id, target_api_key, mode="聖經經文", custom_mood="", custom_persona="暖心"):
-    genai.configure(api_key=target_api_key)
-    model = genai.GenerativeModel(model_name=target_model_id)
-    prompt = f"你是{custom_persona}牧者。{f'心情主題是:{custom_mood}' if custom_mood else ''} 請精選聖經經文並深度反思。內容務必完整，請勿中斷。"
-    res = model.generate_content(prompt, generation_config=genai.types.GenerationConfig(max_output_tokens=4096))
-    return res.text if res else "發射中止。"
 
 # --- 3. 外部觸發入口 ---
 params = st.query_params
@@ -50,12 +71,10 @@ if params.get("action") == "fixed_push" and params.get("key") == get_cfg("TRIGGE
 st.set_page_config(page_title=f"聖經控制台 {SYSTEM_VERSION}", layout="centered")
 st.title(f"🛡️ 聖經任務控制台 {SYSTEM_VERSION}")
 
-# 固定推播狀態
 cfg = load_engine_config()
 st.subheader("⏰ 每日固定推送監控")
 st.info(f"自動化來源：GitHub Actions (Cron)\n設定時段：{cfg.get('daily_schedule')}")
 
-# 手動精準推送中樞 (您要求保留的部分)
 st.subheader("🎯 手動精準推送中樞")
 target_mode = st.radio("請選擇發射維度：", ["全員廣播 (Broadcast)", "單人/多人精準推送 (Multicast)"], horizontal=True)
 
@@ -77,7 +96,6 @@ with st.form("manual_push_form"):
             st.success("✅ 發射成功")
         except Exception as e: st.error(f"發射失敗: {str(e)}")
 
-# AI 智慧廣播
 st.subheader("🤖 AI 智慧廣播")
 c1, c2 = st.columns(2)
 with c1: mood_input = st.text_input("心情主題：")
@@ -88,7 +106,6 @@ if st.button("✨ 啟動 AI 廣播"):
     line_api.broadcast(TextSendMessage(text=f"【AI智慧廣播】\n\n{payload}"))
     save_to_history("AI智慧廣播", payload)
     st.success("✨ 廣播發射成功")
-
 
 # ---5. 歷史經文典藏管理庫 (V43.1 精簡互動版) ---
 st.subheader("📚 歷史經文典藏管理庫")
