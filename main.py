@@ -7,7 +7,7 @@ from linebot import LineBotApi
 from linebot.models import TextSendMessage
 
 # --- 1. 系統宣告 ---
-SYSTEM_VERSION = "V53.1 全能旗艦最終整合版"
+SYSTEM_VERSION = "V53.1 最終整合版"
 TZ_TW = timezone(timedelta(hours=8))
 DB_FILE = "bible_history.json"
 CONFIG_FILE = "engine_config.json"
