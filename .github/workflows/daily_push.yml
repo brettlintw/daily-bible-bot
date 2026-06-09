@@ -1,17 +1,21 @@
-name: Fixed Time Push
-on:
-  schedule:
-    - cron: '0 1 * * *' # 台灣 09:00
-    - cron: '0 9 * * *' # 台灣 17:00
-  workflow_dispatch:
-
-jobs:
-  push:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Trigger App
+- name: Trigger App
+        shell: python
         run: |
-          # 關鍵：加上 -L (處理跳轉) 以及 -A (偽裝成 Chrome 瀏覽器)
-          # 這樣 Streamlit 就會把這項請求視為一般用戶訪問，直接導向結果
-          curl -L -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
-          "https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/?action=fixed_push&key=${{ secrets.TRIGGER_KEY }}"
+          import urllib.request
+          import time
+          
+          url = "https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/?action=fixed_push&key=${{ secrets.TRIGGER_KEY }}"
+          # 使用一個完整的瀏覽器 User-Agent
+          headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'}
+          
+          for i in range(5):
+              try:
+                  req = urllib.request.Request(url, headers=headers)
+                  with urllib.request.urlopen(req, timeout=30) as response:
+                      print(f"Status: {response.status}")
+                      if response.status == 200:
+                          print("成功觸發！")
+                          break
+              except Exception as e:
+                  print(f"嘗試 {i+1} 失敗: {e}")
+              time.sleep(15)
