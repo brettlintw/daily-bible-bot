@@ -1,12 +1,15 @@
 name: Fixed Time Push
 
 on:
-  # 設置冗餘排程，增加 GitHub 的執行優先級
+  # 1. 自動定時觸發
   schedule:
     - cron: '0 1 * * *'  # 台灣 09:00
     - cron: '0 9 * * *'  # 台灣 17:00
-  # 允許手動測試
+  # 2. GitHub 頁面手動觸發
   workflow_dispatch:
+  # 3. 外部 API (Cron-job.org) 觸發監聽
+  repository_dispatch:
+    types: [fixed_push]
 
 jobs:
   push:
@@ -30,11 +33,9 @@ import requests
 url = 'https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/?action=fixed_push&key=${{ secrets.TRIGGER_KEY }}'
 headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'}
 try:
-    # 使用 session 處理重導向與 cookie
     s = requests.Session()
     r = s.get(url, headers=headers, timeout=60)
     print(f'Status Code: {r.status_code}')
-    # 若請求成功但不符合預期，強制退出以標記失敗
     if r.status_code != 200:
         exit(1)
 except Exception as e:
