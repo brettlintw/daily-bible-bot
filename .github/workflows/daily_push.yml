@@ -11,16 +11,16 @@ jobs:
     steps:
       - name: Trigger App
         run: |
-          # 設定最多重試 5 次，每次間隔 10 秒
-          for i in {1..5}; do
-            echo "Attempt $i: Waking up app..."
-            # 使用 curl -I 檢查是否回傳 200 OK
-            if curl -sI "https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/" | grep -q "200"; then
-              echo "App is awake!"
+          # 策略：增加總等待時間並加入緩衝
+          for i in {1..6}; do
+            echo "Attempt $i: Checking if App is ready..."
+            # 檢查網頁內容是否已載入 (不再只是檢查狀態碼 200)
+            if curl -s "https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/" | grep -q "streamlit"; then
+              echo "App is fully loaded!"
               break
             fi
-            sleep 10
+            sleep 15
           done
           
-          # 執行最終推播指令
+          # 最後執行推播
           curl "https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/?action=fixed_push&key=${{ secrets.TRIGGER_KEY }}"
