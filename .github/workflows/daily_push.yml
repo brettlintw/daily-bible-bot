@@ -1,8 +1,8 @@
 name: Fixed Time Push
 on:
   schedule:
-    - cron: '0 1 * * *' # 台灣 09:00
-    - cron: '0 9 * * *' # 台灣 17:00
+    - cron: '0 1 * * *'
+    - cron: '0 9 * * *'
   workflow_dispatch:
 
 jobs:
@@ -13,19 +13,21 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with: {python-version: '3.10'}
-      - name: Install dependencies
-        run: pip install playwright && playwright install chromium
+      - name: Install requests
+        run: pip install requests
       - name: Trigger App
         run: |
           python -c "
-from playwright.sync_api import sync_playwright
-with sync_playwright() as p:
-    browser = p.chromium.launch()
-    page = browser.new_page()
-    # 直接訪問觸發網址
-    page.goto('https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/?action=fixed_push&key=${{ secrets.TRIGGER_KEY }}')
-    # 等待頁面內容載入
-    page.wait_for_load_state('networkidle')
-    print(page.content())
-    browser.close()
+import requests, time
+url = 'https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/?action=fixed_push&key=${{ secrets.TRIGGER_KEY }}'
+headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'}
+# 使用 session 來自動處理 cookies 和可能的導向
+s = requests.Session()
+try:
+    print('Sending request...')
+    r = s.get(url, headers=headers, timeout=60)
+    print(f'Status Code: {r.status_code}')
+    print(f'Response: {r.text}')
+except Exception as e:
+    print(f'Error: {e}')
 "
