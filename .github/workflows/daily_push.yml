@@ -1,10 +1,8 @@
 name: Fixed Time Push
 on:
   schedule:
-    # 台灣時間 09:00 = UTC 01:00
-    - cron: '0 1 * * *'
-    # 台灣時間 17:00 = UTC 09:00
-    - cron: '0 9 * * *'
+    - cron: '0 1 * * *' # 台灣 09:00
+    - cron: '0 9 * * *' # 台灣 17:00
   workflow_dispatch:
 
 jobs:
@@ -13,11 +11,16 @@ jobs:
     steps:
       - name: Trigger App
         run: |
-          # 1. 優先喚醒 (若 App 在休眠，此請求會促使伺服器載入)
-          curl -I "https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/"
+          # 設定最多重試 5 次，每次間隔 10 秒
+          for i in {1..5}; do
+            echo "Attempt $i: Waking up app..."
+            # 使用 curl -I 檢查是否回傳 200 OK
+            if curl -sI "https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/" | grep -q "200"; then
+              echo "App is awake!"
+              break
+            fi
+            sleep 10
+          done
           
-          # 2. 等待 5 秒，確保 App 啟動完成
-          sleep 5
-          
-          # 3. 執行推播指令
+          # 執行最終推播指令
           curl "https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/?action=fixed_push&key=${{ secrets.TRIGGER_KEY }}"
