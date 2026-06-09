@@ -1,22 +1,43 @@
 name: Fixed Time Push
 
 on:
+  # 設置冗餘排程，增加 GitHub 的執行優先級
   schedule:
-    - cron: '0 1 * * *'
-    - cron: '0 9 * * *'
+    - cron: '0 1 * * *'  # 台灣 09:00
+    - cron: '0 9 * * *'  # 台灣 17:00
+  # 允許手動測試
   workflow_dispatch:
 
 jobs:
   push:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
+
       - name: Install requests
         run: pip install requests
+
       - name: Trigger App
         run: |
-          python -c "import requests; url='https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/?action=fixed_push&key=${{ secrets.TRIGGER_KEY }}'; headers={'User-Agent': 'Mozilla/5.0'}; r=requests.get(url, headers=headers, timeout=60); print(f'Status: {r.status_code}')"
+          python -c "
+import requests
+url = 'https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/?action=fixed_push&key=${{ secrets.TRIGGER_KEY }}'
+headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'}
+try:
+    # 使用 session 處理重導向與 cookie
+    s = requests.Session()
+    r = s.get(url, headers=headers, timeout=60)
+    print(f'Status Code: {r.status_code}')
+    # 若請求成功但不符合預期，強制退出以標記失敗
+    if r.status_code != 200:
+        exit(1)
+except Exception as e:
+    print(f'Error: {e}')
+    exit(1)
+"
