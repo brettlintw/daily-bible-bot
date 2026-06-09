@@ -64,7 +64,7 @@ import google.generativeai as genai
 from linebot import LineBotApi
 from linebot.models import TextSendMessage
 
-SYSTEM_VERSION = "V56.5 最終修正旗艦版"
+SYSTEM_VERSION = "V56.5 版"
 TZ_TW = timezone(timedelta(hours=8))
 DB_FILE = "bible_history.json"
 
