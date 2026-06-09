@@ -13,4 +13,11 @@ jobs:
     steps:
       - name: Trigger App
         run: |
+          # 1. 優先喚醒 (若 App 在休眠，此請求會促使伺服器載入)
+          curl -I "https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/"
+          
+          # 2. 等待 5 秒，確保 App 啟動完成
+          sleep 5
+          
+          # 3. 執行推播指令
           curl "https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/?action=fixed_push&key=${{ secrets.TRIGGER_KEY }}"
