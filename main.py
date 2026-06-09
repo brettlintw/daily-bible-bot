@@ -97,7 +97,7 @@ def save_to_history(category, content):
 
 # --- 4. UI 介面 ---
 st.set_page_config(page_title="聖經控制台", layout="centered")
-st.title(f"🛡️ 聖經任務控制台 {SYSTEM_VERSION}")
+st.title(f"🛡️ 聖經-LINE推送 {SYSTEM_VERSION}")
 
 KEY_POOL = scan_secret_keys()
 chosen_key = st.selectbox("🔑 金鑰：", options=list(KEY_POOL.keys()))
