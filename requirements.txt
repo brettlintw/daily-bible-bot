@@ -1,3 +1,4 @@
 streamlit
-line-bot-sdk
 google-generativeai
+line-bot-sdk
+requests
