@@ -12,25 +12,10 @@ jobs:
   push:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-      - name: Install requests
-        run: pip install requests
-      - name: Trigger App
-        run: |
-          python -c "
-import requests
-url = 'https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/?action=fixed_push&key=${{ secrets.TRIGGER_KEY }}'
-headers = {'User-Agent': 'Mozilla/5.0'}
-try:
-    s = requests.Session()
-    r = s.get(url, headers=headers, timeout=60)
-    print(f'Status: {r.status_code}')
-    if r.status_code != 200: exit(1)
-except Exception as e:
-    print(e); exit(1)
-"
+      - run: pip install requests
+      - run: |
+          python -c "import requests; r = requests.get('https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/?action=fixed_push&key=${{ secrets.TRIGGER_KEY }}', headers={'User-Agent': 'Mozilla/5.0'}, timeout=60); print(r.status_code); exit(0 if r.status_code==200 else 1)"
