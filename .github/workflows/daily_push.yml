@@ -1,21 +1,32 @@
-name: Fixed Time Push
+- name: Trigger App
+        run: |
+          python -c "
+import requests
+import time
+url = 'https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/?action=fixed_push&key=${{ secrets.TRIGGER_KEY }}'
+headers = {'User-Agent': 'Mozilla/5.0'}
+s = requests.Session()
 
-on:
-  schedule:
-    - cron: '0 1 * * *'
-    - cron: '0 9 * * *'
-  workflow_dispatch:
-  repository_dispatch:
-    types: [fixed_push]
+# 1. 強制喚醒並給予 40 秒冷啟動時間
+print('發送喚醒請求...')
+s.get('https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/', headers=headers)
+time.sleep(40) 
 
-jobs:
-  push:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-      - run: pip install requests
-      - run: |
-          python -c "import requests; r = requests.get('https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/?action=fixed_push&key=${{ secrets.TRIGGER_KEY }}', headers={'User-Agent': 'Mozilla/5.0'}, timeout=60); print(r.status_code); exit(0 if r.status_code==200 else 1)"
+# 2. 三次輪詢試探 (若伺服器未就緒，每 10 秒重試一次)
+success = False
+for i in range(3):
+    print(f'嘗試發送正式指令 (第 {i+1} 次)...')
+    try:
+        r = s.get(url, headers=headers, timeout=30)
+        if r.status_code == 200:
+            print('推送執行成功')
+            success = True
+            break
+        else:
+            print(f'伺服器回應: {r.status_code}，等待中...')
+    except Exception as e:
+        print(f'連線錯誤: {e}')
+    time.sleep(10)
+
+if not success: exit(1)
+"
