@@ -1,9 +1,9 @@
 name: Daily Bible Push
 on:
   schedule:
-    - cron: '0 1 * * *' # 每天早上 09:00 (台灣時間)
-    - cron: '0 9 * * *' # 每天下午 17:00 (台灣時間)
-  workflow_dispatch:     # 允許您在 GitHub 網頁手動點擊測試
+    - cron: '0 1 * * *'
+    - cron: '0 9 * * *'
+  workflow_dispatch:
 
 jobs:
   push:
@@ -12,15 +12,15 @@ jobs:
       - name: Trigger App
         run: |
           python -c "
-import requests
-import time
-url = 'https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/?action=fixed_push&key=${{ secrets.TRIGGER_KEY }}'
-headers = {'User-Agent': 'Mozilla/5.0'}
-s = requests.Session()
-s.get('https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/', headers=headers)
-time.sleep(40)
-for i in range(3):
-    r = s.get(url, headers=headers, timeout=30)
-    if r.status_code == 200: break
-    time.sleep(10)
-"
+          import requests
+          import time
+          url = 'https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/?action=fixed_push&key=${{ secrets.TRIGGER_KEY }}'
+          headers = {'User-Agent': 'Mozilla/5.0'}
+          s = requests.Session()
+          s.get('https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/', headers=headers)
+          time.sleep(40)
+          for i in range(3):
+              r = s.get(url, headers=headers, timeout=30)
+              if r.status_code == 200: break
+              time.sleep(10)
+          "
