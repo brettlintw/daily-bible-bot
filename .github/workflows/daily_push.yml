@@ -1,47 +1,29 @@
-name: Daily Bible Push
+name: Daily Bible Push - Model Debugger
 on:
-  schedule:
-    - cron: '0 1 * * *'
-    - cron: '0 9 * * *'
   workflow_dispatch:
 
 jobs:
-  push:
+  debug:
     runs-on: ubuntu-latest
     steps:
       - name: Install dependencies
-        run: pip install google-generativeai line-bot-sdk
+        run: pip install google-generativeai
         
-      - name: Generate and Push to LINE
+      - name: List Available Models
         env:
-          LINE_TOKEN: ${{ secrets.LINE_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           python -c "
           import os
           import google.generativeai as genai
-          from linebot import LineBotApi
-          from linebot.models import TextSendMessage
-
-          # 1. Gemini 生成內容
+          
+          print('--- 開始列出付費 API Key 可用的模型 ---')
           genai.configure(api_key=os.environ['GEMINI_API_KEY'])
-          model = genai.GenerativeModel('gemini-1.5-pro')
           
-          prompt = '''
-          你是溫柔牧者。請精選一段聖經經文進行分享，嚴格遵守以下格式：
-          【經文內容】
-          (經文內容，最後手動加上 (阿們。))
-          【經文章節】
-          (例如：(詩篇 4:8))
-          【領受與感悟】
-          (撰寫一段深度溫暖的靈修反思)
-          鐵律：禁止任何前言、贅字，總字數 600 字內，內容完整禁止斷章。
-          '''
-          res = model.generate_content(prompt)
-          payload = res.text.strip()
+          # 列出所有模型並篩選出支援 generateContent 的模型
+          for m in genai.list_models():
+              if 'generateContent' in m.supported_generation_methods:
+                  print(f'✅ 模型名稱: {m.name}')
           
-          # 2. 推送至 LINE
-          line_api = LineBotApi(os.environ['LINE_TOKEN'])
-          line_api.push_message('Uf166c741223bc8ee5d82fd1fd9f4df86', TextSendMessage(text=f'【每日靈修】\n\n{payload}'))
-          print('發送成功！')
+          print('--- 列表結束，請將上方名稱複製給我 ---')
           "
