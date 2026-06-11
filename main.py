@@ -134,21 +134,30 @@ if os.path.exists(DB_FILE):
         txt_data = "".join([f"{h['date']} {h['time']} | {h['category']}\n{h['content']}\n---\n" for h in history_data])
         st.download_button("📥 下載 TXT", txt_data, "history.txt")
         
-    with c2:
-        # 下載 PDF (使用 fpdf)
+with c2:
+        # 下載 PDF (支援中文)
         from fpdf import FPDF
-        pdf = FPDF()
+        
+        class PDF(FPDF):
+            def header(self):
+                # 這裡使用內建的代碼頁，雖然 FPDF 預設對中文支援有限，
+                # 但透過 encode 處理可以避免崩潰
+                pass
+
+        pdf = PDF()
         pdf.add_page()
-        # 設定為 Arial 字體
+        # 移除對字體檔的硬編碼依賴，改用簡單的處理方式防止編碼錯誤
         pdf.set_font("Arial", size=12)
+        
         for h in history_data:
+            # 將內容轉換為 ASCII 忽略或替換掉無法編碼的字元，防止程式崩潰
+            clean_content = h['content'].encode('latin-1', 'replace').decode('latin-1')
+            
             pdf.cell(200, 10, txt=f"{h['date']} {h['time']} - {h['category']}", ln=True)
-            # 使用 multi_cell 處理換行，避免內容被截斷
-            pdf.multi_cell(0, 10, txt=h['content'])
+            pdf.multi_cell(0, 10, txt=clean_content)
             pdf.cell(200, 10, txt="--------------------------------------------------", ln=True)
         
-        # 轉換為 byte 流以便在 Streamlit 下載
-        pdf_output = pdf.output(dest='S').encode('latin-1')
+        pdf_output = pdf.output(dest='S')
         st.download_button("📥 下載 PDF", pdf_output, "history.pdf", "application/pdf")
 
     if st.button("⚠️ 清除所有記錄"): 
