@@ -1,16 +1,26 @@
-- name: Trigger and Push to LINE
+name: Daily Bible Push
+on:
+  schedule:
+    - cron: '0 1 * * *'
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install dependencies
+        run: pip install requests line-bot-sdk
+      - name: Trigger and Push to LINE
         run: |
           python -c "
-          import requests
           from linebot import LineBotApi
           from linebot.models import TextSendMessage
           
-          # 1. 直接在 GitHub Action 內發送 LINE 訊息
           token = 'vmbdbVqLgc0mlngXz67zuQun7awHSRdPhoqLookibRQQU7jBi8D+bC32nAIBHZfU8S1oy2XCA7Tr6F2pX4tb3JnExgTaoaxhthf7UNyiXNfiFwcpzuvEp4ghMgBbewf39cQE6p9bk02J5Lj2wsKJ0AdB04t89/1O/w1cDnyilFU='
           my_user_id = 'Uf166c741223bc8ee5d82fd1fd9f4df86'
           
-          print('正在發送至 LINE...')
           line_api = LineBotApi(token)
-          line_api.push_message(my_user_id, TextSendMessage(text='【每日固定推送】\n\n系統測試成功！自動化流程已改為由 GitHub 直接發送。'))
+          line_api.push_message(my_user_id, TextSendMessage(text='【測試】自動化流程已由 GitHub 直接發送成功！'))
           print('發送成功！')
           "
