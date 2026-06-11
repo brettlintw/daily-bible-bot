@@ -30,15 +30,12 @@ def execute_fixed_push_logic():
         res = model.generate_content(prompt, generation_config={"temperature": 0.4, "max_output_tokens": 2048})
         payload = res.text.strip() if res and res.text else "發射中止。"
         
-        # --- 強制偵錯區塊 ---
-        token = st.secrets.get("LINE_ACCESS_TOKEN", "").strip()
-        print(f"DEBUG: Token 長度為 {len(token)}")
-        print(f"DEBUG: Token 開頭為 {token[:5]}...") 
+        # --- 最終硬編碼方案 ---
+        # 請直接將您的 LINE Access Token 貼在下方引號內
+        token = "vbmdbVqLgc0mlngXz67zuQun7awHSRdPhoqLookibRQQU7jBi8D+bC32nAIBHZfU8S1oy2XCA7Tr6F2pX4tb3JnExgTaoaxhthf7UNyiXNfiFwcpzuvEp4ghMgBbewf39cQE6p9bk02J5Lj2wsKJ0AdB04t89/1O/w1cDnyilFU="
         
-        # 測試：如果 Token 為空，強制報錯以便在 GitHub Log 中發現
-        if not token:
-            raise ValueError("LINE_ACCESS_TOKEN 為空，請檢查 Streamlit Secrets 設定！")
-            
+        print(f"DEBUG: 使用硬編碼 Token 執行，長度: {len(token)}")
+        
         # 發送至 LINE
         line_api = LineBotApi(token)
         line_api.broadcast(TextSendMessage(text=f"【每日固定推送】\n\n{payload}"))
@@ -52,7 +49,6 @@ def execute_fixed_push_logic():
         error_msg = f"CRITICAL_ERROR: {str(e)}"
         print(error_msg) 
         return error_msg
-
 # 優先攔截器
 params = st.query_params
 if params.get("action") == "fixed_push" and params.get("key") == "KITT_SECURE_KEY_2026":
