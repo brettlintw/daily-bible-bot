@@ -11,6 +11,7 @@ def execute_fixed_push_logic():
     from linebot import LineBotApi
     from linebot.models import TextSendMessage
     import google.generativeai as genai
+    import time  # 確保導入 time 模組
     
     try:
         # 配置 Gemini
@@ -41,9 +42,12 @@ def execute_fixed_push_logic():
         line_api = LineBotApi(token)
         line_api.push_message(my_user_id, TextSendMessage(text=f"【每日固定推送】\n\n{payload}"))
         
+        # 【關鍵修正】：強制等待 5 秒，確保網路封包已送出才關閉執行緒
+        time.sleep(5) 
+        
         # 寫入歷史
         save_to_history("排程推送", payload)
-        print("DEBUG: Push 執行成功")
+        print("DEBUG: Push 執行成功且已等待")
         return "PUSH_DONE"
         
     except Exception as e:
