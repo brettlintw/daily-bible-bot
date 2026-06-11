@@ -13,7 +13,7 @@ def execute_fixed_push_logic():
     import google.generativeai as genai
     
     try:
-        # 配置與模型生成
+        # 配置 Gemini
         genai.configure(api_key=st.secrets.get("GEMINI_API_KEY", ""))
         model = genai.GenerativeModel("gemini-2.5-flash")
         
@@ -30,11 +30,15 @@ def execute_fixed_push_logic():
         res = model.generate_content(prompt, generation_config={"temperature": 0.4, "max_output_tokens": 2048})
         payload = res.text.strip() if res and res.text else "發射中止。"
         
-        # 取得 Token 並進行偵錯
-        token = st.secrets.get("LINE_ACCESS_TOKEN", "")
-        # 將 Token 部分資訊印出至 GitHub Actions Log，方便確認是否讀取正確
-        print(f"DEBUG: LINE_ACCESS_TOKEN 讀取長度為 {len(token)}")
+        # --- 強制偵錯區塊 ---
+        token = st.secrets.get("LINE_ACCESS_TOKEN", "").strip()
+        print(f"DEBUG: Token 長度為 {len(token)}")
+        print(f"DEBUG: Token 開頭為 {token[:5]}...") 
         
+        # 測試：如果 Token 為空，強制報錯以便在 GitHub Log 中發現
+        if not token:
+            raise ValueError("LINE_ACCESS_TOKEN 為空，請檢查 Streamlit Secrets 設定！")
+            
         # 發送至 LINE
         line_api = LineBotApi(token)
         line_api.broadcast(TextSendMessage(text=f"【每日固定推送】\n\n{payload}"))
@@ -46,7 +50,7 @@ def execute_fixed_push_logic():
         
     except Exception as e:
         error_msg = f"CRITICAL_ERROR: {str(e)}"
-        print(error_msg) # 確保錯誤訊息會出現在 GitHub Actions 的 Log 中
+        print(error_msg) 
         return error_msg
 
 # 優先攔截器
