@@ -14,13 +14,22 @@ jobs:
           python -c "
           import requests
           import time
-          url = 'https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/?action=fixed_push&key=${{ secrets.TRIGGER_KEY }}'
+          # 直接寫死 Key，繞過 Secrets 可能存在的讀取失敗風險
+          url = 'https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/?action=fixed_push&key=KITT_SECURE_KEY_2026'
           headers = {'User-Agent': 'Mozilla/5.0'}
           s = requests.Session()
+          
+          # 1. 先喚醒伺服器
+          print('發送喚醒請求...')
           s.get('https://daily-bible-bot-a5smaqxqfpp2lfqqyecrbd.streamlit.app/', headers=headers)
-          time.sleep(40)
+          time.sleep(60) # 延長等待至 60 秒，確保冷啟動完成
+          
+          # 2. 進行三次輪詢
           for i in range(3):
+              print(f'嘗試發送指令 (第 {i+1} 次)...')
               r = s.get(url, headers=headers, timeout=30)
-              if r.status_code == 200: break
+              if r.status_code == 200:
+                  print('推送執行成功')
+                  break
               time.sleep(10)
           "
