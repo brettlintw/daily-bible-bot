@@ -2,3 +2,4 @@ streamlit
 google-generativeai
 line-bot-sdk
 requests
+fpdf
