@@ -124,7 +124,8 @@ if os.path.exists(DB_FILE):
     try:
         with open(DB_FILE, "r", encoding="utf-8") as f:
             history_data = json.load(f)
-    except: history_data = []
+    except: 
+        history_data = []
 
     # 匯出功能區
     c1, c2 = st.columns(2)
@@ -134,17 +135,19 @@ if os.path.exists(DB_FILE):
         st.download_button("📥 下載 TXT", txt_data, "history.txt")
         
     with c2:
-        # 匯出為 PDF (使用 fpdf)
+        # 下載 PDF (使用 fpdf)
         from fpdf import FPDF
         pdf = FPDF()
         pdf.add_page()
-        pdf.add_font("Arial", "", "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", uni=True) # 使用標準字體
+        # 設定為 Arial 字體
         pdf.set_font("Arial", size=12)
         for h in history_data:
             pdf.cell(200, 10, txt=f"{h['date']} {h['time']} - {h['category']}", ln=True)
+            # 使用 multi_cell 處理換行，避免內容被截斷
             pdf.multi_cell(0, 10, txt=h['content'])
             pdf.cell(200, 10, txt="--------------------------------------------------", ln=True)
         
+        # 轉換為 byte 流以便在 Streamlit 下載
         pdf_output = pdf.output(dest='S').encode('latin-1')
         st.download_button("📥 下載 PDF", pdf_output, "history.pdf", "application/pdf")
 
@@ -153,6 +156,6 @@ if os.path.exists(DB_FILE):
         st.rerun()
 
     # 顯示歷史清單
-    for item in history_data:
+    for item in reversed(history_data): # 使用 reversed 讓最新的顯示在最上方
         with st.expander(f"📅 {item['date']} ⏰ {item['time']} - {item['category']}"):
             st.markdown(item['content'])
