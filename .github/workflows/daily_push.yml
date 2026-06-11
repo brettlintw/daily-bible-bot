@@ -36,7 +36,7 @@ jobs:
           【領受與感悟】
           (撰寫一段深度溫暖的靈修反思)
           鐵律：禁止任何前言、贅字，總字數 600 字內，內容完整禁止斷章。
-          '''
+          ''' 
           res = model.generate_content(prompt)
           payload = res.text.strip()
           
