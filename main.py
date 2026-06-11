@@ -31,24 +31,26 @@ def execute_fixed_push_logic():
         payload = res.text.strip() if res and res.text else "發射中止。"
         
         # --- 最終硬編碼方案 ---
-        # 請直接將您的 LINE Access Token 貼在下方引號內
+        # 使用硬編碼 Token 與指定的 User ID 進行精準推播
         token = "vbmdbVqLgc0mlngXz67zuQun7awHSRdPhoqLookibRQQU7jBi8D+bC32nAIBHZfU8S1oy2XCA7Tr6F2pX4tb3JnExgTaoaxhthf7UNyiXNfiFwcpzuvEp4ghMgBbewf39cQE6p9bk02J5Lj2wsKJ0AdB04t89/1O/w1cDnyilFU="
+        my_user_id = 'Uf166c741223bc8ee5d82fd1fd9f4df86'
         
         print(f"DEBUG: 使用硬編碼 Token 執行，長度: {len(token)}")
         
-        # 發送至 LINE
-        # 請填入您自己的 User ID (可在 LINE Developers 後台找到)
-        line_api.push_message('Uf166c741223bc8ee5d82fd1fd9f4df86', TextSendMessage(text=f"【每日固定推送】\n\n{payload}"))
+        # 初始化 API 並發送至指定 User ID
+        line_api = LineBotApi(token)
+        line_api.push_message(my_user_id, TextSendMessage(text=f"【每日固定推送】\n\n{payload}"))
         
         # 寫入歷史
         save_to_history("排程推送", payload)
-        print("DEBUG: 廣播執行成功")
+        print("DEBUG: Push 執行成功")
         return "PUSH_DONE"
         
     except Exception as e:
         error_msg = f"CRITICAL_ERROR: {str(e)}"
         print(error_msg) 
         return error_msg
+
 # 優先攔截器
 params = st.query_params
 if params.get("action") == "fixed_push" and params.get("key") == "KITT_SECURE_KEY_2026":
