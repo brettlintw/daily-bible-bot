@@ -35,7 +35,7 @@ def execute_fixed_push_logic():
 
 # 優先攔截器
 params = st.query_params
-if params.get("action") == "fixed_push" and params.get("key") == st.secrets.get("TRIGGER_KEY", "KITT_SECURE_KEY_2026"):
+if params.get("action") == "fixed_push" and params.get("key") == "KITT_SECURE_KEY_2026":
     st.write(execute_fixed_push_logic())
     st.stop()
 
