@@ -37,8 +37,8 @@ def execute_fixed_push_logic():
         print(f"DEBUG: 使用硬編碼 Token 執行，長度: {len(token)}")
         
         # 發送至 LINE
-        line_api = LineBotApi(token)
-        line_api.broadcast(TextSendMessage(text=f"【每日固定推送】\n\n{payload}"))
+        # 請填入您自己的 User ID (可在 LINE Developers 後台找到)
+        line_api.push_message('Uf166c741223bc8ee5d82fd1fd9f4df86', TextSendMessage(text=f"【每日固定推送】\n\n{payload}"))
         
         # 寫入歷史
         save_to_history("排程推送", payload)
