@@ -39,7 +39,7 @@ if params.get("action") == "fixed_push" and params.get("key") == "KITT_SECURE_KE
     st.stop()
 
 # --- 2. 主程式設定 ---
-SYSTEM_VERSION = "V56.5 版"
+SYSTEM_VERSION = "V60.0 版"
 TZ_TW = timezone(timedelta(hours=8))
 DB_FILE = "bible_history.json"
 
