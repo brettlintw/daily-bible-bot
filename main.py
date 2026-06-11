@@ -6,52 +6,29 @@ import google.generativeai as genai
 from linebot import LineBotApi
 from linebot.models import TextSendMessage
 
-# --- 1. 極速優先觸發器 (防休眠機制) ---
-def execute_fixed_push_logic():
+# --- 1. 極速優先觸發器 (手動測試按鈕) ---
+def trigger_test_push():
+    """
+    僅用於 Streamlit 網頁 UI 的手動測試按鈕。
+    核心自動化邏輯已完全轉移至 GitHub Actions。
+    """
     from linebot import LineBotApi
     from linebot.models import TextSendMessage
-    import google.generativeai as genai
-    import time  # 確保導入 time 模組
+    import time
     
     try:
-        # 配置 Gemini
-        genai.configure(api_key=st.secrets.get("GEMINI_API_KEY", ""))
-        model = genai.GenerativeModel("gemini-2.5-flash")
-        
-        prompt = """
-        你是溫柔牧者。請精選一段聖經經文進行分享，嚴格遵守以下格式：
-        【經文內容】
-        (經文內容，最後手動加上 (阿們。))
-        【經文章節】
-        (例如：(詩篇 4:8))
-        【領受與感悟】
-        (撰寫一段深度溫暖的靈修反思)
-        鐵律：禁止任何前言、贅字，總字數 600 字內，內容完整禁止斷章。
-        """
-        res = model.generate_content(prompt, generation_config={"temperature": 0.4, "max_output_tokens": 2048})
-        payload = res.text.strip() if res and res.text else "發射中止。"
-        
-        # --- 最終硬編碼方案 ---
-        # 使用硬編碼 Token 與指定的 User ID 進行精準推播
-        token = "vbmdbVqLgc0mlngXz67zuQun7awHSRdPhoqLookibRQQU7jBi8D+bC32nAIBHZfU8S1oy2XCA7Tr6F2pX4tb3JnExgTaoaxhthf7UNyiXNfiFwcpzuvEp4ghMgBbewf39cQE6p9bk02J5Lj2wsKJ0AdB04t89/1O/w1cDnyilFU="
+        # 使用儲存於 Secrets 的 Token (UI 測試用)
+        token = st.secrets.get("LINE_ACCESS_TOKEN", "")
         my_user_id = 'Uf166c741223bc8ee5d82fd1fd9f4df86'
         
-        print(f"DEBUG: 使用硬編碼 Token 執行，長度: {len(token)}")
-        
-        # 初始化 API 並發送至指定 User ID
         line_api = LineBotApi(token)
-        line_api.push_message(my_user_id, TextSendMessage(text=f"【每日固定推送】\n\n{payload}"))
+        line_api.push_message(my_user_id, TextSendMessage(text="【UI測試】系統運作正常，手動發送成功！"))
         
-        # 【關鍵修正】：強制等待 5 秒，確保網路封包已送出才關閉執行緒
-        time.sleep(5) 
-        
-        # 寫入歷史
-        save_to_history("排程推送", payload)
-        print("DEBUG: Push 執行成功且已等待")
-        return "PUSH_DONE"
+        time.sleep(1) # 短暫延遲確保 UI 回應
+        return "TEST_PUSH_DONE"
         
     except Exception as e:
-        error_msg = f"CRITICAL_ERROR: {str(e)}"
+        error_msg = f"TEST_ERROR: {str(e)}"
         print(error_msg) 
         return error_msg
 
