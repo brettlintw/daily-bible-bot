@@ -8,7 +8,12 @@ from linebot.models import TextSendMessage
 
 # --- 1. 極速優先觸發器 (防休眠機制) ---
 def execute_fixed_push_logic():
+    from linebot import LineBotApi
+    from linebot.models import TextSendMessage
+    import google.generativeai as genai
+    
     try:
+        # 配置與模型生成
         genai.configure(api_key=st.secrets.get("GEMINI_API_KEY", ""))
         model = genai.GenerativeModel("gemini-2.5-flash")
         
@@ -25,13 +30,24 @@ def execute_fixed_push_logic():
         res = model.generate_content(prompt, generation_config={"temperature": 0.4, "max_output_tokens": 2048})
         payload = res.text.strip() if res and res.text else "發射中止。"
         
-        line_api = LineBotApi(st.secrets.get("LINE_ACCESS_TOKEN", ""))
+        # 取得 Token 並進行偵錯
+        token = st.secrets.get("LINE_ACCESS_TOKEN", "")
+        # 將 Token 部分資訊印出至 GitHub Actions Log，方便確認是否讀取正確
+        print(f"DEBUG: LINE_ACCESS_TOKEN 讀取長度為 {len(token)}")
+        
+        # 發送至 LINE
+        line_api = LineBotApi(token)
         line_api.broadcast(TextSendMessage(text=f"【每日固定推送】\n\n{payload}"))
         
+        # 寫入歷史
         save_to_history("排程推送", payload)
+        print("DEBUG: 廣播執行成功")
         return "PUSH_DONE"
+        
     except Exception as e:
-        return f"ERROR: {str(e)}"
+        error_msg = f"CRITICAL_ERROR: {str(e)}"
+        print(error_msg) # 確保錯誤訊息會出現在 GitHub Actions 的 Log 中
+        return error_msg
 
 # 優先攔截器
 params = st.query_params
