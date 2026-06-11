@@ -134,37 +134,31 @@ if os.path.exists(DB_FILE):
         txt_data = "".join([f"{h['date']} {h['time']} | {h['category']}\n{h['content']}\n---\n" for h in history_data])
         st.download_button("📥 下載 TXT", txt_data, "history.txt")
         
-with c2:
-        # 下載 PDF (支援中文)
-        from fpdf import FPDF
-        
-        class PDF(FPDF):
-            def header(self):
-                # 這裡使用內建的代碼頁，雖然 FPDF 預設對中文支援有限，
-                # 但透過 encode 處理可以避免崩潰
-                pass
-
-        pdf = PDF()
-        pdf.add_page()
-        # 移除對字體檔的硬編碼依賴，改用簡單的處理方式防止編碼錯誤
-        pdf.set_font("Arial", size=12)
-        
-        for h in history_data:
-            # 將內容轉換為 ASCII 忽略或替換掉無法編碼的字元，防止程式崩潰
-            clean_content = h['content'].encode('latin-1', 'replace').decode('latin-1')
+    with c2:
+        # 下載 PDF (支援中文編碼處理)
+        try:
+            from fpdf import FPDF
+            pdf = FPDF()
+            pdf.add_page()
+            pdf.set_font("Arial", size=12)
+            for h in history_data:
+                # 處理編碼，將無法顯示的字元轉為 "?" 防止崩潰
+                clean_content = h['content'].encode('latin-1', 'replace').decode('latin-1')
+                pdf.cell(200, 10, txt=f"{h['date']} {h['time']} - {h['category']}", ln=True)
+                pdf.multi_cell(0, 10, txt=clean_content)
+                pdf.cell(200, 10, txt="--------------------------------------------------", ln=True)
             
-            pdf.cell(200, 10, txt=f"{h['date']} {h['time']} - {h['category']}", ln=True)
-            pdf.multi_cell(0, 10, txt=clean_content)
-            pdf.cell(200, 10, txt="--------------------------------------------------", ln=True)
-        
-        pdf_output = pdf.output(dest='S')
-        st.download_button("📥 下載 PDF", pdf_output, "history.pdf", "application/pdf")
+            pdf_output = pdf.output(dest='S')
+            st.download_button("📥 下載 PDF", pdf_output, "history.pdf", "application/pdf")
+        except Exception as e:
+            st.warning(f"PDF 生成功能暫時無法使用: {e}")
 
+    # 清除記錄按鈕
     if st.button("⚠️ 清除所有記錄"): 
         os.remove(DB_FILE)
         st.rerun()
 
-    # 顯示歷史清單
-    for item in reversed(history_data): # 使用 reversed 讓最新的顯示在最上方
+    # 顯示歷史清單 (最新的在最上方)
+    for item in reversed(history_data):
         with st.expander(f"📅 {item['date']} ⏰ {item['time']} - {item['category']}"):
             st.markdown(item['content'])
