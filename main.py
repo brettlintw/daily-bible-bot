@@ -91,8 +91,22 @@ with st.form("manual_push"):
             genai.configure(api_key=KEY_POOL[chosen_key])
             model = genai.GenerativeModel(MODEL_REGISTRY[chosen_model]["model_id"])
             
+# 修正後的 AI 智慧廣播邏輯
             if mode == "AI 智慧廣播":
-                prompt = f"請根據以下心情主題撰寫溫暖的聖經分享：{mood}，格式：經文、章節、領受。"
+                # 修改提示詞，強制要求 AI 僅針對一個心情主題生成一段內容
+                prompt = f"""
+                請作為溫柔的牧者，針對心情主題：'{mood}'，選取一段最合適的聖經經文進行分享。
+                
+                請嚴格遵守以下格式，禁止生成多個主題：
+                【經文內容】
+                (經文內容，最後加上 (阿們。))
+                【經文章節】
+                (例如：(詩篇 4:8))
+                【領受與感悟】
+                (撰寫一段約 200 字，深度溫暖的靈修反思，直接回應該心情)
+                
+                鐵律：禁止任何前言、贅字，內容要溫暖且充滿力量，且僅針對此心情主題書寫。
+                """
                 res = model.generate_content(prompt)
                 content = res.text
             else:
