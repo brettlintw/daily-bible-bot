@@ -78,44 +78,19 @@ with st.form("push_form"):
         except Exception as e:
             st.error(f"❌ 發射失敗: {str(e)}")
 
-# --- 5. 歷史紀錄庫 (防禦性匯出 - 穩定版) ---
+# --- 5. 歷史紀錄庫 (精簡穩定版) ---
 st.subheader("📚 歷史經文典藏管理庫")
 history_data = load_history()
 
 if history_data:
-    c1, c2, c3 = st.columns([1, 1, 1])
+    # 調整欄位配置：僅保留 TXT 與清除按鈕，不再強求 PDF
+    c1, c2 = st.columns([1, 1])
     
-    # 匯出 TXT
     with c1:
         txt_data = "".join([f"{h['date']} {h['time']} | {h['category']}\n{h['content']}\n---\n" for h in history_data])
-        st.download_button("📥 下載 TXT", txt_data, "history.txt")
+        st.download_button("📥 下載完整紀錄 (TXT)", txt_data, "history.txt")
         
-# 匯出 PDF (終極繞過編碼版)
     with c2:
-        try:
-            from fpdf import FPDF
-            # 強制宣告為 Unicode 模式 (透過一個簡單的 hack)
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Courier", size=10)
-            
-            for h in history_data:
-                # 這次我們不處理 Latin-1，我們直接把文字過濾到只剩下英數與基本標點
-                # 任何超過 127 的字元 (包括中文) 一律被替換為 "?"
-                clean_text = "".join([c if ord(c) < 128 else "?" for c in h['content']])
-                clean_date = "".join([c if ord(c) < 128 else "?" for c in f"{h['date']} - {h['category']}"])
-                
-                pdf.cell(0, 10, txt=clean_date, ln=True)
-                pdf.multi_cell(0, 10, txt=clean_text)
-                pdf.cell(0, 10, txt="--------------------------", ln=True)
-            
-            st.download_button("📥 下載 PDF (終極穩定版)", bytes(pdf.output(dest='S')), "history.pdf", "application/pdf")
-        except Exception as e:
-            # 如果還是失敗，代表 PDF 模組本身在您的雲端環境有系統級限制
-            st.error(f"PDF 模組受限，請使用 TXT 匯出。")
-
-    # 清除記錄
-    with c3:
         if st.button("⚠️ 清除所有記錄"):
             if os.path.exists(DB_FILE):
                 os.remove(DB_FILE)
@@ -126,4 +101,4 @@ if history_data:
         with st.expander(f"📅 {item['date']} ⏰ {item['time']} - {item['category']}"):
             st.markdown(item['content'])
 else:
-    st.info("目前尚無歷史經文紀錄，等待自動排程執行中...")
+    st.info("目前尚無歷史經文紀錄。")
