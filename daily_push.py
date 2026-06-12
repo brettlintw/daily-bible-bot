@@ -49,19 +49,25 @@ def main():
         json.dump(data, f, ensure_ascii=False, indent=4)
     shutil.move(temp_file, DB_FILE)
 
-    # 5. Git 同步 (現在有權限了)
+# 5. Git 自動同步 (修正版：自動偵測當前分支)
     try:
         subprocess.run(["git", "config", "--global", "user.name", "github-actions"], check=True)
         subprocess.run(["git", "config", "--global", "user.email", "github-actions@github.com"], check=True)
         subprocess.run(["git", "add", DB_FILE], check=True)
-        # 檢查變動
+        
+        # 檢查是否有變動
         status = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True)
         if DB_FILE in status.stdout:
-            subprocess.run(["git", "commit", "-m", "Sync bible history"], check=True)
-            subprocess.run(["git", "push"], check=True)
-            print("歷史紀錄已成功推送到 GitHub！")
+            subprocess.run(["git", "commit", "-m", "Auto-sync bible history"], check=True)
+            
+            # 自動取得當前分支名稱 (通常是 main 或 master)
+            branch = subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"], text=True).strip()
+            subprocess.run(["git", "push", "origin", branch], check=True)
+            print(f"歷史紀錄已成功推送到分支: {branch}")
+        else:
+            print("無數據變動，無需同步。")
     except Exception as e:
-        print(f"Git 同步失敗 (權限檢查): {e}")
+        print(f"Git 同步失敗: {e}")
 
 if __name__ == "__main__":
     main()
