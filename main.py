@@ -139,25 +139,19 @@ if history_data:
         txt_data = "".join([f"{h['date']} {h['time']} | {h['category']}\n{h['content']}\n---\n" for h in history_data])
         st.download_button("📥 下載 TXT", txt_data, "history.txt")
         
-    with c2:
-        # 下載 PDF (修復編碼崩潰)
-        try:
-            from fpdf import FPDF
-            pdf = FPDF()
-            pdf.add_page()
-            # 必須使用標準拉丁字體，並強制將所有非標準字元轉義為 "?" 防止崩潰
-            pdf.set_font("Arial", size=10)
-            for h in history_data:
-                # 將內容強制轉換為 ASCII 相容格式
-                clean_date = f"{h['date']} {h['time']} - {h['category']}"
-                clean_content = h['content'].encode('ascii', 'ignore').decode('ascii')
-                pdf.cell(200, 10, txt=clean_date, ln=True)
-                pdf.multi_cell(0, 10, txt=clean_content)
-                pdf.cell(200, 10, txt="--------------------------", ln=True)
-            
-            st.download_button("📥 下載 PDF", bytes(pdf.output(dest='S')), "history.pdf", "application/pdf")
-        except Exception as e:
-            st.warning(f"PDF 轉換限制：因字體編碼問題，建議改用 TXT 匯出。")
+with c2:
+    try:
+        from fpdf import FPDF
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", size=10)
+        for h in history_data:
+            # 使用 ascii 編碼濾除不支援的特殊字元，避免 PDF 崩潰
+            clean_content = "".join([c for c in h['content'] if ord(c) < 128])
+            pdf.multi_cell(0, 10, txt=f"{h['date']} - {h['category']}\n{clean_content}\n---")
+        st.download_button("📥 下載 PDF", bytes(pdf.output(dest='S')), "history.pdf", "application/pdf")
+    except Exception:
+        st.warning("PDF 生成器遭遇字元編碼異常，建議下載 TXT。")
 
     with c3:
         if st.button("⚠️ 清除所有記錄"): 
