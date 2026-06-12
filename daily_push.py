@@ -3,50 +3,33 @@ import json
 import random
 import time
 import subprocess
+import shutil
 from datetime import datetime, timezone, timedelta
 import google.generativeai as genai
 from linebot import LineBotApi
 from linebot.models import TextSendMessage
 
-# --- 設定 ---
 DB_FILE = "bible_history.json"
 TZ_TW = timezone(timedelta(hours=8))
 
 def main():
-    # 1. 初始化模型 (Gemini 2.5 Flash)
+    # 1. 初始化
     genai.configure(api_key=os.environ['GEMINI_API_KEY'])
     model = genai.GenerativeModel('gemini-2.5-flash')
 
-    # 2. 生成靈修內容
+    # 2. 生成內容
     themes = ["安慰", "力量", "盼望", "智慧", "愛與饒恕", "平安", "信心"]
     chosen_theme = random.choice(themes)
-    prompt = f"""
-    你是溫柔牧者。請針對主題「{chosen_theme}」，精選一段聖經經文進行分享。
-    嚴格遵守以下格式：
-    【經文內容】
-    (經文內容，最後手動加上 (阿們。))
-    【經文章節】
-    (例如：(詩篇 4:8))
-    【領受與感悟】
-    (撰寫一段深度溫暖的靈修反思)
-    鐵律：禁止贅字，總字數 600 字內，內容完整禁止斷章。
-    """
+    prompt = f"你是溫柔牧者。請針對主題「{chosen_theme}」，精選一段聖經經文進行分享。格式：【經文內容】(阿們。)；【經文章節】；【領受與感悟】。禁止贅字，內容完整禁止斷章。"
 
-    # 重試機制
-    for attempt in range(3):
-        try:
-            res = model.generate_content(prompt, generation_config=genai.types.GenerationConfig(temperature=0.8))
-            payload = res.text.strip()
-            break
-        except Exception as e:
-            if attempt == 2: raise e
-            time.sleep(5)
+    res = model.generate_content(prompt, generation_config=genai.types.GenerationConfig(temperature=0.8))
+    payload = res.text.strip()
 
     # 3. 推送至 LINE
     line_api = LineBotApi(os.environ['LINE_TOKEN'])
     line_api.push_message('Uf166c741223bc8ee5d82fd1fd9f4df86', TextSendMessage(text=f'【每日靈修】\n\n{payload}'))
 
-    # 4. 更新歷史紀錄 JSON
+    # 4. 安全地寫入 JSON (使用暫存檔替換)
     data = []
     if os.path.exists(DB_FILE):
         try:
@@ -61,10 +44,12 @@ def main():
         "content": payload
     })
     
-    with open(DB_FILE, "w", encoding="utf-8") as f:
+    temp_file = DB_FILE + ".tmp"
+    with open(temp_file, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
+    shutil.move(temp_file, DB_FILE)
 
-    # 5. Git 自動同步 (將變更推回 GitHub)
+    # 5. Git 同步 (現在有權限了)
     try:
         subprocess.run(["git", "config", "--global", "user.name", "github-actions"], check=True)
         subprocess.run(["git", "config", "--global", "user.email", "github-actions@github.com"], check=True)
@@ -72,13 +57,11 @@ def main():
         # 檢查變動
         status = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True)
         if DB_FILE in status.stdout:
-            subprocess.run(["git", "commit", "-m", "Auto-sync bible history"], check=True)
+            subprocess.run(["git", "commit", "-m", "Sync bible history"], check=True)
             subprocess.run(["git", "push"], check=True)
-            print("歷史紀錄已成功同步至 GitHub！")
-        else:
-            print("無數據變動，無需同步。")
+            print("歷史紀錄已成功推送到 GitHub！")
     except Exception as e:
-        print(f"Git 同步異常，但不影響 LINE 推送: {e}")
+        print(f"Git 同步失敗 (權限檢查): {e}")
 
 if __name__ == "__main__":
     main()
