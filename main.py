@@ -118,44 +118,34 @@ with st.form("manual_push"):
         except Exception as e:
             st.error(f"❌ 發射失敗: {str(e)}")
 
-# --- 5. 歷史紀錄庫 (含 PDF 匯出與編碼修復功能) ---
-st.subheader("📚 歷史經文典藏管理庫")
-
-# 確保讀取函式安全
-def load_history():
-    if os.path.exists(DB_FILE):
-        try:
-            with open(DB_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except: return []
-    return []
-
-history_data = load_history()
-
+# --- 5. 歷史紀錄庫 (PDF 防禦性匯出 - 修正縮排版) ---
 if history_data:
     c1, c2, c3 = st.columns([1, 1, 1])
     with c1: 
-        # 匯出 TXT
         txt_data = "".join([f"{h['date']} {h['time']} | {h['category']}\n{h['content']}\n---\n" for h in history_data])
         st.download_button("📥 下載 TXT", txt_data, "history.txt")
         
-with c2:
-    try:
-        from fpdf import FPDF
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Arial", size=10)
-        for h in history_data:
-            # 使用 ascii 編碼濾除不支援的特殊字元，避免 PDF 崩潰
-            clean_content = "".join([c for c in h['content'] if ord(c) < 128])
-            pdf.multi_cell(0, 10, txt=f"{h['date']} - {h['category']}\n{clean_content}\n---")
-        st.download_button("📥 下載 PDF", bytes(pdf.output(dest='S')), "history.pdf", "application/pdf")
-    except Exception:
-        st.warning("PDF 生成器遭遇字元編碼異常，建議下載 TXT。")
+    with c2:
+        try:
+            from fpdf import FPDF
+            pdf = FPDF()
+            pdf.add_page()
+            pdf.set_font("Arial", size=10)
+            for h in history_data:
+                # 解決中文字 PDF 崩潰的權宜之計：將中文字替換為 "?"
+                clean_content = h['content'].encode('latin-1', 'replace').decode('latin-1')
+                pdf.cell(200, 10, txt=f"{h['date']} - {h['category']}", ln=True)
+                pdf.multi_cell(0, 10, txt=clean_content)
+                pdf.cell(200, 10, txt="---", ln=True)
+            
+            st.download_button("📥 下載 PDF", bytes(pdf.output(dest='S')), "history.pdf", "application/pdf")
+        except Exception as e:
+            st.warning(f"PDF 生成器異常: {e}")
 
     with c3:
         if st.button("⚠️ 清除所有記錄"): 
-            os.remove(DB_FILE)
+            if os.path.exists(DB_FILE):
+                os.remove(DB_FILE)
             st.rerun()
 
     # 顯示歷史清單
