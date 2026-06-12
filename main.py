@@ -78,21 +78,49 @@ with st.form("push_form"):
         except Exception as e:
             st.error(f"❌ 發射失敗: {str(e)}")
 
-# --- 歷史紀錄區 (防禦性匯出) ---
+# --- 5. 歷史紀錄庫 (防禦性匯出 - 穩定版) ---
 st.subheader("📚 歷史經文典藏管理庫")
 history_data = load_history()
+
 if history_data:
     c1, c2, c3 = st.columns([1, 1, 1])
-    with c1: st.download_button("📥 下載 TXT", "".join([f"{h['date']} | {h['content']}\n---\n" for h in history_data]), "history.txt")
+    
+    # 匯出 TXT
+    with c1:
+        txt_data = "".join([f"{h['date']} {h['time']} | {h['category']}\n{h['content']}\n---\n" for h in history_data])
+        st.download_button("📥 下載 TXT", txt_data, "history.txt")
+        
+    # 匯出 PDF (絕對穩定版：跳過外部字體依賴)
     with c2:
         try:
-            pdf = FPDF(); pdf.add_page(); pdf.set_font("Arial", size=10)
+            # 建立 PDF 物件，強制使用 Courier (PDF 標準內建字體，無需系統路徑)
+            pdf = FPDF(orientation='P', unit='mm', format='A4')
+            pdf.add_page()
+            pdf.set_font("Courier", size=10)
+            
             for h in history_data:
-                clean = h['content'].encode('latin-1', 'replace').decode('latin-1')
-                pdf.multi_cell(0, 10, txt=f"{h['date']}\n{clean}\n---")
-            st.download_button("📥 下載 PDF", bytes(pdf.output(dest='S')), "history.pdf", "application/pdf")
-        except: st.warning("PDF 轉換受限")
+                # 使用編碼替換處理：將所有不支援的中文字元轉為 "?"
+                # 這能保證 PDF 一定會生成，不會再報 Font not found 或 encoding error
+                clean_content = h['content'].encode('latin-1', 'replace').decode('latin-1')
+                pdf.cell(0, 10, txt=f"{h['date']} - {h['category']}", ln=True)
+                pdf.multi_cell(0, 10, txt=clean_content)
+                pdf.cell(0, 10, txt="--------------------------", ln=True)
+            
+            st.download_button("📥 下載 PDF (穩定版)", bytes(pdf.output(dest='S')), "history.pdf", "application/pdf")
+        except Exception as e:
+            st.error(f"PDF 生成器初始化失敗: {e}")
+            st.info("建議改用 TXT 匯出，相容性最高。")
+
+    # 清除記錄
     with c3:
-        if st.button("⚠️ 清除紀錄"): os.remove(DB_FILE); st.rerun()
+        if st.button("⚠️ 清除所有記錄"):
+            if os.path.exists(DB_FILE):
+                os.remove(DB_FILE)
+            st.rerun()
+
+    # 顯示歷史清單
     for item in reversed(history_data):
-        with st.expander(f"📅 {item['date']} - {item['category']}"): st.markdown(item['content'])
+        with st.expander(f"📅 {item['date']} ⏰ {item['time']} - {item['category']}"):
+            st.markdown(item['content'])
+else:
+    st.info("目前尚無歷史經文紀錄，等待自動排程執行中...")
