@@ -118,47 +118,55 @@ with st.form("manual_push"):
         except Exception as e:
             st.error(f"❌ 發射失敗: {str(e)}")
 
-# --- 5. 歷史紀錄庫 (含 PDF 匯出功能) ---
+# --- 5. 歷史紀錄庫 (含 PDF 匯出與編碼修復功能) ---
 st.subheader("📚 歷史經文典藏管理庫")
-if os.path.exists(DB_FILE):
-    try:
-        with open(DB_FILE, "r", encoding="utf-8") as f:
-            history_data = json.load(f)
-    except: 
-        history_data = []
 
-    # 匯出功能區
-    c1, c2 = st.columns(2)
+# 確保讀取函式安全
+def load_history():
+    if os.path.exists(DB_FILE):
+        try:
+            with open(DB_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except: return []
+    return []
+
+history_data = load_history()
+
+if history_data:
+    c1, c2, c3 = st.columns([1, 1, 1])
     with c1: 
-        # 下載 TXT
+        # 匯出 TXT
         txt_data = "".join([f"{h['date']} {h['time']} | {h['category']}\n{h['content']}\n---\n" for h in history_data])
         st.download_button("📥 下載 TXT", txt_data, "history.txt")
         
     with c2:
-        # 下載 PDF (支援中文編碼處理)
+        # 下載 PDF (修復編碼崩潰)
         try:
             from fpdf import FPDF
             pdf = FPDF()
             pdf.add_page()
-            pdf.set_font("Arial", size=12)
+            # 必須使用標準拉丁字體，並強制將所有非標準字元轉義為 "?" 防止崩潰
+            pdf.set_font("Arial", size=10)
             for h in history_data:
-                # 處理編碼，將無法顯示的字元轉為 "?" 防止崩潰
-                clean_content = h['content'].encode('latin-1', 'replace').decode('latin-1')
-                pdf.cell(200, 10, txt=f"{h['date']} {h['time']} - {h['category']}", ln=True)
+                # 將內容強制轉換為 ASCII 相容格式
+                clean_date = f"{h['date']} {h['time']} - {h['category']}"
+                clean_content = h['content'].encode('ascii', 'ignore').decode('ascii')
+                pdf.cell(200, 10, txt=clean_date, ln=True)
                 pdf.multi_cell(0, 10, txt=clean_content)
-                pdf.cell(200, 10, txt="--------------------------------------------------", ln=True)
+                pdf.cell(200, 10, txt="--------------------------", ln=True)
             
-            pdf_output = pdf.output(dest='S')
-            st.download_button("📥 下載 PDF", pdf_output, "history.pdf", "application/pdf")
+            st.download_button("📥 下載 PDF", bytes(pdf.output(dest='S')), "history.pdf", "application/pdf")
         except Exception as e:
-            st.warning(f"PDF 生成功能暫時無法使用: {e}")
+            st.warning(f"PDF 轉換限制：因字體編碼問題，建議改用 TXT 匯出。")
 
-    # 清除記錄按鈕
-    if st.button("⚠️ 清除所有記錄"): 
-        os.remove(DB_FILE)
-        st.rerun()
+    with c3:
+        if st.button("⚠️ 清除所有記錄"): 
+            os.remove(DB_FILE)
+            st.rerun()
 
-    # 顯示歷史清單 (最新的在最上方)
+    # 顯示歷史清單
     for item in reversed(history_data):
         with st.expander(f"📅 {item['date']} ⏰ {item['time']} - {item['category']}"):
             st.markdown(item['content'])
+else:
+    st.info("目前尚無歷史經文紀錄。")
