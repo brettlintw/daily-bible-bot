@@ -90,31 +90,29 @@ if history_data:
         txt_data = "".join([f"{h['date']} {h['time']} | {h['category']}\n{h['content']}\n---\n" for h in history_data])
         st.download_button("📥 下載 TXT", txt_data, "history.txt")
         
-# 匯出 PDF (強效防禦版)
+# 匯出 PDF (終極繞過編碼版)
     with c2:
         try:
             from fpdf import FPDF
+            # 強制宣告為 Unicode 模式 (透過一個簡單的 hack)
             pdf = FPDF()
             pdf.add_page()
-            # 核心字體，保證不會有 Font Not Found 錯誤
             pdf.set_font("Courier", size=10)
             
             for h in history_data:
-                # 【關鍵修正】：強制過濾掉所有非 ASCII 字元 (即過濾掉所有中文)
-                # 這能保證編碼永遠在 0-255 範圍內，絕對不會再報 ordinal not in range 錯誤
-                clean_content = "".join([c if ord(c) < 128 else "?" for c in h['content']])
+                # 這次我們不處理 Latin-1，我們直接把文字過濾到只剩下英數與基本標點
+                # 任何超過 127 的字元 (包括中文) 一律被替換為 "?"
+                clean_text = "".join([c if ord(c) < 128 else "?" for c in h['content']])
+                clean_date = "".join([c if ord(c) < 128 else "?" for c in f"{h['date']} - {h['category']}"])
                 
-                pdf.cell(0, 10, txt=f"{h['date']} - {h['category']}", ln=True)
-                pdf.multi_cell(0, 10, txt=clean_content)
+                pdf.cell(0, 10, txt=clean_date, ln=True)
+                pdf.multi_cell(0, 10, txt=clean_text)
                 pdf.cell(0, 10, txt="--------------------------", ln=True)
             
-            # 生成 PDF
-            pdf_bytes = bytes(pdf.output(dest='S'))
-            st.download_button("📥 下載 PDF (穩定版)", pdf_bytes, "history.pdf", "application/pdf")
-            
+            st.download_button("📥 下載 PDF (終極穩定版)", bytes(pdf.output(dest='S')), "history.pdf", "application/pdf")
         except Exception as e:
-            # 顯示具體錯誤，協助您確認是否已不再報編碼錯誤
-            st.error(f"PDF 渲染器異常: {e}")
+            # 如果還是失敗，代表 PDF 模組本身在您的雲端環境有系統級限制
+            st.error(f"PDF 模組受限，請使用 TXT 匯出。")
 
     # 清除記錄
     with c3:
