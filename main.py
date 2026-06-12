@@ -90,26 +90,31 @@ if history_data:
         txt_data = "".join([f"{h['date']} {h['time']} | {h['category']}\n{h['content']}\n---\n" for h in history_data])
         st.download_button("📥 下載 TXT", txt_data, "history.txt")
         
-    # 匯出 PDF (絕對穩定版：跳過外部字體依賴)
+# 匯出 PDF (強效防禦版)
     with c2:
         try:
-            # 建立 PDF 物件，強制使用 Courier (PDF 標準內建字體，無需系統路徑)
-            pdf = FPDF(orientation='P', unit='mm', format='A4')
+            from fpdf import FPDF
+            pdf = FPDF()
             pdf.add_page()
+            # 核心字體，保證不會有 Font Not Found 錯誤
             pdf.set_font("Courier", size=10)
             
             for h in history_data:
-                # 使用編碼替換處理：將所有不支援的中文字元轉為 "?"
-                # 這能保證 PDF 一定會生成，不會再報 Font not found 或 encoding error
-                clean_content = h['content'].encode('latin-1', 'replace').decode('latin-1')
+                # 【關鍵修正】：強制過濾掉所有非 ASCII 字元 (即過濾掉所有中文)
+                # 這能保證編碼永遠在 0-255 範圍內，絕對不會再報 ordinal not in range 錯誤
+                clean_content = "".join([c if ord(c) < 128 else "?" for c in h['content']])
+                
                 pdf.cell(0, 10, txt=f"{h['date']} - {h['category']}", ln=True)
                 pdf.multi_cell(0, 10, txt=clean_content)
                 pdf.cell(0, 10, txt="--------------------------", ln=True)
             
-            st.download_button("📥 下載 PDF (穩定版)", bytes(pdf.output(dest='S')), "history.pdf", "application/pdf")
+            # 生成 PDF
+            pdf_bytes = bytes(pdf.output(dest='S'))
+            st.download_button("📥 下載 PDF (穩定版)", pdf_bytes, "history.pdf", "application/pdf")
+            
         except Exception as e:
-            st.error(f"PDF 生成器初始化失敗: {e}")
-            st.info("建議改用 TXT 匯出，相容性最高。")
+            # 顯示具體錯誤，協助您確認是否已不再報編碼錯誤
+            st.error(f"PDF 渲染器異常: {e}")
 
     # 清除記錄
     with c3:
