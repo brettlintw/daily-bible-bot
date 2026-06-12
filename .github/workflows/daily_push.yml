@@ -6,14 +6,17 @@ on:
     - cron: '0 9 * * *'
   workflow_dispatch:
 
+permissions:
+  contents: write  # 授予 Actions 寫入倉庫的權限
+
 jobs:
   push:
-    permissions:
-      contents: write
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }} # 明確指定 Token
 
       - name: Set up Python
         uses: actions/setup-python@v5
