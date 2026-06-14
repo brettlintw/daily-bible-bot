@@ -2,8 +2,11 @@ name: Daily Bible Push
 
 on:
   schedule:
-    - cron: '0 1 * * *'
-    - cron: '0 9 * * *'
+    # 原本是 0 1 (09:00)，改為 0 21 (前一天 21:00 UTC = 台灣時間 05:00)
+    # 這樣系統有 4 小時的緩衝期，能更早進入佇列
+    - cron: '0 21 * * *' 
+    # 原本是 0 9 (17:00)，改為 0 5 (UTC 05:00 = 台灣時間 13:00)
+    - cron: '0 5 * * *'
   workflow_dispatch:
 
 permissions:
