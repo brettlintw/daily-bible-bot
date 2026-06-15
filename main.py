@@ -1,35 +1,17 @@
 import streamlit as st
 import json
 import os
-import time
 from datetime import datetime, timezone, timedelta
 import google.generativeai as genai
 from linebot import LineBotApi
 from linebot.models import TextSendMessage
-from fpdf import FPDF
 
 # --- 設定 ---
 DB_FILE = "bible_history.json"
 TZ_TW = timezone(timedelta(hours=8))
 
 st.set_page_config(page_title="靈修控制台", layout="wide")
-st.title("🛡️ 聖經-LINE推送 V60.0 版 (穩定強化版)")
-
-# --- 輔助函式 ---
-def scan_secret_keys():
-    return {f"🔑 金鑰 #{i}": st.secrets.get(f"GEMINI_API_KEY{'' if i==1 else '_'+str(i)}", "") for i in range(1, 6) if st.secrets.get(f"GEMINI_API_KEY{'' if i==1 else '_'+str(i)}")}
-
-def discover_supported_models(target_key):
-    if not target_key: return {"⚠️ 請先選擇金鑰": {"model_id": "gemini-2.5-flash"}}
-    options = {"🚀 gemini-2.5-flash ── 【極速型】": {"model_id": "gemini-2.5-flash"}}
-    try:
-        genai.configure(api_key=target_key)
-        for m in genai.list_models():
-            if "gemini" in m.name:
-                m_id = m.name.split('/')[-1]
-                options[f"🚀 {m_id} ── 【可用模型】"] = {"model_id": m_id}
-    except: pass
-    return options
+st.title("🛡️ 聖經-LINE推送 V60.1 正式版")
 
 def load_history():
     if not os.path.exists(DB_FILE): return []
@@ -39,68 +21,41 @@ def load_history():
             return data if isinstance(data, list) else []
     except: return []
 
-# --- UI 設定與模型選擇 ---
-KEY_POOL = scan_secret_keys()
-chosen_key = st.selectbox("🔑 金鑰：", options=list(KEY_POOL.keys()))
-MODEL_REGISTRY = discover_supported_models(KEY_POOL[chosen_key])
-chosen_model = st.selectbox("🚀 模型：", options=list(MODEL_REGISTRY.keys()))
-
 # --- 推送邏輯 ---
-mode = st.radio("維度：", ["全員廣播", "精準推送", "AI 智慧廣播"], horizontal=True)
+mode = st.radio("維度：", ["全員廣播", "精準推送/群組推送", "AI 智慧廣播"], horizontal=True)
 with st.form("push_form"):
-    uids = st.text_input("User ID (逗號分隔):") if mode == "精準推送" else ""
+    uids = st.text_input("User ID 或 Group ID (逗號分隔):") if mode == "精準推送/群組推送" else ""
     mood = st.text_input("心情主題:") if mode == "AI 智慧廣播" else ""
     text = st.text_area("內文:") if mode != "AI 智慧廣播" else ""
     
     if st.form_submit_button("🚀 發射"):
         try:
-            genai.configure(api_key=KEY_POOL[chosen_key])
-            model = genai.GenerativeModel(MODEL_REGISTRY[chosen_model]["model_id"])
+            line_api = LineBotApi(st.secrets["LINE_ACCESS_TOKEN"])
             
             if mode == "AI 智慧廣播":
-                prompt = f"請針對主題「{mood}」，選取一段聖經經文分享。格式：【經文內容】(阿們。)；【經文章節】；【領受與感悟】。禁止贅字，內容完整禁止斷章。"
+                genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+                model = genai.GenerativeModel('gemini-2.5-flash')
+                prompt = f"請針對主題「{mood}」，選取一段聖經經文分享。格式：【經文內容】(阿們。)；【經文章節】；【領受與感悟】。"
                 content = model.generate_content(prompt).text
             else:
                 content = text
             
-            line_api = LineBotApi(st.secrets.get("LINE_ACCESS_TOKEN", ""))
             if mode == "全員廣播":
                 line_api.broadcast(TextSendMessage(text=content))
             else:
-                line_api.push_message(uids, TextSendMessage(text=content))
+                target_ids = [uid.strip() for uid in uids.split(',')]
+                for tid in target_ids:
+                    line_api.push_message(tid, TextSendMessage(text=content))
             
             history = load_history()
-            history.insert(0, {"date": datetime.now(TZ_TW).strftime("%Y-%m-%d"), "time": datetime.now(TZ_TW).strftime("%H:%M:%S"), "category": mode, "content": content})
+            history.insert(0, {"date": datetime.now(TZ_TW).strftime("%Y-%m-%d"), "category": mode, "content": content})
             with open(DB_FILE, "w", encoding="utf-8") as f:
                 json.dump(history, f, ensure_ascii=False, indent=4)
             st.success("✅ 發射成功")
         except Exception as e:
             st.error(f"❌ 發射失敗: {str(e)}")
 
-# --- 歷史紀錄庫 (容錯防崩潰版) ---
-st.subheader("📚 歷史經文典藏管理庫")
-history_data = load_history()
-
-if history_data:
-    c1, c2 = st.columns([1, 1])
-    
-    with c1:
-        # 使用 .get() 防止 KeyError，確保即使舊資料遺失欄位也能正常執行
-        txt_data = "".join([
-            f"{h.get('date', '未知')} {h.get('time', '未知')} | {h.get('category', '推播')}\n{h.get('content', '')}\n---\n" 
-            for h in history_data
-        ])
-        st.download_button("📥 下載完整紀錄 (TXT)", txt_data, "history.txt")
-        
-    with c2:
-        if st.button("⚠️ 清除所有記錄"):
-            if os.path.exists(DB_FILE): os.remove(DB_FILE)
-            st.rerun()
-
-    for item in reversed(history_data):
-        # 顯示歷史紀錄同樣加入容錯
-        title = f"📅 {item.get('date', '未知')} ⏰ {item.get('time', '未知')} - {item.get('category', '推播')}"
-        with st.expander(title):
-            st.markdown(item.get('content', ''))
-else:
-    st.info("目前尚無歷史經文紀錄。")
+st.subheader("📚 歷史經文典藏")
+for item in load_history():
+    with st.expander(f"📅 {item.get('date')} - {item.get('category')}"):
+        st.markdown(item.get('content'))
