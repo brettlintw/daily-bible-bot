@@ -7,27 +7,36 @@ from datetime import datetime, timezone, timedelta
 import google.generativeai as genai
 from linebot import LineBotApi
 from linebot.models import TextSendMessage
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 # --- 設定 ---
 DB_FILE = "bible_history.json"
 TZ_TW = timezone(timedelta(hours=8))
-# 確保您的 GitHub Secrets 有設定 PERSONAL_USER_ID
 PERSONAL_USER_ID = os.environ.get('PERSONAL_USER_ID')
+
+# 加上重試邏輯：遇到 ResourceExhausted 會自動等待重試 (最小等待 4 秒，最大 60 秒)
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=60))
+def call_gemini_with_retry(model, prompt):
+    return model.generate_content(prompt, generation_config=genai.types.GenerationConfig(temperature=0.8))
 
 def main():
     # 1. 初始化
     genai.configure(api_key=os.environ['GEMINI_API_KEY'])
     model = genai.GenerativeModel('gemini-2.5-flash')
 
-    # 2. 生成內容
+    # 2. 生成內容 (調用重試函式)
     themes = ["安慰", "力量", "盼望", "智慧", "愛與饒恕", "平安", "信心"]
     chosen_theme = random.choice(themes)
     prompt = f"你是溫柔牧者。請針對主題「{chosen_theme}」，精選一段聖經經文進行分享。格式：【經文內容】(阿們。)；【經文章節】；【領受與感悟】。禁止贅字，內容完整禁止斷章。"
 
-    res = model.generate_content(prompt, generation_config=genai.types.GenerationConfig(temperature=0.8))
-    payload = res.text.strip()
+    try:
+        res = call_gemini_with_retry(model, prompt)
+        payload = res.text.strip()
+    except Exception as e:
+        print(f"❌ Gemini 生成失敗 (已重試三次): {e}")
+        return
 
-    # 3. 推送至個人 LINE (固定目標)
+    # 3. 推送至個人 LINE
     line_api = LineBotApi(os.environ['LINE_TOKEN'])
     line_api.push_message(PERSONAL_USER_ID, TextSendMessage(text=f'【每日靈修】\n\n{payload}'))
 
