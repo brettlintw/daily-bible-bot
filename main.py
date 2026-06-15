@@ -27,11 +27,10 @@ def get_secret(key_name):
     # 優先從 Streamlit Secrets 讀取，若無則從系統環境變數讀取
     return st.secrets.get(key_name, os.environ.get(key_name, ""))
 
-# 側邊欄配置
-st.sidebar.header("⚙️ 系統自動配置")
-
 # 抓取 Token (增加手動備援輸入框)
 raw_line_token = get_secret("LINE_TOKEN")
+
+st.sidebar.header("⚙️ 系統自動配置")
 line_token = st.sidebar.text_input("LINE Token (自動載入):", value=raw_line_token, type="password")
 
 # 自動掃描多組 Gemini Keys
@@ -39,7 +38,7 @@ api_key_options = {f"🔑 金鑰 #{i}": get_secret(f"GEMINI_API_KEY{'' if i==1 e
                    for i in range(1, 6) if get_secret(f"GEMINI_API_KEY{'' if i==1 else '_'+str(i)}")}
 
 if not api_key_options:
-    st.sidebar.error("⚠️ 未偵測到 GEMINI_API_KEY，請檢查環境設定")
+    st.sidebar.error("⚠️ 未偵測到 GEMINI_API_KEY，請檢查 Secrets")
     api_key = ""
     selected_model = "gemini-2.5-flash"
 else:
@@ -55,7 +54,7 @@ else:
         selected_model = "gemini-2.5-flash"
 
 if not line_token:
-    st.sidebar.warning("⚠️ LINE Token 未載入，請確認設定")
+    st.sidebar.warning("⚠️ LINE Token 未載入")
 else:
     st.sidebar.success("✅ LINE Token 已載入")
 
@@ -68,15 +67,18 @@ with col1:
     theme = st.selectbox("選擇主題", ["安慰", "力量", "盼望", "智慧", "愛與饒恕", "平安", "信心"])
     
     if st.button("執行推送"):
-        if not all([api_key, line_token, target_id]):
-            st.error("請確認 API Key、Token 與目標 ID 皆已填寫")
+        # 強制邏輯：如果 ID 為空，直接擋下，解決 400 Bad Request
+        if not target_id or target_id.strip() == "":
+            st.error("❌ 目標 ID 不可為空！請填入正確的群組 ID。")
+        elif not all([api_key, line_token]):
+            st.error("❌ 請確認 API Key、Token 與目標 ID 皆已填寫")
         else:
             try:
                 genai.configure(api_key=api_key)
                 model = genai.GenerativeModel(selected_model)
                 res = model.generate_content(f"請針對「{theme}」主題分享聖經經文。格式：【經文內容】；【章節】；【感悟】")
                 
-                line_api = LineBotApi(line_token)
+                line_api = LineBotApi(line_token.strip())
                 line_api.push_message(target_id.strip(), TextSendMessage(text=f'【靈修分享】\n\n{res.text.strip()}'))
                 
                 # 寫入歷史 (含 .get 防崩潰)
