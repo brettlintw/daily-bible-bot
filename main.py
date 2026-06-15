@@ -12,7 +12,7 @@ TZ_TW = timezone(timedelta(hours=8))
 DEFAULT_TARGET_ID = "C43e597148c27a296e67e91d848773957"
 
 st.set_page_config(page_title="靈修控制台", layout="wide")
-st.title("🛡️ 聖經-LINE推送 V60.2 最終整合版")
+st.title("🛡️ 聖經-LINE推送 V60.2 最終完整版")
 
 # --- 輔助函式 ---
 def load_history():
@@ -22,31 +22,34 @@ def load_history():
             except: return []
     return []
 
-# --- 1. 自動發現金鑰與模型 ---
-def scan_secret_keys():
-    # 自動掃描 Secrets 中的多組金鑰
-    return {f"🔑 金鑰 #{i}": st.secrets.get(f"GEMINI_API_KEY{'' if i==1 else '_'+str(i)}", "") 
-            for i in range(1, 6) if st.secrets.get(f"GEMINI_API_KEY{'' if i==1 else '_'+str(i)}")}
+# --- 1. 自動發現與設定金鑰與 Token ---
+def get_secret(key_name):
+    # 優先從 Streamlit Secrets 讀取，若無則從系統環境變數(GitHub/Render)讀取
+    return st.secrets.get(key_name, os.environ.get(key_name, ""))
 
-st.sidebar.header("⚙️ 系統配置")
-key_options = scan_secret_keys()
-if not key_options:
-    st.sidebar.error("未在 Secrets 中發現 GEMINI_API_KEY")
-    selected_key_name = None
+line_token = get_secret("LINE_TOKEN")
+api_key_options = {f"🔑 金鑰 #{i}": get_secret(f"GEMINI_API_KEY{'' if i==1 else '_'+str(i)}") 
+                   for i in range(1, 6) if get_secret(f"GEMINI_API_KEY{'' if i==1 else '_'+str(i)}")}
+
+st.sidebar.header("⚙️ 系統自動配置")
+if not api_key_options:
+    st.sidebar.error("⚠️ 未偵測到 GEMINI_API_KEY，請檢查 Secrets")
     api_key = ""
+    selected_model = "gemini-2.5-flash"
 else:
-    selected_key_name = st.sidebar.selectbox("選擇 API 金鑰", list(key_options.keys()))
-    api_key = key_options[selected_key_name]
-
-def discover_models(key):
-    if not key: return ["請先選擇有效金鑰"]
+    selected_key_name = st.sidebar.selectbox("選擇 API 金鑰", list(api_key_options.keys()))
+    api_key = api_key_options[selected_key_name]
+    
+    # 動態發現模型
     try:
-        genai.configure(api_key=key)
-        return [m.name for m in genai.list_models() if "gemini" in m.name]
-    except: return ["無法讀取模型"]
+        genai.configure(api_key=api_key)
+        models = [m.name for m in genai.list_models() if "gemini" in m.name]
+        selected_model = st.sidebar.selectbox("選擇 AI 模型", models)
+    except:
+        selected_model = "gemini-2.5-flash"
 
-selected_model = st.sidebar.selectbox("選擇 AI 模型", discover_models(api_key))
-line_token = st.sidebar.text_input("LINE Token", value=st.secrets.get("LINE_TOKEN", ""), type="password")
+if not line_token:
+    st.sidebar.warning("⚠️ LINE Token 未載入")
 
 # --- 2. 手動精準推送 ---
 st.subheader("🚀 手動精準推送")
@@ -68,7 +71,7 @@ with col1:
                 line_api = LineBotApi(line_token)
                 line_api.push_message(target_id.strip(), TextSendMessage(text=f'【靈修分享】\n\n{res.text.strip()}'))
                 
-                # 寫入歷史
+                # 寫入歷史 (含 .get 防崩潰)
                 history = load_history()
                 history.insert(0, {
                     "date": datetime.now(TZ_TW).strftime("%Y-%m-%d"), 
@@ -80,7 +83,7 @@ with col1:
                     json.dump(history, f, ensure_ascii=False, indent=4)
                 st.success("✅ 發送成功")
             except Exception as e:
-                st.error(f"❌ 發生錯誤: {str(e)}")
+                st.error(f"❌ 發送失敗: {str(e)}")
 
 # --- 3. 展開式歷史管理 (已加入容錯機制) ---
 st.subheader("📚 歷史經文典藏管理庫")
@@ -94,7 +97,9 @@ if history_data:
     st.download_button("📥 下載完整紀錄 (TXT)", txt_content, file_name="bible_history.txt")
 
     for i, h in enumerate(history_data):
-        with st.expander(f"📅 {h.get('date', '無日期')} {h.get('time', '')} | {h.get('category', '無分類')}"):
+        # 使用 .get() 確保即使歷史資料不全也不會崩潰
+        title = f"📅 {h.get('date', '無日期')} {h.get('time', '')} | {h.get('category', '無分類')}"
+        with st.expander(title):
             st.markdown(h.get('content', '無內容'))
 else:
     st.write("目前尚無歷史紀錄。")
