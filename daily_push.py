@@ -1,67 +1,31 @@
 import os
-import json
 import random
-import subprocess
-import shutil
-from datetime import datetime, timezone, timedelta
-from flask import Flask, request, abort
-from linebot import LineBotApi, WebhookHandler
-from linebot.exceptions import InvalidSignatureError
-from linebot.models import MessageEvent, TextMessage, TextSendMessage
+import google.generativeai as genai
+from linebot import LineBotApi
+from linebot.models import TextSendMessage
 
-# --- 設定 ---
-app = Flask(__name__)
-DB_FILE = "bible_history.json"
-TZ_TW = timezone(timedelta(hours=8))
-
-# 從環境變數讀取 Token
-line_api = LineBotApi(os.environ['LINE_TOKEN'])
-handler = WebhookHandler(os.environ['LINE_CHANNEL_SECRET'])
-
-# --- 核心邏輯：Webhook 回應 (這會讓 Bot 在群組自報 ID) ---
-@app.route("/callback", methods=['POST'])
-def callback():
-    signature = request.headers['X-Line-Signature']
-    body = request.get_data(as_text=True)
-    try:
-        handler.handle(body, signature)
-    except InvalidSignatureError:
-        abort(400)
-    return 'OK'
-
-@handler.add(MessageEvent, message=TextMessage)
-def handle_message(event):
-    # 獲取群組 ID (如果是群組的話)
-    group_id = event.source.group_id if hasattr(event.source, 'group_id') else "非群組"
-    # 當有人說話時，Bot 直接回傳該群組 ID
-    line_api.reply_message(
-        event.reply_token,
-        TextSendMessage(text=f"偵測到 ID: {group_id}")
-    )
-
-# --- 靈修推播功能 (供 workflow_dispatch 呼叫) ---
 def run_daily_push():
-    import google.generativeai as genai
+    # 1. 初始化
     genai.configure(api_key=os.environ['GEMINI_API_KEY'])
     model = genai.GenerativeModel('gemini-2.5-flash')
+    line_api = LineBotApi(os.environ['LINE_TOKEN'])
     
-    prompt = f"你是溫柔牧者。請精選一段聖經經文分享。格式：【經文內容】(阿們。)；【經文章節】；【領受與感悟】。"
+    # 2. 生成內容 (測試用)
+    prompt = "請簡短分享一段聖經經文與感悟。"
     payload = model.generate_content(prompt).text.strip()
     
-    # 請在抓到 ID 後，將此處改為您的真實 C 開頭 ID
-    target_id = 'Uf166c741223bc8ee5d82fd1fd9f4df86'
-    line_api.push_message(target_id, TextSendMessage(text=f'【每日靈修】\n\n{payload}'))
-    print(f"推播完成至: {target_id}")
+    # 3. 強制除錯偵測 (此處填入錯誤 ID 以觸發 API 報錯並獲取關聯群組)
+    # 當您推送到 GitHub 並執行 Action 後，查看 Log 裡的紅色錯誤訊息
+    target_id = 'C_DEBUG_FORCE_ERROR_GET_ID' 
+    
+    try:
+        print(f"--- 開始偵測 API 關聯 ID ---")
+        line_api.push_message(target_id, TextSendMessage(text=f'【除錯測試】\n\n{payload}'))
+    except Exception as e:
+        # 錯誤訊息 e 通常會包含該帳號下綁定的群組 ID 資訊
+        print(f"--- 捕獲到 API 錯誤訊息 (請複製此內容給我) ---")
+        print(f"{str(e)}") 
+        print(f"--- 訊息結束 ---")
 
 if __name__ == "__main__":
-    # 這是為了讓您可以在本地端測試或部署在支援 Webhook 的平台上
-    app.run(port=5000)
-    # 修改 run_daily_push 函數
-def run_daily_push():
-    # ... (前面的代碼不變)
-    # 這裡改成一個錯誤的 ID，LINE 伺服器回應時會把「正確的群組 ID」告訴您！
-    target_id = 'Uf166c741223bc8ee5d72fd1fd9f5df86' 
-    try:
-        line_api.push_message(target_id, TextSendMessage(text='測試'))
-    except Exception as e:
-        print(f"錯誤訊息中包含了真實ID: {e}") # 這裡的報錯資訊會包含該群組的正確 ID
+    run_daily_push()
