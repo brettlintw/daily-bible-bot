@@ -24,16 +24,22 @@ def load_history():
 
 # --- 1. 自動發現與設定金鑰與 Token ---
 def get_secret(key_name):
-    # 優先從 Streamlit Secrets 讀取，若無則從系統環境變數(GitHub/Render)讀取
+    # 優先從 Streamlit Secrets 讀取，若無則從系統環境變數讀取
     return st.secrets.get(key_name, os.environ.get(key_name, ""))
 
-line_token = get_secret("LINE_TOKEN")
+# 側邊欄配置
+st.sidebar.header("⚙️ 系統自動配置")
+
+# 抓取 Token (增加手動備援輸入框)
+raw_line_token = get_secret("LINE_TOKEN")
+line_token = st.sidebar.text_input("LINE Token (自動載入):", value=raw_line_token, type="password")
+
+# 自動掃描多組 Gemini Keys
 api_key_options = {f"🔑 金鑰 #{i}": get_secret(f"GEMINI_API_KEY{'' if i==1 else '_'+str(i)}") 
                    for i in range(1, 6) if get_secret(f"GEMINI_API_KEY{'' if i==1 else '_'+str(i)}")}
 
-st.sidebar.header("⚙️ 系統自動配置")
 if not api_key_options:
-    st.sidebar.error("⚠️ 未偵測到 GEMINI_API_KEY，請檢查 Secrets")
+    st.sidebar.error("⚠️ 未偵測到 GEMINI_API_KEY，請檢查環境設定")
     api_key = ""
     selected_model = "gemini-2.5-flash"
 else:
@@ -49,7 +55,9 @@ else:
         selected_model = "gemini-2.5-flash"
 
 if not line_token:
-    st.sidebar.warning("⚠️ LINE Token 未載入")
+    st.sidebar.warning("⚠️ LINE Token 未載入，請確認設定")
+else:
+    st.sidebar.success("✅ LINE Token 已載入")
 
 # --- 2. 手動精準推送 ---
 st.subheader("🚀 手動精準推送")
@@ -97,7 +105,6 @@ if history_data:
     st.download_button("📥 下載完整紀錄 (TXT)", txt_content, file_name="bible_history.txt")
 
     for i, h in enumerate(history_data):
-        # 使用 .get() 確保即使歷史資料不全也不會崩潰
         title = f"📅 {h.get('date', '無日期')} {h.get('time', '')} | {h.get('category', '無分類')}"
         with st.expander(title):
             st.markdown(h.get('content', '無內容'))
