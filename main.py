@@ -58,11 +58,26 @@ with col2:
             except Exception as e:
                 st.error(f"❌ 發射失敗: {e}")
 
-# --- 歷史紀錄 ---
-st.divider()
-st.subheader("📚 歷史經文典藏")
+# --- 歷史紀錄庫 (展開式管理庫) ---
+st.subheader("📚 歷史經文典藏管理庫")
 history_data = load_history()
+
 if history_data:
-    st.table(history_data[:10])  # 顯示最近 10 筆
-    if st.download_button("下載完整紀錄 (JSON)", json.dumps(history_data, ensure_ascii=False, indent=4), "history.json"):
-        st.success("下載完成")
+    # 建立一個下載按鈕在上方
+    txt_data = "\n\n".join([f"{h.get('date', '未知')} {h.get('time', '未知')} | {h.get('category', '推播')}\n{h.get('content', '')}" for h in history_data])
+    st.download_button("📥 下載完整紀錄 (TXT)", txt_data, file_name="bible_history.txt")
+
+    # 每一筆紀錄以展開式選單呈現
+    for i, h in enumerate(history_data):
+        date = h.get('date', '未知')
+        category = h.get('category', '推播')
+        content = h.get('content', '')
+        
+        # 建立展開選單，標題顯示日期與類別
+        with st.expander(f"📅 {date} | {category}"):
+            st.markdown(content)
+            # 可選：加入刪除功能 (若有需要)
+            # if st.button(f"刪除此筆記錄", key=f"del_{i}"):
+            #     ... 處理刪除邏輯 ...
+else:
+    st.write("目前尚無歷史紀錄。")
