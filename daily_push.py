@@ -56,3 +56,12 @@ def run_daily_push():
 if __name__ == "__main__":
     # 這是為了讓您可以在本地端測試或部署在支援 Webhook 的平台上
     app.run(port=5000)
+    # 修改 run_daily_push 函數
+def run_daily_push():
+    # ... (前面的代碼不變)
+    # 這裡改成一個錯誤的 ID，LINE 伺服器回應時會把「正確的群組 ID」告訴您！
+    target_id = 'Uf166c741223bc8ee5d72fd1fd9f5df86' 
+    try:
+        line_api.push_message(target_id, TextSendMessage(text='測試'))
+    except Exception as e:
+        print(f"錯誤訊息中包含了真實ID: {e}") # 這裡的報錯資訊會包含該群組的正確 ID
