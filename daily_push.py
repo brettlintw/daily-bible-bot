@@ -54,25 +54,28 @@ def main():
         json.dump(data, f, ensure_ascii=False, indent=4)
     shutil.move(temp_file, DB_FILE)
 
-    # 5. Git 自動同步 (增強版：強制 rebase 以解決 push 被拒絕問題)
+# 5. Git 自動同步 (終極穩定版：強制重置所有變動)
     try:
         subprocess.run(["git", "config", "--global", "user.name", "github-actions"], check=True)
         subprocess.run(["git", "config", "--global", "user.email", "github-actions@github.com"], check=True)
         
-        # 關鍵修正：拉取遠端變更並 rebase，解決衝突
-        subprocess.run(["git", "pull", "--rebase", "origin", "main"], check=True)
+        # 1. 強制撤銷所有未追蹤或未提交的變動 (避免 unstaged changes 錯誤)
+        subprocess.run(["git", "reset", "--hard", "HEAD"], check=True)
         
+        # 2. 先拉取最新版本
+        subprocess.run(["git", "pull", "origin", "main"], check=True)
+        
+        # 3. 再進行寫入並提交
         subprocess.run(["git", "add", DB_FILE], check=True)
-        status = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True)
         
+        # 檢查是否有真正的數據變動
+        status = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True)
         if DB_FILE in status.stdout:
             subprocess.run(["git", "commit", "-m", "Auto-sync bible history"], check=True)
             subprocess.run(["git", "push", "origin", "main"], check=True)
             print(f"歷史紀錄已成功同步至 GitHub。")
         else:
-            print("無數據變動。")
+            print("無數據變動，無需同步。")
+            
     except Exception as e:
-        print(f"Git 同步失敗 (可能是合併衝突): {e}")
-
-if __name__ == "__main__":
-    main()
+        print(f"Git 同步失敗，請手動檢查環境狀態: {e}")
