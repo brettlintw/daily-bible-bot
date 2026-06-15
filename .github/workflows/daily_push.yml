@@ -2,6 +2,7 @@ name: Daily Bible Push
 
 on:
   schedule:
+    # 每天台灣時間 05:00 (UTC 21:00) 與 13:00 (UTC 05:00) 執行
     - cron: '0 21 * * *' 
     - cron: '0 5 * * *'
   workflow_dispatch:
@@ -15,15 +16,21 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+
       - name: Install dependencies
-        run: pip install google-generativeai line-bot-sdk
+        # 這裡改為使用 requirements.txt，確保 tenacity 模組被正確安裝
+        run: pip install -r requirements.txt
+
       - name: Run daily push script
         env:
           LINE_TOKEN: ${{ secrets.LINE_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          TARGET_GROUP_ID: ${{ secrets.TARGET_GROUP_ID }}
+          PERSONAL_USER_ID: ${{ secrets.PERSONAL_USER_ID }}
         run: python daily_push.py
