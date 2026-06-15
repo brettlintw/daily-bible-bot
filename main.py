@@ -12,7 +12,7 @@ TZ_TW = timezone(timedelta(hours=8))
 DEFAULT_TARGET_ID = "C43e597148c27a296e67e91d848773957"
 
 st.set_page_config(page_title="靈修控制台", layout="wide")
-st.title("🛡️ 聖經-LINE推送 V60.2 版")
+st.title("🛡️ 聖經-LINE推送 V60.2 最終整合版")
 
 # --- 輔助函式 ---
 def load_history():
@@ -22,19 +22,29 @@ def load_history():
             except: return []
     return []
 
-# --- 側邊欄：自動化配置 ---
+# --- 1. 自動發現金鑰與模型 (比照 V60.0) ---
+def scan_secret_keys():
+    # 自動搜尋 secrets 中的 API KEY (支援 KEY1, KEY2...)
+    return {f"🔑 金鑰 #{i}": st.secrets.get(f"GEMINI_API_KEY{'' if i==1 else '_'+str(i)}", "") 
+            for i in range(1, 6) if st.secrets.get(f"GEMINI_API_KEY{'' if i==1 else '_'+str(i)}")}
+
 st.sidebar.header("⚙️ 系統配置")
-# 自動讀取 Secrets
-api_key = st.sidebar.text_input("Gemini API Key", value=st.secrets.get("GEMINI_API_KEY", ""), type="password")
+key_options = scan_secret_keys()
+selected_key_name = st.sidebar.selectbox("選擇 API 金鑰", list(key_options.keys()))
+api_key = key_options[selected_key_name]
+
+# 模型發現邏輯
+def discover_models(key):
+    if not key: return ["請先選擇有效金鑰"]
+    try:
+        genai.configure(api_key=key)
+        return [m.name for m in genai.list_models() if "gemini" in m.name]
+    except: return ["無法讀取模型"]
+
+selected_model = st.sidebar.selectbox("選擇 AI 模型", discover_models(api_key))
 line_token = st.sidebar.text_input("LINE Token", value=st.secrets.get("LINE_TOKEN", ""), type="password")
 
-# 模型選擇器
-def get_model_options():
-    return ["gemini-2.5-flash", "gemini-1.5-pro"]
-
-selected_model = st.sidebar.selectbox("選擇 AI 模型", get_model_options())
-
-# --- 主畫面：推送控制台 ---
+# --- 2. 手動精準推送 ---
 st.subheader("🚀 手動精準推送")
 col1, col2 = st.columns([2, 1])
 
@@ -44,7 +54,7 @@ with col1:
     
     if st.button("執行推送"):
         if not all([api_key, line_token, target_id]):
-            st.error("請確認 API Key 與 Token 已載入")
+            st.error("請確認 API Key、Token 與目標 ID 皆已填寫")
         else:
             try:
                 genai.configure(api_key=api_key)
@@ -52,7 +62,7 @@ with col1:
                 res = model.generate_content(f"請針對「{theme}」主題分享聖經經文。格式：【經文內容】；【章節】；【感悟】")
                 
                 line_api = LineBotApi(line_token)
-                line_api.push_message(target_id, TextSendMessage(text=f'【靈修分享】\n\n{res.text.strip()}'))
+                line_api.push_message(target_id.strip(), TextSendMessage(text=f'【靈修分享】\n\n{res.text.strip()}'))
                 
                 # 寫入歷史
                 history = load_history()
@@ -63,7 +73,7 @@ with col1:
             except Exception as e:
                 st.error(f"❌ 發生錯誤: {str(e)}")
 
-# --- 歷史紀錄庫 (展開式管理庫) ---
+# --- 3. 展開式歷史管理 ---
 st.subheader("📚 歷史經文典藏管理庫")
 history_data = load_history()
 
