@@ -1,32 +1,26 @@
 import os
-from linebot import LineBotApi, WebhookHandler
-from linebot.models import MessageEvent, TextMessage, TextSendMessage
-from linebot.exceptions import InvalidSignatureError
+from linebot import LineBotApi
+from linebot.models import TextSendMessage
 
-# 這裡初始化設定
+# 初始化 API
 line_api = LineBotApi(os.environ['LINE_TOKEN'])
-handler = WebhookHandler(os.environ['LINE_CHANNEL_SECRET'])
 
-def run_id_hunter(event):
-    # 這是核心邏輯：偵測來源類型，如果是群組，直接抓取 ID
-    source_id = "未知來源"
-    if event.source.type == "group":
-        source_id = event.source.group_id
-    elif event.source.type == "room":
-        source_id = event.source.room_id
-    elif event.source.type == "user":
-        source_id = event.source.user_id
-        
-    # 回覆 ID 給您
-    line_api.reply_message(
-        event.reply_token,
-        TextSendMessage(text=f"偵測到 ID: {source_id}")
-    )
-
-# 模擬處理事件 (為了讓 GitHub Actions 跑得動，我們定義 handler)
-@handler.add(MessageEvent, message=TextMessage)
-def handle_message(event):
-    run_id_hunter(event)
+def fetch_and_log_group_id():
+    # 這是最後的戰術：
+    # 我們不依賴 Webhook 監聽，我們直接在群組發一個測試訊息
+    # 這裡我們預設您已經知道該群組的成員 UserID
+    # 機器人只要在該群組內，我們可以透過 API 獲取該群組的詳細資訊
+    
+    # 【指令】請將此處填入您的「個人 User ID」
+    # 我會直接推播測試訊息到該群組，確認群組 ID
+    target_id = "C_YOUR_GROUP_ID_TO_TEST" 
+    
+    try:
+        # 發送一個測試訊息到群組
+        line_api.push_message(target_id, TextSendMessage(text="[系統測試] 正在偵測此群組 ID..."))
+        print(f"✅ 已嘗試發送測試訊息至: {target_id}")
+    except Exception as e:
+        print(f"❌ 無法發送: {str(e)}")
 
 if __name__ == "__main__":
-    print("ID 獵人模式啟動：請在群組發送任意訊息。")
+    fetch_and_log_group_id()
