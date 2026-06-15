@@ -7,13 +7,16 @@ from linebot.models import TextSendMessage
 from datetime import datetime, timezone, timedelta
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-# --- 設定 ---
+# --- 1. 設定區 (Token 已硬編碼) ---
 DB_FILE = "bible_history.json"
 TZ_TW = timezone(timedelta(hours=8))
 DEFAULT_TARGET_ID = "C43e597148c27a296e67e91d848773957"
 
+# 您的 Token 已永久鎖定在此
+FIXED_LINE_TOKEN = "vbmdbVqLgc0mlngXz67zuQun7awHSRdPhoqLookibRQQU7jBi8D+bC32nAIBHZfU8S1oy2XCA7Tr6F2pX4tb3JnExgTaoaxhthf7UNyiXNfiFwcpzuvEp4ghMgBbewf39cQE6p9bk02J5Lj2wsKJ0AdB04t89/1O/w1cDnyilFU="
+
 st.set_page_config(page_title="靈修控制台", layout="wide")
-st.title("🛡️ 聖經-LINE推送 V60.3 最終強化版")
+st.title("🛡️ 聖經-LINE推送 V60.4 最終穩定版")
 
 # --- 輔助函式 ---
 def load_history():
@@ -23,18 +26,14 @@ def load_history():
             except: return []
     return []
 
-# --- 1. 自動發現與設定 ---
 def get_secret(key_name):
     return st.secrets.get(key_name, os.environ.get(key_name, ""))
 
-st.sidebar.header("⚙️ 系統自動配置")
-raw_line_token = get_secret("LINE_TOKEN")
-line_token = st.sidebar.text_input("LINE Token (自動載入):", value=raw_line_token, type="password")
-
-if not line_token:
-    st.sidebar.warning("⚠️ LINE Token 未載入")
-else:
-    st.sidebar.success("✅ LINE Token 已載入")
+# --- 2. 系統自動配置 ---
+st.sidebar.header("⚙️ 系統鎖定配置")
+# 使用硬編碼 Token 作為預設值
+line_token = st.sidebar.text_input("LINE Token (已自動載入):", value=FIXED_LINE_TOKEN, type="password")
+st.sidebar.success("✅ LINE Token 已寫死並鎖定")
 
 api_key_options = {f"🔑 金鑰 #{i}": get_secret(f"GEMINI_API_KEY{'' if i==1 else '_'+str(i)}") 
                    for i in range(1, 6) if get_secret(f"GEMINI_API_KEY{'' if i==1 else '_'+str(i)}")}
@@ -51,7 +50,7 @@ else:
         selected_model = st.sidebar.selectbox("選擇 AI 模型", models)
     except: selected_model = "gemini-2.5-flash"
 
-# --- 2. 流量防禦型推送邏輯 ---
+# --- 3. 流量防禦型推送邏輯 ---
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
 def generate_with_retry(model, prompt):
     return model.generate_content(prompt)
@@ -66,13 +65,12 @@ with col1:
     if st.button("執行推送"):
         if not target_id or target_id.strip() == "":
             st.error("❌ 目標 ID 不可為空！")
-        elif not all([api_key, line_token]):
-            st.error("❌ Token 或 API Key 未載入")
+        elif not line_token or not api_key:
+            st.error("❌ Token 或 API Key 異常")
         else:
             try:
                 genai.configure(api_key=api_key)
                 model = genai.GenerativeModel(selected_model)
-                
                 with st.spinner("🚀 AI 正在領受經文中..."):
                     res = generate_with_retry(model, f"請針對「{theme}」主題分享聖經經文。格式：【經文內容】；【章節】；【感悟】")
                 
@@ -87,14 +85,11 @@ with col1:
             except Exception as e:
                 st.error(f"❌ 發送失敗: {str(e)}")
 
-# --- 3. 展開式歷史管理 ---
+# --- 4. 歷史管理 ---
 st.subheader("📚 歷史經文典藏管理庫")
 history_data = load_history()
-
 if history_data:
-    st.download_button("📥 下載完整紀錄 (TXT)", "\n\n".join([f"{h.get('date', '無日期')} | {h.get('category', '無分類')}\n{h.get('content', '無內容')}" for h in history_data]), file_name="bible_history.txt")
+    st.download_button("📥 下載 TXT", "\n\n".join([f"{h.get('date', '無日期')} | {h.get('category', '無分類')}\n{h.get('content', '無內容')}" for h in history_data]), file_name="bible_history.txt")
     for h in history_data:
         with st.expander(f"📅 {h.get('date', '無日期')} {h.get('time', '')} | {h.get('category', '無分類')}"):
             st.markdown(h.get('content', '無內容'))
-else:
-    st.write("目前尚無歷史紀錄。")
