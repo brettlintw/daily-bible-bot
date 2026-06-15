@@ -2,15 +2,14 @@ name: Daily Bible Push
 
 on:
   schedule:
-    # 原本是 0 1 (09:00)，改為 0 21 (前一天 21:00 UTC = 台灣時間 05:00)
-    # 這樣系統有 4 小時的緩衝期，能更早進入佇列
+    # 台灣時間 05:00 (UTC 21:00)
     - cron: '0 21 * * *' 
-    # 原本是 0 9 (17:00)，改為 0 5 (UTC 05:00 = 台灣時間 13:00)
+    # 台灣時間 13:00 (UTC 05:00)
     - cron: '0 5 * * *'
   workflow_dispatch:
 
 permissions:
-  contents: write  # 授予 Actions 寫入倉庫的權限
+  contents: write  # 授予 Actions 寫入倉庫的權限，用於自動同步紀錄
 
 jobs:
   push:
@@ -19,7 +18,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }} # 明確指定 Token
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -33,4 +32,5 @@ jobs:
         env:
           LINE_TOKEN: ${{ secrets.LINE_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          LINE_CHANNEL_SECRET: ${{ secrets.LINE_CHANNEL_SECRET }}
         run: python daily_push.py
