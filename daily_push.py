@@ -5,18 +5,22 @@ import subprocess
 import shutil
 from datetime import datetime, timezone, timedelta
 import google.generativeai as genai
+# 務必匯入 LineBotApi 與 TextSendMessage
 from linebot import LineBotApi
 from linebot.models import TextSendMessage
 
 DB_FILE = "bible_history.json"
 TZ_TW = timezone(timedelta(hours=8))
-# 使用環境變數，將 ID 寫入 GitHub Secrets 的 TARGET_GROUP_ID
-TARGET_ID = os.environ.get('TARGET_GROUP_ID', 'C43e597148c27a296e67e91d848773957')
+
+# 讀取環境變數 (請確保 GitHub Actions 的 env 中有設定 TARGET_GROUP_ID)
+TARGET_ID = os.environ.get('TARGET_GROUP_ID')
 
 def main():
+    # 1. 初始化
     genai.configure(api_key=os.environ['GEMINI_API_KEY'])
     model = genai.GenerativeModel('gemini-2.5-flash')
 
+    # 2. 生成內容
     themes = ["安慰", "力量", "盼望", "智慧", "愛與饒恕", "平安", "信心"]
     chosen_theme = random.choice(themes)
     prompt = f"你是溫柔牧者。請針對主題「{chosen_theme}」，精選一段聖經經文進行分享。格式：【經文內容】(阿們。)；【經文章節】；【領受與感悟】。禁止贅字，內容完整禁止斷章。"
@@ -24,10 +28,17 @@ def main():
     res = model.generate_content(prompt, generation_config=genai.types.GenerationConfig(temperature=0.8))
     payload = res.text.strip()
 
+    # 3. 推送至 LINE (使用 multicast 模式以提高群組相容性)
     line_api = LineBotApi(os.environ['LINE_TOKEN'])
-    # 推送至群組 ID
-    line_api.push_message(TARGET_ID, TextSendMessage(text=f'【每日靈修】\n\n{payload}'))
+    try:
+        # 使用 multicast([ID]) 替代 push_message，這能更有效處理群組請求
+        line_api.multicast([TARGET_ID], TextSendMessage(text=f'【每日靈修】\n\n{payload}'))
+        print(f"✅ 群組推送成功！ID: {TARGET_ID}")
+    except Exception as e:
+        print(f"❌ 推送失敗，錯誤詳情: {e}")
+        # 如果依然失敗，請檢查該群組是否真的有讓機器人加入
 
+    # 4. 歷史紀錄寫入
     data = []
     if os.path.exists(DB_FILE):
         try:
@@ -47,6 +58,7 @@ def main():
         json.dump(data, f, ensure_ascii=False, indent=4)
     shutil.move(temp_file, DB_FILE)
 
+    # 5. Git 同步
     try:
         subprocess.run(["git", "config", "--global", "user.name", "github-actions"], check=True)
         subprocess.run(["git", "config", "--global", "user.email", "github-actions@github.com"], check=True)
