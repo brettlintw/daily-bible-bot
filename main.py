@@ -6,14 +6,13 @@ from datetime import datetime, timezone, timedelta
 import google.generativeai as genai
 from linebot import LineBotApi
 from linebot.models import TextSendMessage
-from fpdf import FPDF
 
 # --- 設定 ---
 DB_FILE = "bible_history.json"
 TZ_TW = timezone(timedelta(hours=8))
 
 st.set_page_config(page_title="靈修控制台", layout="wide")
-st.title("🛡️ 聖經-LINE推送 V60.0 版")
+st.title("🛡️ 聖經-LINE推送 V60.0 版 (穩定強化版)")
 
 # --- 輔助函式 ---
 def scan_secret_keys():
@@ -32,6 +31,7 @@ def discover_supported_models(target_key):
     return options
 
 def load_history():
+    """讀取歷史紀錄，若檔案不存在或損壞則返回空列表"""
     if not os.path.exists(DB_FILE): return []
     try:
         with open(DB_FILE, "r", encoding="utf-8") as f:
@@ -71,34 +71,43 @@ with st.form("push_form"):
             
             # 存入歷史
             history = load_history()
-            history.insert(0, {"date": datetime.now(TZ_TW).strftime("%Y-%m-%d"), "time": datetime.now(TZ_TW).strftime("%H:%M:%S"), "category": mode, "content": content})
+            history.insert(0, {
+                "date": datetime.now(TZ_TW).strftime("%Y-%m-%d"), 
+                "time": datetime.now(TZ_TW).strftime("%H:%M:%S"), 
+                "category": mode, 
+                "content": content
+            })
             with open(DB_FILE, "w", encoding="utf-8") as f:
                 json.dump(history, f, ensure_ascii=False, indent=4)
             st.success("✅ 發射成功")
         except Exception as e:
             st.error(f"❌ 發射失敗: {str(e)}")
 
-# --- 5. 歷史紀錄庫 (精簡穩定版) ---
+# --- 歷史紀錄庫 (嚴謹防錯版) ---
 st.subheader("📚 歷史經文典藏管理庫")
 history_data = load_history()
 
 if history_data:
-    # 調整欄位配置：僅保留 TXT 與清除按鈕，不再強求 PDF
     c1, c2 = st.columns([1, 1])
     
     with c1:
-        txt_data = "".join([f"{h['date']} {h['time']} | {h['category']}\n{h['content']}\n---\n" for h in history_data])
+        # 使用 get() 防止 KeyError，確保歷史紀錄匯出功能絕對穩定
+        txt_data = "".join([
+            f"{h.get('date', '未知')} {h.get('time', '')} | {h.get('category', '推播')}\n{h.get('content', '')}\n---\n" 
+            for h in history_data
+        ])
         st.download_button("📥 下載完整紀錄 (TXT)", txt_data, "history.txt")
         
     with c2:
         if st.button("⚠️ 清除所有記錄"):
-            if os.path.exists(DB_FILE):
-                os.remove(DB_FILE)
+            if os.path.exists(DB_FILE): os.remove(DB_FILE)
             st.rerun()
 
     # 顯示歷史清單
     for item in reversed(history_data):
-        with st.expander(f"📅 {item['date']} ⏰ {item['time']} - {item['category']}"):
-            st.markdown(item['content'])
+        # 嚴謹顯示歷史紀錄，若資料缺損也不會崩潰
+        title = f"📅 {item.get('date', '未知')} ⏰ {item.get('time', '')} - {item.get('category', '推播')}"
+        with st.expander(title):
+            st.markdown(item.get('content', ''))
 else:
-    st.info("目前尚無歷史經文紀錄。")
+    st.info("目前尚無歷史經文紀錄。系統準備就緒。")
