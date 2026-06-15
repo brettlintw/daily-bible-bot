@@ -24,13 +24,19 @@ def load_history():
 
 # --- 1. 自動發現金鑰與模型 ---
 def scan_secret_keys():
+    # 自動掃描 Secrets 中的多組金鑰
     return {f"🔑 金鑰 #{i}": st.secrets.get(f"GEMINI_API_KEY{'' if i==1 else '_'+str(i)}", "") 
             for i in range(1, 6) if st.secrets.get(f"GEMINI_API_KEY{'' if i==1 else '_'+str(i)}")}
 
 st.sidebar.header("⚙️ 系統配置")
 key_options = scan_secret_keys()
-selected_key_name = st.sidebar.selectbox("選擇 API 金鑰", list(key_options.keys()))
-api_key = key_options[selected_key_name]
+if not key_options:
+    st.sidebar.error("未在 Secrets 中發現 GEMINI_API_KEY")
+    selected_key_name = None
+    api_key = ""
+else:
+    selected_key_name = st.sidebar.selectbox("選擇 API 金鑰", list(key_options.keys()))
+    api_key = key_options[selected_key_name]
 
 def discover_models(key):
     if not key: return ["請先選擇有效金鑰"]
