@@ -22,9 +22,8 @@ def load_history():
             except: return []
     return []
 
-# --- 1. 自動發現金鑰與模型 (比照 V60.0) ---
+# --- 1. 自動發現金鑰與模型 ---
 def scan_secret_keys():
-    # 自動搜尋 secrets 中的 API KEY (支援 KEY1, KEY2...)
     return {f"🔑 金鑰 #{i}": st.secrets.get(f"GEMINI_API_KEY{'' if i==1 else '_'+str(i)}", "") 
             for i in range(1, 6) if st.secrets.get(f"GEMINI_API_KEY{'' if i==1 else '_'+str(i)}")}
 
@@ -33,7 +32,6 @@ key_options = scan_secret_keys()
 selected_key_name = st.sidebar.selectbox("選擇 API 金鑰", list(key_options.keys()))
 api_key = key_options[selected_key_name]
 
-# 模型發現邏輯
 def discover_models(key):
     if not key: return ["請先選擇有效金鑰"]
     try:
@@ -66,23 +64,31 @@ with col1:
                 
                 # 寫入歷史
                 history = load_history()
-                history.insert(0, {"date": datetime.now(TZ_TW).strftime("%Y-%m-%d"), "time": datetime.now(TZ_TW).strftime("%H:%M:%S"), "category": theme, "content": res.text.strip()})
+                history.insert(0, {
+                    "date": datetime.now(TZ_TW).strftime("%Y-%m-%d"), 
+                    "time": datetime.now(TZ_TW).strftime("%H:%M:%S"), 
+                    "category": theme, 
+                    "content": res.text.strip()
+                })
                 with open(DB_FILE, "w", encoding="utf-8") as f:
                     json.dump(history, f, ensure_ascii=False, indent=4)
                 st.success("✅ 發送成功")
             except Exception as e:
                 st.error(f"❌ 發生錯誤: {str(e)}")
 
-# --- 3. 展開式歷史管理 ---
+# --- 3. 展開式歷史管理 (已加入容錯機制) ---
 st.subheader("📚 歷史經文典藏管理庫")
 history_data = load_history()
 
 if history_data:
-    if st.download_button("📥 下載完整紀錄 (TXT)", "\n\n".join([f"{h['date']} | {h['category']}\n{h['content']}" for h in history_data]), file_name="bible_history.txt"):
-        st.toast("下載中...")
+    txt_content = "\n\n".join([
+        f"{h.get('date', '無日期')} | {h.get('category', '無分類')}\n{h.get('content', '無內容')}" 
+        for h in history_data
+    ])
+    st.download_button("📥 下載完整紀錄 (TXT)", txt_content, file_name="bible_history.txt")
 
     for i, h in enumerate(history_data):
-        with st.expander(f"📅 {h.get('date')} {h.get('time', '')} | {h.get('category')}"):
-            st.markdown(h.get('content', ''))
+        with st.expander(f"📅 {h.get('date', '無日期')} {h.get('time', '')} | {h.get('category', '無分類')}"):
+            st.markdown(h.get('content', '無內容'))
 else:
     st.write("目前尚無歷史紀錄。")
