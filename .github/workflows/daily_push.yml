@@ -2,14 +2,12 @@ name: Daily Bible Push
 
 on:
   schedule:
-    # 台灣時間 05:00 (UTC 21:00)
     - cron: '0 21 * * *' 
-    # 台灣時間 13:00 (UTC 05:00)
     - cron: '0 5 * * *'
   workflow_dispatch:
 
 permissions:
-  contents: write  # 授予 Actions 寫入倉庫的權限，用於自動同步紀錄
+  contents: write
 
 jobs:
   push:
@@ -17,20 +15,15 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-
       - name: Install dependencies
         run: pip install google-generativeai line-bot-sdk
-
       - name: Run daily push script
         env:
           LINE_TOKEN: ${{ secrets.LINE_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          LINE_CHANNEL_SECRET: ${{ secrets.LINE_CHANNEL_SECRET }}
+          TARGET_GROUP_ID: ${{ secrets.TARGET_GROUP_ID }}
         run: python daily_push.py
