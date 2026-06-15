@@ -5,15 +5,14 @@ import subprocess
 import shutil
 from datetime import datetime, timezone, timedelta
 import google.generativeai as genai
-# 務必匯入 LineBotApi 與 TextSendMessage
 from linebot import LineBotApi
 from linebot.models import TextSendMessage
 
+# --- 設定 ---
 DB_FILE = "bible_history.json"
 TZ_TW = timezone(timedelta(hours=8))
-
-# 讀取環境變數 (請確保 GitHub Actions 的 env 中有設定 TARGET_GROUP_ID)
-TARGET_ID = os.environ.get('TARGET_GROUP_ID')
+# 確保您的 GitHub Secrets 有設定 PERSONAL_USER_ID
+PERSONAL_USER_ID = os.environ.get('PERSONAL_USER_ID')
 
 def main():
     # 1. 初始化
@@ -28,17 +27,11 @@ def main():
     res = model.generate_content(prompt, generation_config=genai.types.GenerationConfig(temperature=0.8))
     payload = res.text.strip()
 
-    # 3. 推送至 LINE (使用 multicast 模式以提高群組相容性)
+    # 3. 推送至個人 LINE (固定目標)
     line_api = LineBotApi(os.environ['LINE_TOKEN'])
-    try:
-        # 使用 multicast([ID]) 替代 push_message，這能更有效處理群組請求
-        line_api.multicast([TARGET_ID], TextSendMessage(text=f'【每日靈修】\n\n{payload}'))
-        print(f"✅ 群組推送成功！ID: {TARGET_ID}")
-    except Exception as e:
-        print(f"❌ 推送失敗，錯誤詳情: {e}")
-        # 如果依然失敗，請檢查該群組是否真的有讓機器人加入
+    line_api.push_message(PERSONAL_USER_ID, TextSendMessage(text=f'【每日靈修】\n\n{payload}'))
 
-    # 4. 歷史紀錄寫入
+    # 4. 安全地寫入 JSON
     data = []
     if os.path.exists(DB_FILE):
         try:
@@ -49,7 +42,7 @@ def main():
     data.insert(0, {
         "date": datetime.now(TZ_TW).strftime("%Y-%m-%d"),
         "time": datetime.now(TZ_TW).strftime("%H:%M:%S"),
-        "category": f"群組推播-{chosen_theme}",
+        "category": f"自動推播-{chosen_theme}",
         "content": payload
     })
     
@@ -58,16 +51,20 @@ def main():
         json.dump(data, f, ensure_ascii=False, indent=4)
     shutil.move(temp_file, DB_FILE)
 
-    # 5. Git 同步
+    # 5. Git 自動同步
     try:
         subprocess.run(["git", "config", "--global", "user.name", "github-actions"], check=True)
         subprocess.run(["git", "config", "--global", "user.email", "github-actions@github.com"], check=True)
         subprocess.run(["git", "add", DB_FILE], check=True)
+        
         status = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True)
         if DB_FILE in status.stdout:
             subprocess.run(["git", "commit", "-m", "Auto-sync bible history"], check=True)
             branch = subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"], text=True).strip()
             subprocess.run(["git", "push", "origin", branch], check=True)
+            print(f"歷史紀錄已成功推送到分支: {branch}")
+        else:
+            print("無數據變動，無需同步。")
     except Exception as e:
         print(f"Git 同步失敗: {e}")
 
