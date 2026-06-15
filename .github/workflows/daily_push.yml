@@ -2,7 +2,7 @@ name: Daily Bible Push
 
 on:
   schedule:
-    # 每天台灣時間 05:00 (UTC 21:00) 與 13:00 (UTC 05:00) 執行
+    # 台灣時間 05:00 與 13:00 執行
     - cron: '0 21 * * *' 
     - cron: '0 5 * * *'
   workflow_dispatch:
@@ -25,7 +25,6 @@ jobs:
           python-version: '3.12'
 
       - name: Install dependencies
-        # 這裡改為使用 requirements.txt，確保 tenacity 模組被正確安裝
         run: pip install -r requirements.txt
 
       - name: Run daily push script
