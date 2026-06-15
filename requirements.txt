@@ -1,5 +1,12 @@
+# Web 框架與部署
 flask
-line-bot-sdk
-google-generativeai
 gunicorn
+
+# LINE 開發工具
+line-bot-sdk
+
+# AI 核心功能
+google-generativeai
+
+# 穩定性與重試機制
 tenacity
