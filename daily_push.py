@@ -1,7 +1,6 @@
 import os
 import json
 import random
-import time
 import subprocess
 import shutil
 from datetime import datetime, timezone, timedelta
@@ -18,33 +17,22 @@ def main():
     model = genai.GenerativeModel('gemini-2.5-flash')
     line_api = LineBotApi(os.environ['LINE_TOKEN'])
 
-    # --- 【除錯模式】：抓取群組 ID ---
-    # 當您在群組對 Bot 發言後，Webhook 會記錄資訊。
-    # 為了幫助您抓取，我們直接印出環境資訊
-    print("--- 偵測群組 ID 模式已啟動 ---")
-    print("請確保 Bot 已在目標群組中，並在群組傳送過訊息。")
-    # 這裡加入一行偵測，如果您已經設定好 Webhook，GitHub Actions 會試圖讀取相關事件
-    # 若您是剛加入，請觀察 Log 中的 Source 欄位
-    print(f"環境變數檢查完成，請確認 Log 中是否有顯示群組 ID 資訊。")
-    # --- 結束 ---
-
     # 2. 生成內容
     themes = ["安慰", "力量", "盼望", "智慧", "愛與饒恕", "平安", "信心"]
     chosen_theme = random.choice(themes)
     prompt = f"你是溫柔牧者。請針對主題「{chosen_theme}」，精選一段聖經經文分享。格式：【經文內容】(阿們。)；【經文章節】；【領受與感悟】。禁止贅字，內容完整禁止斷章。"
-
+    
     res = model.generate_content(prompt, generation_config=genai.types.GenerationConfig(temperature=0.8))
     payload = res.text.strip()
 
-    # 3. 推送至群組 (請將下方的 'Cxxxxxxx' 替換為您在 Log 中抓到的 ID)
-    # 若還沒抓到，請先暫時使用您的個人 User ID 測試
-    target_id = 'Cxxxxxxxxx' # <--- 待您在 Log 抓到後，填入此處
-    
+    # 3. 推送至 LINE (待您在 Log 抓到群組 ID 後，請將下方 target_id 替換)
+    # 目前先保留測試，確認 Git 能順利同步後，我們再來填 ID
+    target_id = 'Uf166c741223bc8ee5d82fd1fd9f4df86' 
     try:
         line_api.push_message(target_id, TextSendMessage(text=f'【每日靈修】\n\n{payload}'))
         print(f"訊息已成功發送至: {target_id}")
     except Exception as e:
-        print(f"推播失敗，請檢查 ID 是否正確: {e}")
+        print(f"推播失敗: {e}")
 
     # 4. 安全地寫入 JSON
     data = []
@@ -62,4 +50,29 @@ def main():
     })
     
     temp_file = DB_FILE + ".tmp"
-    with open(temp_file, "w",
+    with open(temp_file, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
+    shutil.move(temp_file, DB_FILE)
+
+    # 5. Git 自動同步 (增強版：強制 rebase 以解決 push 被拒絕問題)
+    try:
+        subprocess.run(["git", "config", "--global", "user.name", "github-actions"], check=True)
+        subprocess.run(["git", "config", "--global", "user.email", "github-actions@github.com"], check=True)
+        
+        # 關鍵修正：拉取遠端變更並 rebase，解決衝突
+        subprocess.run(["git", "pull", "--rebase", "origin", "main"], check=True)
+        
+        subprocess.run(["git", "add", DB_FILE], check=True)
+        status = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True)
+        
+        if DB_FILE in status.stdout:
+            subprocess.run(["git", "commit", "-m", "Auto-sync bible history"], check=True)
+            subprocess.run(["git", "push", "origin", "main"], check=True)
+            print(f"歷史紀錄已成功同步至 GitHub。")
+        else:
+            print("無數據變動。")
+    except Exception as e:
+        print(f"Git 同步失敗 (可能是合併衝突): {e}")
+
+if __name__ == "__main__":
+    main()
