@@ -5,11 +5,6 @@ from linebot.models import MessageEvent, TextMessage, TextSendMessage
 from linebot import LineBotApi
 import os
 import google.generativeai as genai
-import logging
-
-# 設定日誌記錄，以便在 Render Logs 中清楚看到輸出
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
@@ -28,22 +23,24 @@ def callback():
         abort(400)
     return 'OK'
 
-@handler.add(MessageEvent, message=TextMessage)
+@handler.add(MessageEvent)
 def handle_message(event):
-    # --- [盤查戰術] 監測真實群組 ID ---
+    # --- [暴力偵測模式] ---
+    # 使用 print 並配合 flush=True 強制立即輸出至 Render Logs
     if event.source.type == "group":
-        group_id = event.source.group_id
-        logger.info(f">>> 目前群組真實 ID 為: {group_id} <<<")
+        print(f"!!! DEBUG_GROUP_ID_FOUND: {event.source.group_id} !!!", flush=True)
+    else:
+        print(f"!!! DEBUG_EVENT_SOURCE: {event.source.type} !!!", flush=True)
     
     # 靈修功能
-    if "靈修" in event.message.text:
+    if isinstance(event.message, TextMessage) and "靈修" in event.message.text:
         try:
             model = genai.GenerativeModel('gemini-2.5-flash')
             res = model.generate_content("請精選一段聖經經文分享。格式：【經文】；【章節】；【感悟】")
             line_api.reply_message(event.reply_token, TextSendMessage(text=res.text))
         except Exception as e:
-            logger.error(f"靈修生成失敗: {e}")
-            line_api.reply_message(event.reply_token, TextSendMessage(text="⚠️ 靈修內容暫時無法讀取，請稍候再試。"))
+            print(f"靈修生成失敗: {e}", flush=True)
+            line_api.reply_message(event.reply_token, TextSendMessage(text="⚠️ 靈修內容暫時無法讀取。"))
 
 if __name__ == "__main__":
     app.run(port=int(os.environ.get("PORT", 5000)))
