@@ -11,7 +11,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 # --- 1. 設定區 (Token 已硬編碼) ---
 DB_FILE = "bible_history.json"
 TZ_TW = timezone(timedelta(hours=8))
-DEFAULT_TARGET_ID = "C43e597148c27a296e67e91d848773957"
+DEFAULT_TARGET_ID = "C8a7777fb460a7ca0479b1b33c82f7a16"
 FIXED_LINE_TOKEN = "vbmdbVqLgc0mlngXz67zuQun7awHSRdPhoqLookibRQQU7jBi8D+bC32nAIBHZfU8S1oy2XCA7Tr6F2pX4tb3JnExgTaoaxhthf7UNyiXNfiFwcpzuvEp4ghMgBbewf39cQE6p9bk02J5Lj2wsKJ0AdB04t89/1O/w1cDnyilFU="
 
 st.set_page_config(page_title="靈修控制台", layout="wide")
