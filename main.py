@@ -74,15 +74,20 @@ with col1:
                 with st.spinner("🚀 AI 正在領受經文中..."):
                     res = generate_with_retry(model, f"請針對「{theme}」主題分享聖經經文。格式：【經文內容】；【章節】；【感悟】")
                 
-                # --- [關鍵防禦] 檢查 AI 是否有實際內容產出 ---
+                # --- [關鍵防禦] 檢查 AI 是否有內容，並強制長度截斷以防 400 錯誤 ---
                 if res and res.text and len(res.text.strip()) > 0:
+                    content_to_send = res.text.strip()
+                    # 強制長度截斷，確保不超過 LINE API 限制
+                    if len(content_to_send) > 2000:
+                        content_to_send = content_to_send[:1950] + "\n...(內容過長已截斷)"
+                    
                     line_api = LineBotApi(line_token.strip())
-                    line_api.push_message(target_id.strip(), TextSendMessage(text=f'【靈修分享】\n\n{res.text.strip()}'))
+                    line_api.push_message(target_id.strip(), TextSendMessage(text=f'【靈修分享】\n\n{content_to_send}'))
                     st.success("✅ 發送成功")
                     
                     # 紀錄歷史
                     history = load_history()
-                    history.insert(0, {"date": datetime.now(TZ_TW).strftime("%Y-%m-%d"), "time": datetime.now(TZ_TW).strftime("%H:%M:%S"), "category": theme, "content": res.text.strip()})
+                    history.insert(0, {"date": datetime.now(TZ_TW).strftime("%Y-%m-%d"), "time": datetime.now(TZ_TW).strftime("%H:%M:%S"), "category": theme, "content": content_to_send})
                     with open(DB_FILE, "w", encoding="utf-8") as f:
                         json.dump(history, f, ensure_ascii=False, indent=4)
                 else:
