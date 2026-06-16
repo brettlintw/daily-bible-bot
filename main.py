@@ -15,7 +15,7 @@ DEFAULT_TARGET_ID = "C8a7777fb460a7ca0479b1b33c82f7a16"
 FIXED_LINE_TOKEN = "vbmdbVqLgc0mlngXz67zuQun7awHSRdPhoqLookibRQQU7jBi8D+bC32nAIBHZfU8S1oy2XCA7Tr6F2pX4tb3JnExgTaoaxhthf7UNyiXNfiFwcpzuvEp4ghMgBbewf39cQE6p9bk02J5Lj2wsKJ0AdB04t89/1O/w1cDnyilFU="
 
 st.set_page_config(page_title="靈修控制台", layout="wide")
-st.title("🛡️ 聖經-LINE推送 V60.5 牧者靈修版")
+st.title("🛡️ 聖經-LINE推送 V60.5 正式版")
 
 # --- 輔助函式 ---
 def load_history():
