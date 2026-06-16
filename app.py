@@ -5,13 +5,21 @@ from linebot.models import MessageEvent, TextMessage, TextSendMessage
 from linebot import LineBotApi
 import os
 import google.generativeai as genai
+import logging
+
+# 設定日誌記錄
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# 確保這些變數在 Render 的 Environment Variables 設定好
+# 初始化設定
 handler = WebhookHandler(os.environ['LINE_CHANNEL_SECRET'])
 line_api = LineBotApi(os.environ['LINE_TOKEN'])
 genai.configure(api_key=os.environ['GEMINI_API_KEY'])
+
+# [優化] 在程式啟動時載入模型，避免每次回應都消耗大量記憶體
+model = genai.GenerativeModel('gemini-2.5-flash')
 
 @app.route("/callback", methods=['POST'])
 def callback():
@@ -26,7 +34,6 @@ def callback():
 @handler.add(MessageEvent)
 def handle_message(event):
     # --- [暴力偵測模式] ---
-    # 使用 print 並配合 flush=True 強制立即輸出至 Render Logs
     if event.source.type == "group":
         print(f"!!! DEBUG_GROUP_ID_FOUND: {event.source.group_id} !!!", flush=True)
     else:
@@ -35,7 +42,7 @@ def handle_message(event):
     # 靈修功能
     if isinstance(event.message, TextMessage) and "靈修" in event.message.text:
         try:
-            model = genai.GenerativeModel('gemini-2.5-flash')
+            # 直接使用全域模型，大幅減少記憶體負擔
             res = model.generate_content("請精選一段聖經經文分享。格式：【經文】；【章節】；【感悟】")
             line_api.reply_message(event.reply_token, TextSendMessage(text=res.text))
         except Exception as e:
