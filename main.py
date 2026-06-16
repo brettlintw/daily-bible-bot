@@ -31,7 +31,6 @@ def get_secret(key_name):
 
 # --- 2. 系統自動配置 ---
 st.sidebar.header("⚙️ 系統鎖定配置")
-# 使用硬編碼 Token 作為預設值
 line_token = st.sidebar.text_input("LINE Token (已自動載入):", value=FIXED_LINE_TOKEN, type="password")
 st.sidebar.success("✅ LINE Token 已寫死並鎖定")
 
@@ -71,17 +70,24 @@ with col1:
             try:
                 genai.configure(api_key=api_key)
                 model = genai.GenerativeModel(selected_model)
+                
                 with st.spinner("🚀 AI 正在領受經文中..."):
                     res = generate_with_retry(model, f"請針對「{theme}」主題分享聖經經文。格式：【經文內容】；【章節】；【感悟】")
                 
-                line_api = LineBotApi(line_token.strip())
-                line_api.push_message(target_id.strip(), TextSendMessage(text=f'【靈修分享】\n\n{res.text.strip()}'))
-                
-                history = load_history()
-                history.insert(0, {"date": datetime.now(TZ_TW).strftime("%Y-%m-%d"), "time": datetime.now(TZ_TW).strftime("%H:%M:%S"), "category": theme, "content": res.text.strip()})
-                with open(DB_FILE, "w", encoding="utf-8") as f:
-                    json.dump(history, f, ensure_ascii=False, indent=4)
-                st.success("✅ 發送成功")
+                # --- [關鍵防禦] 檢查 AI 是否有實際內容產出 ---
+                if res and res.text and len(res.text.strip()) > 0:
+                    line_api = LineBotApi(line_token.strip())
+                    line_api.push_message(target_id.strip(), TextSendMessage(text=f'【靈修分享】\n\n{res.text.strip()}'))
+                    st.success("✅ 發送成功")
+                    
+                    # 紀錄歷史
+                    history = load_history()
+                    history.insert(0, {"date": datetime.now(TZ_TW).strftime("%Y-%m-%d"), "time": datetime.now(TZ_TW).strftime("%H:%M:%S"), "category": theme, "content": res.text.strip()})
+                    with open(DB_FILE, "w", encoding="utf-8") as f:
+                        json.dump(history, f, ensure_ascii=False, indent=4)
+                else:
+                    st.error("❌ AI 未產出內容，請確認 API 金鑰配額是否已耗盡！")
+                        
             except Exception as e:
                 st.error(f"❌ 發送失敗: {str(e)}")
 
