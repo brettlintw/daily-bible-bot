@@ -26,11 +26,11 @@ def main():
         return
     logger.info("【階段 2】環境變數讀取完畢")
 
-    # Gemini 初始化測試 (修正為完整模型路徑)
+    # Gemini 初始化測試 (修正為生產環境可用路徑)
     try:
         genai.configure(api_key=api_key)
-        # 強制使用 models/ 前綴以解決 404 錯誤
-        model = genai.GenerativeModel('models/gemini-1.5-flash')
+        # 強制指定診斷報告中確認可用的生產級路徑
+        model = genai.GenerativeModel('models/gemini-flash-latest')
         logger.info("【階段 3】Gemini 客戶端初始化完成")
         
         # 生成內容
@@ -52,7 +52,7 @@ def main():
         logger.error(f"【階段 5】LINE 推送失敗: {e}")
         return
 
-    # 資料庫更新 (暫不開啟 Git 同步以排除干擾)
+    # 資料庫更新
     data = []
     if os.path.exists(DB_FILE):
         with open(DB_FILE, "r", encoding="utf-8") as f:
@@ -62,7 +62,7 @@ def main():
     data.insert(0, {"date": datetime.now(TZ_TW).strftime("%Y-%m-%d"), "category": "每日靈修", "content": payload})
     with open(DB_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
-    logger.info("【階段 6】程序結束，準備離線")
+    logger.info("【階段 6】程序結束，系統竣工")
 
 if __name__ == "__main__":
     main()
