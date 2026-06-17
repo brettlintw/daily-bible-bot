@@ -7,18 +7,15 @@ import os
 import google.generativeai as genai
 import logging
 
-# 設定日誌記錄
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# 初始化設定
 handler = WebhookHandler(os.environ['LINE_CHANNEL_SECRET'])
 line_api = LineBotApi(os.environ['LINE_TOKEN'])
 genai.configure(api_key=os.environ['GEMINI_API_KEY'])
 
-# [優化] 全域載入模型，減少記憶體波動
 model = genai.GenerativeModel('gemini-2.5-flash')
 
 @app.route("/callback", methods=['POST'])
@@ -33,17 +30,19 @@ def callback():
 
 @handler.add(MessageEvent)
 def handle_message(event):
-    # 讀取環境變數中的目標群組 ID
     TARGET_ID = os.environ.get('TARGET_GROUP_ID')
     
-    # --- [暴力偵測模式] ---
+    # --- [即時發現機制] ---
     if event.source.type == "group":
-        print(f"!!! DEBUG_GROUP_ID_FOUND: {event.source.group_id} !!!", flush=True)
+        captured_id = event.source.group_id
+        # 寫入檔案進行握手，讓 main.py 讀取
+        with open("latest_group_id.txt", "w") as f:
+            f.write(captured_id)
+        print(f"!!! DEBUG_GROUP_ID_FOUND: {captured_id} !!!", flush=True)
     else:
         print(f"!!! DEBUG_EVENT_SOURCE: {event.source.type} !!!", flush=True)
     
     # --- [門禁系統] ---
-    # 若為群組訊息，且 ID 不匹配，則靜默退出
     if event.source.type == "group" and event.source.group_id != TARGET_ID:
         return 
 
