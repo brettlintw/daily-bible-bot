@@ -10,11 +10,11 @@ jobs:
   push_job:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # [關鍵] 賦予寫入權限
+      contents: write # 必須擁有寫入權限
     steps:
       - uses: actions/checkout@v3
         with:
-          token: ${{ secrets.GITHUB_TOKEN }} # [關鍵] 使用內建 Token 進行 Checkout
+          token: ${{ secrets.GITHUB_TOKEN }}
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -26,5 +26,6 @@ jobs:
           LINE_TOKEN: ${{ secrets.LINE_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TARGET_GROUP_ID: ${{ secrets.TARGET_GROUP_ID }}
-          # 這裡不需要 PERSONAL_USER_ID，已根據您的指示移除
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
         run: python daily_push.py
