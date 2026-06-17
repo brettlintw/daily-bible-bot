@@ -3,8 +3,8 @@ import json
 import os
 import random
 import google.generativeai as genai
-from linebot import LineBotApi
-from linebot.models import TextSendMessage
+# --- 升級 v3 導入 ---
+from linebot.v3.messaging import Configuration, ApiClient, MessagingApi, PushMessageRequest, TextMessage
 from datetime import datetime, timezone, timedelta
 from tenacity import retry, stop_after_attempt, wait_exponential
 
@@ -28,22 +28,32 @@ def load_history():
 def get_secret(key_name):
     return st.secrets.get(key_name, os.environ.get(key_name, ""))
 
+# --- [v3] 封裝推送函式 ---
+def send_line_message(target_id, message_text):
+    configuration = Configuration(access_token=get_secret("LINE_TOKEN"))
+    with ApiClient(configuration) as api_client:
+        line_bot_api = MessagingApi(api_client)
+        line_bot_api.push_message(
+            PushMessageRequest(
+                to=target_id,
+                messages=[TextMessage(text=message_text)]
+            )
+        )
+
 # --- 2. 系統自動配置 ---
 st.sidebar.header("⚙️ 系統鎖定配置")
 
-# [新加入] 群組 ID 比對偵測器
 st.sidebar.subheader("🔍 群組 ID 比對偵測器")
 if os.path.exists(ID_FILE):
     with open(ID_FILE, "r") as f:
         detected_id = f.read().strip()
         st.sidebar.info(f"偵測到的群組 ID:\n{detected_id}")
 else:
-    st.sidebar.warning("尚未捕獲到群組 ID，請在群組發送『靈修』指令。")
+    st.sidebar.warning("尚未捕獲到群組 ID。")
 
 line_token = st.sidebar.text_input("LINE Token:", value=get_secret("LINE_TOKEN"), type="password")
 st.sidebar.success("✅ LINE Token 已載入")
 
-# 從環境變數獲取模型，若無則預設
 model_name = get_secret("GEMINI_MODEL_NAME") or "models/gemini-flash-latest"
 st.sidebar.info(f"當前 AI 模型: {model_name}")
 
@@ -73,11 +83,10 @@ if st.button("執行推送"):
             
             if res and res.text:
                 payload = res.text.strip()
-                line_api = LineBotApi(line_token.strip())
-                line_api.push_message(target_id.strip(), TextSendMessage(text=f'【每日靈修】\n\n{payload}'))
+                # 使用 v3 升級後的函式
+                send_line_message(target_id.strip(), f'【每日靈修】\n\n{payload}')
                 st.success(f"✅ 發送成功 (主題: {chosen_theme})")
                 
-                # 紀錄歷史
                 history = load_history()
                 history.insert(0, {"date": datetime.now(TZ_TW).strftime("%Y-%m-%d"), "time": datetime.now(TZ_TW).strftime("%H:%M:%S"), "category": f"手動-{chosen_theme}", "content": payload})
                 with open(DB_FILE, "w", encoding="utf-8") as f:
@@ -85,7 +94,7 @@ if st.button("執行推送"):
             else:
                 st.error("❌ AI 未產出內容！")
         except Exception as e:
-            st.error(f"❌ 系統故障: {str(e)}")
+            st.error(f"❌ 系統故障 (v3 API): {str(e)}")
 
 # --- 4. 歷史管理 ---
 st.subheader("📚 歷史經文典藏管理庫")
