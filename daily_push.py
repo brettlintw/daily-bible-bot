@@ -2,7 +2,6 @@ import os
 import json
 import random
 import logging
-import subprocess
 from datetime import datetime, timezone, timedelta
 import google.generativeai as genai
 from linebot import LineBotApi
@@ -12,7 +11,7 @@ from linebot.models import TextSendMessage
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# 使用絕對路徑確保操作明確
+# 使用絕對路徑
 BASE_DIR = os.getcwd()
 DB_FILE = os.path.join(BASE_DIR, "bible_history.json")
 TZ_TW = timezone(timedelta(hours=8))
@@ -58,27 +57,7 @@ def main():
     data.insert(0, {"date": datetime.now(TZ_TW).strftime("%Y-%m-%d"), "time": datetime.now(TZ_TW).strftime("%H:%M:%S"), "category": "每日靈修", "content": payload})
     with open(DB_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
-    logger.info("【階段 6】資料庫已本地更新")
-
-    # 4. 防禦性 Git 同步 (解決 SIGABRT 鎖定問題)
-    try:
-        subprocess.run(["git", "config", "--global", "user.name", "github-actions[bot]"], check=True)
-        subprocess.run(["git", "config", "--global", "user.email", "github-actions[bot]@users.noreply.github.com"], check=True)
-        
-        # 只對目標檔案進行操作
-        subprocess.run(["git", "add", "bible_history.json"], check=True)
-        
-        # 檢測是否有實際變更，避免無效 Commit 引發錯誤
-        check_diff = subprocess.run(["git", "diff", "--cached", "--quiet"], capture_output=True)
-        if check_diff.returncode != 0:
-            subprocess.run(["git", "commit", "-m", "Auto-sync bible history"], check=True)
-            remote_url = f"https://x-access-token:{os.environ.get('GITHUB_TOKEN')}@github.com/{os.environ.get('GITHUB_REPOSITORY')}.git"
-            subprocess.run(["git", "push", remote_url, "HEAD:main", "--force"], check=True)
-            logger.info("【階段 7】Git 同步成功")
-        else:
-            logger.info("【階段 7】無新資料，跳過 Git 同步")
-    except Exception as e:
-        logger.error(f"❌ Git 同步策略調整後仍發生異常: {e}")
+    logger.info("【階段 6】資料庫已本地更新，準備退出")
 
 if __name__ == "__main__":
     main()
