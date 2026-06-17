@@ -4,6 +4,7 @@ import random
 import subprocess
 import shutil
 import logging
+import re
 from datetime import datetime, timezone, timedelta
 import google.generativeai as genai
 from linebot import LineBotApi
@@ -30,10 +31,18 @@ def main():
         logger.error("❌ 未設定 TARGET_GROUP_ID 環境變數")
         return
 
-    # 1. 初始化 (改回標準 .strip()，並切換至穩定的 gemini-1.5-flash)
-    genai.configure(api_key=os.environ.get('GEMINI_API_KEY', '').strip())
+    # 1. 初始化與零信任清洗
+    # 使用正規表示法只保留標準 Base64/API 字符，徹底剔除所有隱形垃圾字元
+    raw_api_key = os.environ.get('GEMINI_API_KEY', '')
+    raw_line_token = os.environ.get('LINE_TOKEN', '')
+    
+    clean_api_key = re.sub(r'[^a-zA-Z0-9._\-]', '', raw_api_key)
+    clean_line_token = re.sub(r'[^a-zA-Z0-9+/=]', '', raw_line_token)
+    
+    genai.configure(api_key=clean_api_key)
+    # 切換至 gemini-1.5-flash 以確保穩定性
     model = genai.GenerativeModel('gemini-1.5-flash')
-    line_api = LineBotApi(os.environ.get('LINE_TOKEN', '').strip())
+    line_api = LineBotApi(clean_line_token)
 
     # 2. 生成內容
     themes = ["安慰", "力量", "盼望", "智慧", "愛與饒恕", "平安", "信心"]
@@ -45,8 +54,7 @@ def main():
         payload = res.text.strip()
         logger.info(f"成功生成主題: {chosen_theme}")
     except Exception as e:
-        error_msg = f"❌ Gemini 系統故障: {e}"
-        logger.error(error_msg)
+        logger.error(f"❌ Gemini 系統故障: {e}")
         return
 
     # 3. 推送至群組
@@ -54,7 +62,7 @@ def main():
         line_api.push_message(TARGET_GROUP_ID.strip(), TextSendMessage(text=f'【每日靈修】\n\n{payload}'))
         logger.info("成功推送至 LINE 群組")
     except Exception as e:
-        logger.error(f"❌ LINE 推送失敗 (ID: {TARGET_GROUP_ID}): {e}")
+        logger.error(f"❌ LINE 推送失敗: {e}")
         return
 
     # 4. 資料庫更新
