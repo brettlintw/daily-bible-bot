@@ -30,17 +30,10 @@ def main():
         logger.error("❌ 未設定 TARGET_GROUP_ID 環境變數")
         return
 
-    # 1. 初始化與強效清洗
-    # 使用 isprintable() 過濾所有不可見控制字元，防止 HTTP Header 錯誤
-    raw_api_key = os.environ.get('GEMINI_API_KEY', '').strip()
-    raw_line_token = os.environ.get('LINE_TOKEN', '').strip()
-    
-    clean_api_key = "".join(c for c in raw_api_key if c.isprintable())
-    clean_line_token = "".join(c for c in raw_line_token if c.isprintable())
-    
-    genai.configure(api_key=clean_api_key)
-    model = genai.GenerativeModel('gemini-2.5-flash')
-    line_api = LineBotApi(clean_line_token)
+    # 1. 初始化 (改回標準 .strip()，並切換至穩定的 gemini-1.5-flash)
+    genai.configure(api_key=os.environ.get('GEMINI_API_KEY', '').strip())
+    model = genai.GenerativeModel('gemini-1.5-flash')
+    line_api = LineBotApi(os.environ.get('LINE_TOKEN', '').strip())
 
     # 2. 生成內容
     themes = ["安慰", "力量", "盼望", "智慧", "愛與饒恕", "平安", "信心"]
@@ -82,7 +75,7 @@ def main():
         json.dump(data, f, ensure_ascii=False, indent=4)
     shutil.move(DB_FILE + ".tmp", DB_FILE)
 
-    # 5. Git 自動同步 (強化身份宣告)
+    # 5. Git 自動同步 (身份宣告與安全推送)
     try:
         subprocess.run(["git", "config", "--global", "user.name", "github-actions[bot]"], check=True)
         subprocess.run(["git", "config", "--global", "user.email", "github-actions[bot]@users.noreply.github.com"], check=True)
@@ -92,7 +85,6 @@ def main():
         status = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True)
         if DB_FILE in status.stdout:
             subprocess.run(["git", "commit", "-m", "Auto-sync bible history"], check=True)
-            # 使用 Token URL 進行安全推送
             remote_url = f"https://x-access-token:{os.environ.get('GITHUB_TOKEN')}@github.com/{os.environ.get('GITHUB_REPOSITORY')}.git"
             subprocess.run(["git", "push", remote_url, "main"], check=True)
             logger.info("歷史紀錄已成功同步至 GitHub")
