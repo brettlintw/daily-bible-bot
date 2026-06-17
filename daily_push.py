@@ -1,6 +1,7 @@
 import os
 import json
 import random
+import subprocess
 import logging
 from datetime import datetime, timezone, timedelta
 import google.generativeai as genai
@@ -11,8 +12,9 @@ from linebot.models import TextSendMessage
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# 確保檔案路徑正確指向當前工作目錄
-DB_FILE = os.path.join(os.getcwd(), "bible_history.json")
+# 使用絕對路徑
+BASE_DIR = os.getcwd()
+DB_FILE = os.path.join(BASE_DIR, "bible_history.json")
 TZ_TW = timezone(timedelta(hours=8))
 
 def main():
@@ -25,48 +27,52 @@ def main():
     if not all([target_id, api_key, line_token]):
         logger.error("❌ 環境變數缺失")
         return
-    logger.info("【階段 2】環境變數讀取完畢")
 
-    # 1. Gemini 初始化
+    # 1. Gemini 生成
     try:
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel('models/gemini-flash-latest')
-        logger.info("【階段 3】Gemini 客戶端初始化完成")
-        
         themes = ["安慰", "力量", "盼望", "智慧", "愛與饒恕", "平安", "信心"]
         prompt = f"請針對主題「{random.choice(themes)}」，精選一段聖經經文。格式：【內容】；【章節】；【領受】。"
         res = model.generate_content(prompt)
         payload = res.text.strip()
-        logger.info("【階段 4】Gemini 連線成功且內容生成完成")
     except Exception as e:
-        logger.error(f"【階段 4】Gemini 故障: {e}")
+        logger.error(f"❌ Gemini 故障: {e}")
         return
 
     # 2. LINE 推送
     try:
         line_api = LineBotApi(line_token)
         line_api.push_message(target_id, TextSendMessage(text=f'【每日靈修】\n\n{payload}'))
-        logger.info("【階段 5】LINE 推送完成")
     except Exception as e:
-        logger.error(f"【階段 5】LINE 推送失敗: {e}")
+        logger.error(f"❌ LINE 推送失敗: {e}")
         return
 
-    # 3. 資料庫更新 (強制寫入與 UI 同步)
+    # 3. 資料庫更新
+    data = []
+    if os.path.exists(DB_FILE):
+        with open(DB_FILE, "r", encoding="utf-8") as f:
+            try: data = json.load(f)
+            except: data = []
+    
+    data.insert(0, {"date": datetime.now(TZ_TW).strftime("%Y-%m-%d"), "time": datetime.now(TZ_TW).strftime("%H:%M:%S"), "category": "每日靈修", "content": payload})
+    with open(DB_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
+    logger.info("【階段 6】資料庫已本地更新")
+
+    # 4. 強制 Git 同步
     try:
-        data = []
-        if os.path.exists(DB_FILE):
-            with open(DB_FILE, "r", encoding="utf-8") as f:
-                try: data = json.load(f)
-                except: data = []
+        subprocess.run(["git", "config", "--global", "user.name", "github-actions[bot]"], check=True)
+        subprocess.run(["git", "config", "--global", "user.email", "github-actions[bot]@users.noreply.github.com"], check=True)
+        subprocess.run(["git", "add", DB_FILE], check=True)
+        subprocess.run(["git", "commit", "-m", "Auto-sync bible history"], check=True)
         
-        data.insert(0, {"date": datetime.now(TZ_TW).strftime("%Y-%m-%d"), "category": "每日靈修", "content": payload})
-        
-        # 強制寫入並確保 Streamlit 能立即讀取
-        with open(DB_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
-        logger.info("【階段 6】資料庫已於伺服器本地寫入，UI 應同步更新")
+        remote_url = f"https://x-access-token:{os.environ.get('GITHUB_TOKEN')}@github.com/{os.environ.get('GITHUB_REPOSITORY')}.git"
+        # 使用 HEAD:main 強制將當前提交推送到 main 分支
+        subprocess.run(["git", "push", remote_url, "HEAD:main", "--force"], check=True)
+        logger.info("【階段 7】Git 同步成功，UI 將同步更新")
     except Exception as e:
-        logger.error(f"【階段 6】資料庫寫入失敗: {e}")
+        logger.error(f"❌ Git 同步失敗: {e}")
 
 if __name__ == "__main__":
     main()
