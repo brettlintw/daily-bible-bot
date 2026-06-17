@@ -26,15 +26,21 @@ def call_gemini_with_retry(model, prompt):
 def main():
     logger.info("啟動每日靈修推播程序...")
     
-    # 檢查目標 ID 是否載入
     if not TARGET_GROUP_ID:
         logger.error("❌ 未設定 TARGET_GROUP_ID 環境變數")
         return
 
-    # 1. 初始化 (強制使用 strip() 清洗潛在雜訊)
-    genai.configure(api_key=os.environ['GEMINI_API_KEY'].strip())
+    # 1. 初始化與強效清洗
+    # 使用 isprintable() 過濾所有不可見控制字元，防止 HTTP Header 錯誤
+    raw_api_key = os.environ.get('GEMINI_API_KEY', '').strip()
+    raw_line_token = os.environ.get('LINE_TOKEN', '').strip()
+    
+    clean_api_key = "".join(c for c in raw_api_key if c.isprintable())
+    clean_line_token = "".join(c for c in raw_line_token if c.isprintable())
+    
+    genai.configure(api_key=clean_api_key)
     model = genai.GenerativeModel('gemini-2.5-flash')
-    line_api = LineBotApi(os.environ['LINE_TOKEN'].strip())
+    line_api = LineBotApi(clean_line_token)
 
     # 2. 生成內容
     themes = ["安慰", "力量", "盼望", "智慧", "愛與饒恕", "平安", "信心"]
@@ -48,7 +54,6 @@ def main():
     except Exception as e:
         error_msg = f"❌ Gemini 系統故障: {e}"
         logger.error(error_msg)
-        line_api.push_message(os.environ.get('PERSONAL_USER_ID'), TextSendMessage(text=f"⚠️ {error_msg}"))
         return
 
     # 3. 推送至群組
@@ -79,7 +84,6 @@ def main():
 
     # 5. Git 自動同步 (強化身份宣告)
     try:
-        # 強制宣告 Git 身份，避免自動化流程卡住
         subprocess.run(["git", "config", "--global", "user.name", "github-actions[bot]"], check=True)
         subprocess.run(["git", "config", "--global", "user.email", "github-actions[bot]@users.noreply.github.com"], check=True)
         
