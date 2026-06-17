@@ -4,7 +4,6 @@ import random
 import subprocess
 import shutil
 import logging
-import re
 from datetime import datetime, timezone, timedelta
 import google.generativeai as genai
 from linebot import LineBotApi
@@ -22,7 +21,8 @@ TARGET_GROUP_ID = os.environ.get('TARGET_GROUP_ID')
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
 def call_gemini_with_retry(model, prompt):
-    return model.generate_content(prompt, generation_config=genai.types.GenerationConfig(temperature=0.8))
+    # 移除 generation_config，使用預設值以避免 InvalidArgument 錯誤
+    return model.generate_content(prompt)
 
 def main():
     logger.info("啟動每日靈修推播程序...")
@@ -31,18 +31,11 @@ def main():
         logger.error("❌ 未設定 TARGET_GROUP_ID 環境變數")
         return
 
-    # 1. 初始化與零信任清洗
-    # 使用正規表示法只保留標準 Base64/API 字符，徹底剔除所有隱形垃圾字元
-    raw_api_key = os.environ.get('GEMINI_API_KEY', '')
-    raw_line_token = os.environ.get('LINE_TOKEN', '')
-    
-    clean_api_key = re.sub(r'[^a-zA-Z0-9._\-]', '', raw_api_key)
-    clean_line_token = re.sub(r'[^a-zA-Z0-9+/=]', '', raw_line_token)
-    
-    genai.configure(api_key=clean_api_key)
-    # 切換至 gemini-1.5-flash 以確保穩定性
+    # 1. 初始化 (使用標準 strip() 確保 Token 清潔)
+    genai.configure(api_key=os.environ.get('GEMINI_API_KEY', '').strip())
+    # 切換至 gemini-1.5-flash，確保與現有 SDK 的最佳兼容性
     model = genai.GenerativeModel('gemini-1.5-flash')
-    line_api = LineBotApi(clean_line_token)
+    line_api = LineBotApi(os.environ.get('LINE_TOKEN', '').strip())
 
     # 2. 生成內容
     themes = ["安慰", "力量", "盼望", "智慧", "愛與饒恕", "平安", "信心"]
