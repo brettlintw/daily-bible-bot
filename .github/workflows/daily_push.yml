@@ -2,13 +2,15 @@ name: Daily Push
 
 on:
   schedule:
-    - cron: '0 0 * * *'
-    - cron: '20 9 * * *'
+    - cron: '0 0 * * *'  # 每日 08:00 (UTC+8)
+    - cron: '20 9 * * *' # 每日 17:20 (UTC+8)
   workflow_dispatch: # 允許您在 GitHub 頁面手動點擊執行測試
 
 jobs:
   push_job:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # 必須賦予寫入權限，才能讓 Git 同步歷史紀錄
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python
@@ -21,5 +23,8 @@ jobs:
         env:
           LINE_TOKEN: ${{ secrets.LINE_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TARGET_GROUP_ID: ${{ secrets.TARGET_GROUP_ID }}
           PERSONAL_USER_ID: ${{ secrets.PERSONAL_USER_ID }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 這是給 Git 自動同步用的
+          GITHUB_REPOSITORY: ${{ github.repository }} # 自動抓取您的倉庫名稱
         run: python daily_push.py
