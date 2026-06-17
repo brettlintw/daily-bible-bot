@@ -17,7 +17,6 @@ logger = logging.getLogger(__name__)
 # --- 設定 ---
 DB_FILE = "bible_history.json"
 TZ_TW = timezone(timedelta(hours=8))
-# 修正：改為使用 TARGET_GROUP_ID
 TARGET_GROUP_ID = os.environ.get('TARGET_GROUP_ID')
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
@@ -32,10 +31,10 @@ def main():
         logger.error("❌ 未設定 TARGET_GROUP_ID 環境變數")
         return
 
-    # 1. 初始化
-    genai.configure(api_key=os.environ['GEMINI_API_KEY'])
+    # 1. 初始化 (強制使用 strip() 清洗潛在雜訊)
+    genai.configure(api_key=os.environ['GEMINI_API_KEY'].strip())
     model = genai.GenerativeModel('gemini-2.5-flash')
-    line_api = LineBotApi(os.environ['LINE_TOKEN'])
+    line_api = LineBotApi(os.environ['LINE_TOKEN'].strip())
 
     # 2. 生成內容
     themes = ["安慰", "力量", "盼望", "智慧", "愛與饒恕", "平安", "信心"]
@@ -49,13 +48,12 @@ def main():
     except Exception as e:
         error_msg = f"❌ Gemini 系統故障: {e}"
         logger.error(error_msg)
-        # 若失敗則嘗試推播給個人帳號 (需額外設定 PERSONAL_USER_ID)
         line_api.push_message(os.environ.get('PERSONAL_USER_ID'), TextSendMessage(text=f"⚠️ {error_msg}"))
         return
 
-    # 3. 推送至群組 (修正：使用 TARGET_GROUP_ID)
+    # 3. 推送至群組
     try:
-        line_api.push_message(TARGET_GROUP_ID, TextSendMessage(text=f'【每日靈修】\n\n{payload}'))
+        line_api.push_message(TARGET_GROUP_ID.strip(), TextSendMessage(text=f'【每日靈修】\n\n{payload}'))
         logger.info("成功推送至 LINE 群組")
     except Exception as e:
         logger.error(f"❌ LINE 推送失敗 (ID: {TARGET_GROUP_ID}): {e}")
@@ -79,16 +77,18 @@ def main():
         json.dump(data, f, ensure_ascii=False, indent=4)
     shutil.move(DB_FILE + ".tmp", DB_FILE)
 
-    # 5. Git 自動同步 (修正：加入 --quiet 避免權限提示卡住)
+    # 5. Git 自動同步 (強化身份宣告)
     try:
-        subprocess.run(["git", "config", "--global", "user.name", "github-actions"], check=True)
-        subprocess.run(["git", "config", "--global", "user.email", "github-actions@github.com"], check=True)
+        # 強制宣告 Git 身份，避免自動化流程卡住
+        subprocess.run(["git", "config", "--global", "user.name", "github-actions[bot]"], check=True)
+        subprocess.run(["git", "config", "--global", "user.email", "github-actions[bot]@users.noreply.github.com"], check=True)
+        
         subprocess.run(["git", "add", DB_FILE], check=True)
         
         status = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True)
         if DB_FILE in status.stdout:
             subprocess.run(["git", "commit", "-m", "Auto-sync bible history"], check=True)
-            # 使用包含 token 的 URL 推送，避免互動式輸入問題
+            # 使用 Token URL 進行安全推送
             remote_url = f"https://x-access-token:{os.environ.get('GITHUB_TOKEN')}@github.com/{os.environ.get('GITHUB_REPOSITORY')}.git"
             subprocess.run(["git", "push", remote_url, "main"], check=True)
             logger.info("歷史紀錄已成功同步至 GitHub")
