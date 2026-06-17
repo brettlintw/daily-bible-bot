@@ -10,6 +10,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 
 # --- 1. 設定區 ---
 DB_FILE = "bible_history.json"
+ID_FILE = "latest_group_id.txt"
 TZ_TW = timezone(timedelta(hours=8))
 DEFAULT_TARGET_ID = "C8a7777fb460a7ca0479b1b33c82f7a16"
 
@@ -29,6 +30,16 @@ def get_secret(key_name):
 
 # --- 2. 系統自動配置 ---
 st.sidebar.header("⚙️ 系統鎖定配置")
+
+# [新加入] 群組 ID 比對偵測器
+st.sidebar.subheader("🔍 群組 ID 比對偵測器")
+if os.path.exists(ID_FILE):
+    with open(ID_FILE, "r") as f:
+        detected_id = f.read().strip()
+        st.sidebar.info(f"偵測到的群組 ID:\n{detected_id}")
+else:
+    st.sidebar.warning("尚未捕獲到群組 ID，請在群組發送『靈修』指令。")
+
 line_token = st.sidebar.text_input("LINE Token:", value=get_secret("LINE_TOKEN"), type="password")
 st.sidebar.success("✅ LINE Token 已載入")
 
