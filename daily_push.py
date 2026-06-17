@@ -22,6 +22,8 @@ def main():
     target_id = os.environ.get('TARGET_GROUP_ID', '').strip()
     api_key = os.environ.get('GEMINI_API_KEY', '').strip()
     line_token = os.environ.get('LINE_TOKEN', '').strip()
+    # 讀取剛剛設定的 Secret
+    model_name = os.environ.get('GEMINI_MODEL_NAME', 'models/gemini-flash-latest')
     
     if not all([target_id, api_key, line_token]):
         logger.error("❌ 環境變數缺失")
@@ -30,7 +32,7 @@ def main():
     # 1. Gemini 生成
     try:
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('models/gemini-flash-latest')
+        model = genai.GenerativeModel(model_name) # 動態模型宣告
         themes = ["安慰", "力量", "盼望", "智慧", "愛與饒恕", "平安", "信心"]
         prompt = f"請針對主題「{random.choice(themes)}」，精選一段聖經經文。格式：【內容】；【章節】；【領受】。"
         res = model.generate_content(prompt)
