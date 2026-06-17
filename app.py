@@ -18,7 +18,7 @@ handler = WebhookHandler(os.environ['LINE_CHANNEL_SECRET'])
 line_api = LineBotApi(os.environ['LINE_TOKEN'])
 genai.configure(api_key=os.environ['GEMINI_API_KEY'])
 
-# [優化] 在程式啟動時載入模型，避免每次回應都消耗大量記憶體
+# [優化] 全域載入模型，減少記憶體波動
 model = genai.GenerativeModel('gemini-2.5-flash')
 
 @app.route("/callback", methods=['POST'])
@@ -33,16 +33,23 @@ def callback():
 
 @handler.add(MessageEvent)
 def handle_message(event):
+    # 讀取環境變數中的目標群組 ID
+    TARGET_ID = os.environ.get('TARGET_GROUP_ID')
+    
     # --- [暴力偵測模式] ---
     if event.source.type == "group":
         print(f"!!! DEBUG_GROUP_ID_FOUND: {event.source.group_id} !!!", flush=True)
     else:
         print(f"!!! DEBUG_EVENT_SOURCE: {event.source.type} !!!", flush=True)
     
+    # --- [門禁系統] ---
+    # 若為群組訊息，且 ID 不匹配，則靜默退出
+    if event.source.type == "group" and event.source.group_id != TARGET_ID:
+        return 
+
     # 靈修功能
     if isinstance(event.message, TextMessage) and "靈修" in event.message.text:
         try:
-            # 直接使用全域模型，大幅減少記憶體負擔
             res = model.generate_content("請精選一段聖經經文分享。格式：【經文】；【章節】；【感悟】")
             line_api.reply_message(event.reply_token, TextSendMessage(text=res.text))
         except Exception as e:
