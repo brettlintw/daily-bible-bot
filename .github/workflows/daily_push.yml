@@ -4,28 +4,35 @@ on:
   schedule:
     - cron: '0 0 * * *'
     - cron: '20 9 * * *'
-  workflow_dispatch: 
+  workflow_dispatch: # 允許您在 GitHub 頁面手動點擊執行測試
 
 jobs:
   push_job:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # 必須擁有寫入權限
+      contents: write # 必須授予寫入權限，否則無法進行自動提交
+    
     steps:
-      - uses: actions/checkout@v3
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
+
       - name: Install dependencies
         run: pip install line-bot-sdk google-generativeai tenacity
-      - name: Run script
+
+      - name: Run Python Script
         env:
           LINE_TOKEN: ${{ secrets.LINE_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TARGET_GROUP_ID: ${{ secrets.TARGET_GROUP_ID }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
         run: python daily_push.py
+
+      - name: Auto-Commit Changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Auto-sync bible history"
+          file_pattern: 'bible_history.json'
