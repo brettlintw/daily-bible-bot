@@ -11,7 +11,8 @@ from linebot.models import TextSendMessage
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-DB_FILE = "bible_history.json"
+# 確保檔案路徑正確指向當前工作目錄
+DB_FILE = os.path.join(os.getcwd(), "bible_history.json")
 TZ_TW = timezone(timedelta(hours=8))
 
 def main():
@@ -26,14 +27,12 @@ def main():
         return
     logger.info("【階段 2】環境變數讀取完畢")
 
-    # Gemini 初始化測試 (修正為生產環境可用路徑)
+    # 1. Gemini 初始化
     try:
         genai.configure(api_key=api_key)
-        # 強制指定診斷報告中確認可用的生產級路徑
         model = genai.GenerativeModel('models/gemini-flash-latest')
         logger.info("【階段 3】Gemini 客戶端初始化完成")
         
-        # 生成內容
         themes = ["安慰", "力量", "盼望", "智慧", "愛與饒恕", "平安", "信心"]
         prompt = f"請針對主題「{random.choice(themes)}」，精選一段聖經經文。格式：【內容】；【章節】；【領受】。"
         res = model.generate_content(prompt)
@@ -43,7 +42,7 @@ def main():
         logger.error(f"【階段 4】Gemini 故障: {e}")
         return
 
-    # LINE 推送
+    # 2. LINE 推送
     try:
         line_api = LineBotApi(line_token)
         line_api.push_message(target_id, TextSendMessage(text=f'【每日靈修】\n\n{payload}'))
@@ -52,17 +51,22 @@ def main():
         logger.error(f"【階段 5】LINE 推送失敗: {e}")
         return
 
-    # 資料庫更新
-    data = []
-    if os.path.exists(DB_FILE):
-        with open(DB_FILE, "r", encoding="utf-8") as f:
-            try: data = json.load(f)
-            except: data = []
-    
-    data.insert(0, {"date": datetime.now(TZ_TW).strftime("%Y-%m-%d"), "category": "每日靈修", "content": payload})
-    with open(DB_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
-    logger.info("【階段 6】程序結束，系統竣工")
+    # 3. 資料庫更新 (強制寫入與 UI 同步)
+    try:
+        data = []
+        if os.path.exists(DB_FILE):
+            with open(DB_FILE, "r", encoding="utf-8") as f:
+                try: data = json.load(f)
+                except: data = []
+        
+        data.insert(0, {"date": datetime.now(TZ_TW).strftime("%Y-%m-%d"), "category": "每日靈修", "content": payload})
+        
+        # 強制寫入並確保 Streamlit 能立即讀取
+        with open(DB_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+        logger.info("【階段 6】資料庫已於伺服器本地寫入，UI 應同步更新")
+    except Exception as e:
+        logger.error(f"【階段 6】資料庫寫入失敗: {e}")
 
 if __name__ == "__main__":
     main()
