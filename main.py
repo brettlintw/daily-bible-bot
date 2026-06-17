@@ -11,10 +11,8 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 # --- 1. 設定區 ---
 DB_FILE = "bible_history.json"
 TZ_TW = timezone(timedelta(hours=8))
-
-# [修正] 改為從環境變數讀取，若讀不到則回退到預設值，確保程式不會崩潰
+# 從環境變數讀取 (工業級配置)，若未設定則 fallback 到預設 ID
 TARGET_GROUP_ID = os.environ.get('TARGET_GROUP_ID', "C8a7777fb460a7ca0479b1b33c82f7a16")
-
 FIXED_LINE_TOKEN = "vbmdbVqLgc0mlngXz67zuQun7awHSRdPhoqLookibRQQU7jBi8D+bC32nAIBHZfU8S1oy2XCA7Tr6F2pX4tb3JnExgTaoaxhthf7UNyiXNfiFwcpzuvEp4ghMgBbewf39cQE6p9bk02J5Lj2wsKJ0AdB04t89/1O/w1cDnyilFU="
 
 st.set_page_config(page_title="靈修控制台", layout="wide")
@@ -31,10 +29,27 @@ def load_history():
 def get_secret(key_name):
     return st.secrets.get(key_name, os.environ.get(key_name, ""))
 
-# --- 2. 系統自動配置 ---
+# --- 2. 系統側邊欄 (ID 偵測器) ---
 st.sidebar.header("⚙️ 系統鎖定配置")
 line_token = st.sidebar.text_input("LINE Token (已自動載入):", value=FIXED_LINE_TOKEN, type="password")
 st.sidebar.success("✅ LINE Token 已鎖定")
+
+# ID 比對偵測器
+st.sidebar.markdown("---")
+st.sidebar.subheader("🔍 群組 ID 比對偵測器")
+st.sidebar.info(f"系統設定 ID: `{TARGET_GROUP_ID}`")
+
+if os.path.exists("latest_group_id.txt"):
+    with open("latest_group_id.txt", "r") as f:
+        latest_captured_id = f.read().strip()
+    st.sidebar.warning(f"最近捕捉 ID: `{latest_captured_id}`")
+    
+    if TARGET_GROUP_ID != latest_captured_id:
+        st.sidebar.error("⚠️ ID 不一致！請確認群組狀態並更新環境變數。")
+    else:
+        st.sidebar.success("✅ ID 狀態同步一致。")
+else:
+    st.sidebar.write("尚無捕捉紀錄，請在群組發送訊息。")
 
 api_key_options = {f"🔑 金鑰 #{i}": get_secret(f"GEMINI_API_KEY{'' if i==1 else '_'+str(i)}") 
                    for i in range(1, 6) if get_secret(f"GEMINI_API_KEY{'' if i==1 else '_'+str(i)}")}
@@ -57,7 +72,6 @@ def generate_with_retry(model, prompt):
     return model.generate_content(prompt, generation_config=genai.types.GenerationConfig(temperature=0.8))
 
 st.subheader("🚀 手動精準推送")
-# [修正] UI 預設值直接顯示為環境變數讀取到的 ID
 target_id = st.text_input("目標 UserID / 群組 ID", value=TARGET_GROUP_ID)
 
 if st.button("執行推送"):
