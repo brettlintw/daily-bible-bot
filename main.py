@@ -8,10 +8,13 @@ from linebot.models import TextSendMessage
 from datetime import datetime, timezone, timedelta
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-# --- 1. 設定區 (Token 已硬編碼) ---
+# --- 1. 設定區 ---
 DB_FILE = "bible_history.json"
 TZ_TW = timezone(timedelta(hours=8))
-DEFAULT_TARGET_ID = "C8a7777fb460a7ca0479b1b33c82f7a16"
+
+# [修正] 改為從環境變數讀取，若讀不到則回退到預設值，確保程式不會崩潰
+TARGET_GROUP_ID = os.environ.get('TARGET_GROUP_ID', "C8a7777fb460a7ca0479b1b33c82f7a16")
+
 FIXED_LINE_TOKEN = "vbmdbVqLgc0mlngXz67zuQun7awHSRdPhoqLookibRQQU7jBi8D+bC32nAIBHZfU8S1oy2XCA7Tr6F2pX4tb3JnExgTaoaxhthf7UNyiXNfiFwcpzuvEp4ghMgBbewf39cQE6p9bk02J5Lj2wsKJ0AdB04t89/1O/w1cDnyilFU="
 
 st.set_page_config(page_title="靈修控制台", layout="wide")
@@ -51,11 +54,11 @@ else:
 # --- 3. 靈修推送核心邏輯 ---
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
 def generate_with_retry(model, prompt):
-    # 使用溫度 0.8 以保持牧者口吻的溫暖與靈動
     return model.generate_content(prompt, generation_config=genai.types.GenerationConfig(temperature=0.8))
 
 st.subheader("🚀 手動精準推送")
-target_id = st.text_input("目標 UserID / 群組 ID", value=DEFAULT_TARGET_ID)
+# [修正] UI 預設值直接顯示為環境變數讀取到的 ID
+target_id = st.text_input("目標 UserID / 群組 ID", value=TARGET_GROUP_ID)
 
 if st.button("執行推送"):
     if not target_id.strip():
@@ -65,7 +68,6 @@ if st.button("執行推送"):
             genai.configure(api_key=api_key)
             model = genai.GenerativeModel(selected_model)
             
-            # --- [牧者靈修 Prompt 邏輯] ---
             themes = ["安慰", "力量", "盼望", "智慧", "愛與饒恕", "平安", "信心"]
             chosen_theme = random.choice(themes)
             prompt = f"你是溫柔牧者。請針對主題「{chosen_theme}」，精選一段聖經經文。格式：【經文內容】(阿們。)；【章節】；【領受與感悟】。"
@@ -75,14 +77,12 @@ if st.button("執行推送"):
             
             if res and res.text and len(res.text.strip()) > 0:
                 payload = res.text.strip()
-                # 強制截斷以符合 LINE 規範
                 content_to_send = payload[:1950] + "\n...(內容過長已截斷)" if len(payload) > 2000 else payload
                 
                 line_api = LineBotApi(line_token.strip())
                 line_api.push_message(target_id.strip(), TextSendMessage(text=f'【靈修分享】\n\n{content_to_send}'))
                 st.success(f"✅ 發送成功 (主題: {chosen_theme})")
                 
-                # 紀錄歷史
                 history = load_history()
                 history.insert(0, {"date": datetime.now(TZ_TW).strftime("%Y-%m-%d"), "time": datetime.now(TZ_TW).strftime("%H:%M:%S"), "category": f"手動-{chosen_theme}", "content": content_to_send})
                 with open(DB_FILE, "w", encoding="utf-8") as f:
