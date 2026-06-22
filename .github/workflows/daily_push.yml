@@ -3,7 +3,6 @@ name: Daily Push
 on:
   schedule:
     - cron: '0 0 * * *'
-    - cron: '20 9 * * *'
   workflow_dispatch: # 允許您在 GitHub 頁面手動點擊執行測試
 
 jobs:
