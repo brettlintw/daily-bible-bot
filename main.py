@@ -35,32 +35,35 @@ def generate_pdf(data):
     html_content = """
     <html>
     <head>
+        <meta charset="UTF-8">
         <style>
             @font-face {
                 font-family: 'NotoSansTC';
                 src: url('https://fonts.gstatic.com/ea/notosanstc/v1/NotoSansTC-Regular.otf');
             }
-            body { font-family: 'NotoSansTC'; font-size: 14px; line-height: 1.6; }
-            h1 { text-align: center; }
-            .entry { border-bottom: 1px solid #ccc; margin-bottom: 15px; padding: 10px; }
-            .meta { color: #555; font-size: 12px; }
+            body { font-family: 'NotoSansTC', sans-serif; font-size: 14px; }
+            .entry { border-bottom: 1px solid #ccc; margin-bottom: 15px; }
         </style>
     </head>
     <body>
         <h1>靈修歷史紀錄</h1>
     """
     for h in data:
+        # 確保內容完全以 UTF-8 處理
         content = h.get('content', '無內容').replace('\n', '<br/>')
         html_content += f"""
         <div class='entry'>
-            <div class='meta'>{h.get('date')} {h.get('time')} | {h.get('category')}</div>
-            <div>{content}</div>
+            <b>{h.get('date')} | {h.get('category')}</b><br/>
+            {content}
         </div>
         """
     html_content += "</body></html>"
     
+    # 這裡改用 BytesIO 直接處理 utf-8 字串流
     result = io.BytesIO()
-    pdf = pisa.pisaDocument(io.BytesIO(html_content.encode("utf-8")), result)
+    # 確保傳入的是 utf-8 的 bytes
+    pdf = pisa.pisaDocument(io.BytesIO(html_content.encode("utf-8")), result, encoding="utf-8")
+    
     return result.getvalue() if not pdf.err else b""
 
 # --- [v3] 封裝推送函式 ---
