@@ -82,24 +82,29 @@ if st.button("執行推送"):
     except Exception as e:
         st.error(f"❌ 系統故障: {str(e)}")
 
-# --- 4. 歷史管理 (優化版：以年月分頁) ---
+# --- 4. 歷史管理 (優化版：以年月分頁 + 縮放控制) ---
 st.subheader("📚 歷史經文典藏管理庫")
 history_data = load_history()
 
 if history_data:
-    # 提取年月鍵值
+    # 提取年月鍵值並分組
     for entry in history_data:
         date_obj = datetime.strptime(entry.get("date", "2000-01-01"), "%Y-%m-%d")
         entry["year_month"] = date_obj.strftime("%Y年%m月")
 
-    # 按年月分組
     grouped_history = {k: list(v) for k, v in groupby(history_data, key=lambda x: x["year_month"])}
     months = list(grouped_history.keys())
     
-    # 創建分頁夾
+    # 全部展開/收合的控制開關
+    if st.checkbox("預設全部展開 (取消勾選則全部收合)", value=False):
+        expand_all = True
+    else:
+        expand_all = False
+
     tabs = st.tabs(months)
     for i, month in enumerate(months):
         with tabs[i]:
             for h in grouped_history[month]:
-                with st.expander(f"📅 {h.get('date', '無日期')} {h.get('time', '')} | {h.get('category', '無分類')}"):
+                # 使用 expanded 參數控制預設縮放狀態
+                with st.expander(f"📅 {h.get('date', '無日期')} {h.get('time', '')} | {h.get('category', '無分類')}", expanded=expand_all):
                     st.markdown(h.get('content', '無內容'))
