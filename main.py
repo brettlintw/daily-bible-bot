@@ -26,34 +26,21 @@ def load_history():
             except: return []
     return []
 
-def get_secret(key_name):
-    return st.secrets.get(key_name, os.environ.get(key_name, ""))
-
-# --- HTML 備份生成器 (穩定且完美顯示中文) ---
+# 產生穩定的 HTML 備份內容
 def generate_html_backup(data):
-    html_content = """
-    <html>
-    <head>
-        <meta charset="utf-8">
-        <style>
-            body { font-family: sans-serif; font-size: 16px; line-height: 1.6; padding: 20px; }
-            .entry { border-bottom: 1px solid #ccc; margin-bottom: 20px; padding-bottom: 10px; }
-            .meta { color: #555; font-size: 14px; }
-        </style>
-    </head>
-    <body>
-        <h1>靈修歷史紀錄備份</h1>
-    """
+    html_content = """<html><head><meta charset="utf-8">
+    <style>body { font-family: sans-serif; font-size: 16px; line-height: 1.6; padding: 20px; }
+    .entry { border-bottom: 1px solid #ccc; margin-bottom: 20px; padding-bottom: 10px; }
+    .meta { color: #555; font-size: 14px; }</style></head><body>
+    <h1>靈修歷史紀錄備份</h1>"""
     for h in data:
         content = h.get('content', '無內容').replace('\n', '<br/>')
-        html_content += f"""
-        <div class='entry'>
-            <div class='meta'>{h.get('date')} {h.get('time')} | {h.get('category')}</div>
-            <div>{content}</div>
-        </div>
-        """
+        html_content += f"<div class='entry'><div class='meta'>{h.get('date')} {h.get('time')} | {h.get('category')}</div><div>{content}</div></div>"
     html_content += "</body></html>"
     return html_content
+
+def get_secret(key_name):
+    return st.secrets.get(key_name, os.environ.get(key_name, ""))
 
 # --- [v3] 封裝推送函式 ---
 def send_line_message(target_id, message_text):
@@ -69,7 +56,6 @@ def send_line_message(target_id, message_text):
 
 # --- 2. 系統自動配置 ---
 st.sidebar.header("⚙️ 系統鎖定配置")
-# ... (略過與原版相同的偵測區) ...
 st.sidebar.subheader("🔍 群組 ID 比對偵測器")
 if os.path.exists(ID_FILE):
     with open(ID_FILE, "r") as f:
@@ -112,21 +98,26 @@ st.subheader("📚 歷史經文典藏管理庫")
 history_data = load_history()
 
 if history_data:
-    # 修改下載區域為 HTML 格式，穩定且支援中文
-    col1, col2 = st.columns(2)
-    with col1:
-        st.download_button("📥 下載 TXT", data="\n\n".join([f"{h.get('date')} | {h.get('category')}\n{h.get('content')}" for h in history_data]), file_name="history.txt")
-    with col2:
-        st.download_button("📄 下載 HTML 備份", data=generate_html_backup(history_data), file_name="history.html", mime="text/html")
-    
-    # 分組顯示
+    # 預處理分組
     for entry in history_data:
         date_obj = datetime.strptime(entry.get("date", "2000-01-01"), "%Y-%m-%d")
         entry["year_month"] = date_obj.strftime("%Y年%m月")
-
+    
     grouped_history = {k: list(v) for k, v in groupby(history_data, key=lambda x: x["year_month"])}
     months = list(grouped_history.keys())
+
+    # 下載區塊優化：加入月份篩選
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.download_button("📥 下載全部 (TXT)", data="\n\n".join([f"{h.get('date')} | {h.get('category')}\n{h.get('content')}" for h in history_data]), file_name="history_all.txt")
+    with col2:
+        selected_month = st.selectbox("選擇下載月份", months)
+        monthly_data = grouped_history[selected_month]
+        st.download_button(f"📄 下載 {selected_month} (HTML)", data=generate_html_backup(monthly_data), file_name=f"history_{selected_month}.html", mime="text/html")
+    with col3:
+        st.download_button("📄 下載全部 (HTML)", data=generate_html_backup(history_data), file_name="history_all.html", mime="text/html")
     
+    # 顯示區塊
     expand_all = st.checkbox("預設全部展開", value=False)
     tabs = st.tabs(months)
     for i, month in enumerate(months):
