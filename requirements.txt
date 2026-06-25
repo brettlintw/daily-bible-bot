@@ -11,4 +11,4 @@ google-generativeai
 # 穩定性與重試機制
 tenacity
 streamlit
-fpdf
+xhtml2pdf
