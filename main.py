@@ -7,7 +7,7 @@ from linebot.v3.messaging import Configuration, ApiClient, MessagingApi, PushMes
 from datetime import datetime, timezone, timedelta
 from tenacity import retry, stop_after_attempt, wait_exponential
 from itertools import groupby
-from fpdf import FPDF  # 新增 PDF 支援
+from fpdf import FPDF
 
 # --- 1. 設定區 ---
 DB_FILE = "bible_history.json"
@@ -29,20 +29,25 @@ def load_history():
 def get_secret(key_name):
     return st.secrets.get(key_name, os.environ.get(key_name, ""))
 
-# --- PDF 生成函式 (需確保環境中有字型檔) ---
+# --- PDF 生成函式 (已修正編碼避險) ---
 def generate_pdf(data):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.set_font("Arial", size=12) # 注意：預設 Arial 不支援中文
+    pdf.set_font("Arial", size=12)
     pdf.cell(200, 10, txt="Bible Devotional History", ln=True, align='C')
+    
     for h in data:
         pdf.ln(5)
-        pdf.cell(200, 10, txt=f"{h.get('date')} | {h.get('category')}", ln=True)
-        # 簡單轉碼處理內容
-        content = h.get('content', '').encode('latin-1', 'replace').decode('latin-1')
-        pdf.multi_cell(0, 10, txt=content)
-    return pdf.output(dest='S').encode('latin-1')
+        # 強制轉碼為 latin-1，無法顯示的中文會自動替換為 ?
+        title_info = f"{h.get('date')} | {h.get('category')}"
+        pdf.cell(200, 10, txt=title_info.encode('latin-1', 'replace').decode('latin-1'), ln=True)
+        
+        content = h.get('content', '')
+        safe_content = content.encode('latin-1', 'replace').decode('latin-1')
+        pdf.multi_cell(0, 10, txt=safe_content)
+        
+    return pdf.output(dest='S')
 
 # --- [v3] 封裝推送函式 ---
 def send_line_message(target_id, message_text):
@@ -101,7 +106,6 @@ st.subheader("📚 歷史經文典藏管理庫")
 history_data = load_history()
 
 if history_data:
-    # 下載區域
     c1, c2 = st.columns(2)
     with c1:
         st.download_button("📥 下載 TXT", data="\n\n".join([f"{h.get('date')} | {h.get('category')}\n{h.get('content')}" for h in history_data]), file_name="history.txt")
