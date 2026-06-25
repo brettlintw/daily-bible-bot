@@ -7,6 +7,7 @@ from linebot.v3.messaging import Configuration, ApiClient, MessagingApi, PushMes
 from datetime import datetime, timezone, timedelta
 from tenacity import retry, stop_after_attempt, wait_exponential
 from itertools import groupby
+from fpdf import FPDF  # 新增 PDF 支援
 
 # --- 1. 設定區 ---
 DB_FILE = "bible_history.json"
@@ -28,6 +29,21 @@ def load_history():
 def get_secret(key_name):
     return st.secrets.get(key_name, os.environ.get(key_name, ""))
 
+# --- PDF 生成函式 (需確保環境中有字型檔) ---
+def generate_pdf(data):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.set_font("Arial", size=12) # 注意：預設 Arial 不支援中文
+    pdf.cell(200, 10, txt="Bible Devotional History", ln=True, align='C')
+    for h in data:
+        pdf.ln(5)
+        pdf.cell(200, 10, txt=f"{h.get('date')} | {h.get('category')}", ln=True)
+        # 簡單轉碼處理內容
+        content = h.get('content', '').encode('latin-1', 'replace').decode('latin-1')
+        pdf.multi_cell(0, 10, txt=content)
+    return pdf.output(dest='S').encode('latin-1')
+
 # --- [v3] 封裝推送函式 ---
 def send_line_message(target_id, message_text):
     configuration = Configuration(access_token=get_secret("LINE_TOKEN"))
@@ -42,7 +58,6 @@ def send_line_message(target_id, message_text):
 
 # --- 2. 系統自動配置 ---
 st.sidebar.header("⚙️ 系統鎖定配置")
-# (略過與原版相同的偵測與設定區...)
 st.sidebar.subheader("🔍 群組 ID 比對偵測器")
 if os.path.exists(ID_FILE):
     with open(ID_FILE, "r") as f:
@@ -61,7 +76,6 @@ st.subheader("🚀 手動精準推送")
 target_id = st.text_input("目標 UserID / 群組 ID", value=DEFAULT_TARGET_ID)
 
 if st.button("執行推送"):
-    # (此區邏輯保持不變...)
     try:
         api_key = get_secret("GEMINI_API_KEY")
         genai.configure(api_key=api_key)
@@ -82,19 +96,18 @@ if st.button("執行推送"):
     except Exception as e:
         st.error(f"❌ 系統故障: {str(e)}")
 
-# --- 4. 歷史管理 (最終整合版：分頁、縮放控制、下載功能) ---
+# --- 4. 歷史管理 (最終整合版：分頁、縮放、雙格式下載) ---
 st.subheader("📚 歷史經文典藏管理庫")
 history_data = load_history()
 
 if history_data:
-    # 1. 下載功能 (保留且置頂)
-    st.download_button(
-        label="📥 下載全部歷史經文 (TXT)", 
-        data="\n\n".join([f"{h.get('date', '無日期')} | {h.get('category', '無分類')}\n{h.get('content', '無內容')}" for h in history_data]), 
-        file_name="bible_history_full.txt"
-    )
+    # 下載區域
+    c1, c2 = st.columns(2)
+    with c1:
+        st.download_button("📥 下載 TXT", data="\n\n".join([f"{h.get('date')} | {h.get('category')}\n{h.get('content')}" for h in history_data]), file_name="history.txt")
+    with c2:
+        st.download_button("📄 下載 PDF", data=generate_pdf(history_data), file_name="history.pdf")
     
-    # 2. 預處理分組資料
     for entry in history_data:
         date_obj = datetime.strptime(entry.get("date", "2000-01-01"), "%Y-%m-%d")
         entry["year_month"] = date_obj.strftime("%Y年%m月")
@@ -102,10 +115,7 @@ if history_data:
     grouped_history = {k: list(v) for k, v in groupby(history_data, key=lambda x: x["year_month"])}
     months = list(grouped_history.keys())
     
-    # 3. 縮放控制開關
-    expand_all = st.checkbox("預設全部展開 (取消勾選則全部收合)", value=False)
-
-    # 4. 顯示分頁夾
+    expand_all = st.checkbox("預設全部展開", value=False)
     tabs = st.tabs(months)
     for i, month in enumerate(months):
         with tabs[i]:
