@@ -7,7 +7,8 @@ from linebot.v3.messaging import Configuration, ApiClient, MessagingApi, PushMes
 from datetime import datetime, timezone, timedelta
 from tenacity import retry, stop_after_attempt, wait_exponential
 from itertools import groupby
-from fpdf import FPDF
+from xhtml2pdf import pisa # 新增 xhtml2pdf 支援
+import io
 
 # --- 1. 設定區 ---
 DB_FILE = "bible_history.json"
@@ -29,30 +30,38 @@ def load_history():
 def get_secret(key_name):
     return st.secrets.get(key_name, os.environ.get(key_name, ""))
 
-# --- 強健版 PDF 生成函式 ---
+# --- PDF 生成函式 (HTML/CSS 轉 PDF) ---
 def generate_pdf(data):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.set_font("Arial", size=12)
-    pdf.cell(200, 10, txt="Bible Devotional History", ln=True, align='C')
-    
+    html_content = """
+    <html>
+    <head>
+        <style>
+            @font-face {
+                font-family: 'NotoSansTC';
+                src: url('https://fonts.gstatic.com/ea/notosanstc/v1/NotoSansTC-Regular.otf');
+            }
+            body { font-family: 'NotoSansTC'; font-size: 14px; line-height: 1.6; }
+            h1 { text-align: center; }
+            .entry { border-bottom: 1px solid #ccc; margin-bottom: 15px; padding: 10px; }
+            .meta { color: #555; font-size: 12px; }
+        </style>
+    </head>
+    <body>
+        <h1>靈修歷史紀錄</h1>
+    """
     for h in data:
-        pdf.ln(5)
-        # 確保資料不為空
-        date_str = str(h.get('date', 'N/A'))
-        category_str = str(h.get('category', 'N/A'))
-        content_str = str(h.get('content', 'No content'))
-        
-        # 強制編碼處理
-        header = f"{date_str} | {category_str}".encode('latin-1', 'replace').decode('latin-1')
-        pdf.cell(200, 10, txt=header, ln=True)
-        
-        # 確保內容被正確寫入頁面
-        safe_content = content_str.encode('latin-1', 'replace').decode('latin-1')
-        pdf.multi_cell(0, 10, txt=safe_content)
-        
-    return pdf.output(dest='S')
+        content = h.get('content', '無內容').replace('\n', '<br/>')
+        html_content += f"""
+        <div class='entry'>
+            <div class='meta'>{h.get('date')} {h.get('time')} | {h.get('category')}</div>
+            <div>{content}</div>
+        </div>
+        """
+    html_content += "</body></html>"
+    
+    result = io.BytesIO()
+    pdf = pisa.pisaDocument(io.BytesIO(html_content.encode("utf-8")), result)
+    return result.getvalue() if not pdf.err else b""
 
 # --- [v3] 封裝推送函式 ---
 def send_line_message(target_id, message_text):
@@ -106,16 +115,17 @@ if st.button("執行推送"):
     except Exception as e:
         st.error(f"❌ 系統故障: {str(e)}")
 
-# --- 4. 歷史管理 (最終整合版：分頁、縮放、雙格式下載) ---
+# --- 4. 歷史管理 ---
 st.subheader("📚 歷史經文典藏管理庫")
 history_data = load_history()
 
 if history_data:
-    c1, c2 = st.columns(2)
-    with c1:
-        st.download_button("📥 下載 TXT", data="\n\n".join([f"{h.get('date')} | {h.get('category')}\n{h.get('content')}" for h in history_data]), file_name="history.txt")
-    with c2:
-        st.download_button("📄 下載 PDF", data=generate_pdf(history_data), file_name="history.pdf")
+    # 下載區域
+    col1, col2 = st.columns(2)
+    with col1:
+        st.download_button("📥 下載全部 (TXT)", data="\n\n".join([f"{h.get('date')} | {h.get('category')}\n{h.get('content')}" for h in history_data]), file_name="bible_history.txt")
+    with col2:
+        st.download_button("📄 下載全部 (PDF)", data=generate_pdf(history_data), file_name="history.pdf", mime="application/pdf")
     
     for entry in history_data:
         date_obj = datetime.strptime(entry.get("date", "2000-01-01"), "%Y-%m-%d")
