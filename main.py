@@ -29,7 +29,7 @@ def load_history():
 def get_secret(key_name):
     return st.secrets.get(key_name, os.environ.get(key_name, ""))
 
-# --- PDF 生成函式 (已修正編碼避險) ---
+# --- 強健版 PDF 生成函式 ---
 def generate_pdf(data):
     pdf = FPDF()
     pdf.add_page()
@@ -39,12 +39,17 @@ def generate_pdf(data):
     
     for h in data:
         pdf.ln(5)
-        # 強制轉碼為 latin-1，無法顯示的中文會自動替換為 ?
-        title_info = f"{h.get('date')} | {h.get('category')}"
-        pdf.cell(200, 10, txt=title_info.encode('latin-1', 'replace').decode('latin-1'), ln=True)
+        # 確保資料不為空
+        date_str = str(h.get('date', 'N/A'))
+        category_str = str(h.get('category', 'N/A'))
+        content_str = str(h.get('content', 'No content'))
         
-        content = h.get('content', '')
-        safe_content = content.encode('latin-1', 'replace').decode('latin-1')
+        # 強制編碼處理
+        header = f"{date_str} | {category_str}".encode('latin-1', 'replace').decode('latin-1')
+        pdf.cell(200, 10, txt=header, ln=True)
+        
+        # 確保內容被正確寫入頁面
+        safe_content = content_str.encode('latin-1', 'replace').decode('latin-1')
         pdf.multi_cell(0, 10, txt=safe_content)
         
     return pdf.output(dest='S')
