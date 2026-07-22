@@ -42,6 +42,19 @@ def callback():
         abort(400)
     return 'OK'
 
+
+def get_export_url():
+    base = os.environ.get('RENDER_EXTERNAL_URL', '').strip()
+    if not base:
+        base = f"http://localhost:{os.environ.get('PORT', 5000)}"
+    return base.rstrip('/') + "/export"
+
+
+@app.route("/export")
+def export_history():
+    data = bible_core.load_history()
+    return bible_core.generate_html_backup(data)
+
 @handler.add(MessageEvent)
 def handle_message(event):
     TARGET_ID = os.environ.get('TARGET_GROUP_ID')
