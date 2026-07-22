@@ -5,26 +5,26 @@
 
 ## 背景與目標
 
-`daily-bible-bot` 目前的手動操作只能透過 `app.py`（Streamlit 控制台），而 `app.py` 只在本機執行，手機上完全用不到。Brett 希望手機上也能：立即推播、查歷史、指定主題生成、拿到歷史備份。
+`daily-bible-bot` 目前的手動操作只能透過 `main.py`（Streamlit 控制台），而 `main.py` 只在本機執行，手機上完全用不到。Brett 希望手機上也能：立即推播、查歷史、指定主題生成、拿到歷史備份。
 
-跟 Brett 討論後決定：**不做新的網頁介面**，而是直接擴充現有、已經常駐在 Render 上的 `main.py`（LINE Webhook），讓這些操作變成 LINE 對話裡的文字指令。手機上本來就一直開著 LINE，不需要額外開網站、記網址、輸入密碼。
+跟 Brett 討論後決定：**不做新的網頁介面**，而是直接擴充現有、已經常駐在 Render 上的 `app.py`（LINE Webhook），讓這些操作變成 LINE 對話裡的文字指令。手機上本來就一直開著 LINE，不需要額外開網站、記網址、輸入密碼。
 
 這份設計只涵蓋「手機 LINE 指令控制台」這一項。「LINE 互動豐富化」與「推播排程彈性化」是各自獨立的功能，之後再各自立 spec。（`選單`/`主題` 兩個指令已經算是跟「LINE 互動豐富化」重疊的部分，其餘更進階的互動不在本次範圍。）
 
 ## 架構：抽出共用模組 `bible_core.py`
 
-現況：`daily_push.py`、`app.py` 各自寫了一份「生成經文」「推播」「讀寫歷史」的邏輯。這次要在 `main.py` 加指令，等於要寫第三份重複程式碼——與其複製貼上，不如藉這次機會把共用邏輯抽出來。
+現況：`daily_push.py`、`main.py` 各自寫了一份「生成經文」「推播」「讀寫歷史」的邏輯。這次要在 `app.py` 加指令，等於要寫第三份重複程式碼——與其複製貼上，不如藉這次機會把共用邏輯抽出來。
 
 新增 `bible_core.py`，提供：
 - `generate_verse(theme=None)` — 呼叫 Gemini 生成一段經文（可指定主題，不指定則隨機從既有主題清單挑）
 - `load_history()` / `append_history(entry)` — 讀寫 `bible_history.json`
 - `send_line_message(target_id, text)` — 推播文字訊息
-- `generate_html_backup(data)` — 產生歷史備份 HTML（從 `app.py` 搬過來）
+- `generate_html_backup(data)` — 產生歷史備份 HTML（從 `main.py` 搬過來）
 
 三個進入點內部改呼叫 `bible_core`，各自角色不變：
 - `daily_push.py`（GitHub Actions 排程，不變）
-- `app.py`（本機控制台，不變）
-- `main.py`（Render 常駐服務）—— 新增指令判斷邏輯
+- `main.py`（本機控制台，不變）
+- `app.py`（Render 常駐服務）—— 新增指令判斷邏輯
 
 ## 指令規格
 
@@ -38,11 +38,11 @@
 | `靈修`（既有功能）| 隨機回一段經文 | 所有人，行為不變 |
 | `我的ID`（一次性 bootstrap 用）| 回覆傳訊者的 LINE User ID | 所有人 |
 
-指令比對採**完全比對開頭關鍵字**（例如以「主題 」開頭），不做模糊比對；打錯字或非上述任何指令的文字，`main.py` 維持現有行為（若含「靈修」則走既有回覆，否則忽略）。`歷史 <N>` 的 N 必須是正整數，其餘情況（非數字、0、負數）一律視為格式錯誤，走「錯誤處理」一節的提示回覆。
+指令比對採**完全比對開頭關鍵字**（例如以「主題 」開頭），不做模糊比對；打錯字或非上述任何指令的文字，`app.py` 維持現有行為（若含「靈修」則走既有回覆，否則忽略）。`歷史 <N>` 的 N 必須是正整數，其餘情況（非數字、0、負數）一律視為格式錯誤，走「錯誤處理」一節的提示回覆。
 
 ## 權限機制
 
-`main.py` 目前只能看到 `event.source.user_id`，不知道哪個 ID 是 Brett。流程：
+`app.py` 目前只能看到 `event.source.user_id`，不知道哪個 ID 是 Brett。流程：
 
 1. 上線後 Brett 在 LINE 裡打一次 `我的ID`，機器人回覆他的 User ID
 2. Brett 把這個 ID 存進 Render 環境變數 `ADMIN_USER_ID`（新增，跟這個 repo 無關，在 Render 後台設定）
@@ -52,7 +52,7 @@
 
 ## 下載匯出
 
-`main.py`（既有 Flask app）新增路由 `GET /export`，回傳與 `app.py` 相同的 HTML 備份內容（呼叫 `bible_core.generate_html_backup`）。`下載` 指令回覆此路由的完整網址（`https://<render-app>.onrender.com/export`），使用者用手機瀏覽器點開即可查看/另存。
+`app.py`（既有 Flask app）新增路由 `GET /export`，回傳與 `main.py` 相同的 HTML 備份內容（呼叫 `bible_core.generate_html_backup`）。`下載` 指令回覆此路由的完整網址（`https://<render-app>.onrender.com/export`），使用者用手機瀏覽器點開即可查看/另存。
 
 不做身分驗證（此路由只讀、不含敏感操作，內容跟現有 `bible_history.json` 一樣是聖經經文紀錄，非隱私資料）。
 
@@ -74,10 +74,10 @@
 6. 打 `下載` → 收到連結，手動點開確認能看到完整歷史
 7. 打 `選單` → 收到 Quick Reply 按鈕，Brett 帳號看到「推播」按鈕，其他人不會看到
 8. 打 `我的ID` → 正確回覆傳訊者自己的 User ID
-9. 確認 `daily_push.py` 排程跟 `app.py` 本機控制台改用 `bible_core.py` 後行為不變（各跑一次驗證）
+9. 確認 `daily_push.py` 排程跟 `main.py` 本機控制台改用 `bible_core.py` 後行為不變（各跑一次驗證）
 
 ## 範圍外（Out of Scope）
 
 - 更豐富的 LINE 互動（選單以外的多輪對話、圖文選單 Rich Menu）——留給下一個「LINE 互動豐富化」spec
 - 推播排程彈性化（自訂時間、多時段、分眾內容）——留給下一個「推播排程彈性化」spec
-- `main.py` 的自動化測試
+- `app.py` 的自動化測試

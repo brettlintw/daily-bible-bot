@@ -4,14 +4,14 @@
 
 **Goal:** 讓 Brett 能直接在 LINE 對話裡打文字指令（推播/主題/歷史/下載/選單），操作現有的每日經文推播機器人，不需要另開網頁或碰電腦。
 
-**Architecture:** 把 `daily_push.py`、`app.py` 現有重複的「生成經文/推播/讀寫歷史/產生 HTML 備份」邏輯抽成共用模組 `bible_core.py`；新增純函式模組 `command_parser.py` 負責解析 LINE 文字指令（不含任何外部依賴，方便獨立驗證）；`main.py`（已部署在 Render）整合兩者，新增指令判斷、權限檢查、`/export` 路由與 Quick Reply 選單。`daily_push.py` 與 `app.py` 改為呼叫 `bible_core`，行為不變。
+**Architecture:** 把 `daily_push.py`、`main.py` 現有重複的「生成經文/推播/讀寫歷史/產生 HTML 備份」邏輯抽成共用模組 `bible_core.py`；新增純函式模組 `command_parser.py` 負責解析 LINE 文字指令（不含任何外部依賴，方便獨立驗證）；`app.py`（已部署在 Render）整合兩者，新增指令判斷、權限檢查、`/export` 路由與 Quick Reply 選單。`daily_push.py` 與 `main.py` 改為呼叫 `bible_core`，行為不變。
 
-**Tech Stack:** Python 3.9、Flask（main.py 既有）、`linebot`（v2 SDK，`from linebot import LineBotApi` 那個版本，非 `linebot.v3`）、`google-generativeai`、`tenacity`。不新增任何套件。
+**Tech Stack:** Python 3.9、Flask（app.py 既有）、`linebot`（v2 SDK，`from linebot import LineBotApi` 那個版本，非 `linebot.v3`）、`google-generativeai`、`tenacity`。不新增任何套件。
 
 ## Global Constraints
 
 - 個人小專案，不引入 pytest 或任何自動化測試框架；每個任務的驗證一律用「執行一段指令、比對輸出」的手動方式，且不得依賴真實的 `LINE_TOKEN`/`GEMINI_API_KEY`（用假字串即可，只驗證邏輯路徑，不觸發真實網路呼叫）
-- `bible_core.py` 統一使用 `linebot`（v2 SDK：`LineBotApi` + `TextSendMessage`），因為 `main.py` 已經用這套；`app.py` 原本用的是 `linebot.v3.messaging`（`Configuration`/`ApiClient`/`MessagingApi`），改用 `bible_core` 之後等於從 v3 換回 v2，對外行為（推播成功與否）不變
+- `bible_core.py` 統一使用 `linebot`（v2 SDK：`LineBotApi` + `TextSendMessage`），因為 `app.py` 已經用這套；`main.py` 原本用的是 `linebot.v3.messaging`（`Configuration`/`ApiClient`/`MessagingApi`），改用 `bible_core` 之後等於從 v3 換回 v2，對外行為（推播成功與否）不變
 - 所有使用者可見的文字（回覆訊息、錯誤提示）維持繁體中文，語氣與既有程式碼一致（沿用 `⚠️`、`✅` 等既有 emoji 標記風格）
 - 不新增 `requirements.txt` 套件——全部功能用現有的 `flask`、`line-bot-sdk`、`google-generativeai`、`tenacity` 就能完成
 - `歷史 <N>` 的 N 必須是正整數；非數字、0、負數一律視為格式錯誤
@@ -225,15 +225,15 @@ git commit -m "refactor: daily_push.py uses bible_core"
 
 ---
 
-## Task 3: `app.py` 改用 `bible_core`
+## Task 3: `main.py` 改用 `bible_core`
 
 **Files:**
-- Modify: `app.py:1-95`（移除自帶的 `load_history`、`generate_html_backup`、`send_line_message`、`generate_with_retry` 與相關 import，改呼叫 `bible_core`；`get_secret` 與 Streamlit UI 邏輯保留不動）
+- Modify: `main.py:1-95`（移除自帶的 `load_history`、`generate_html_backup`、`send_line_message`、`generate_with_retry` 與相關 import，改呼叫 `bible_core`；`get_secret` 與 Streamlit UI 邏輯保留不動）
 
 **Interfaces:**
 - Consumes：Task 1 的 `bible_core.load_history`、`bible_core.generate_html_backup`、`bible_core.generate_verse`、`bible_core.send_line_message`、`bible_core.record_entry`
 
-- [ ] **Step 1: 修改 `app.py` 開頭 import 與移除的函式**
+- [ ] **Step 1: 修改 `main.py` 開頭 import 與移除的函式**
 
 把原本檔案開頭到 `send_line_message` 函式為止的內容：
 
@@ -399,14 +399,14 @@ history_data = bible_core.load_history()
 
 - [ ] **Step 5: 手動驗證語法**
 
-Run: `python -m py_compile app.py`
+Run: `python -m py_compile main.py`
 Expected: 沒有任何輸出。
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add app.py
-git commit -m "refactor: app.py uses bible_core"
+git add main.py
+git commit -m "refactor: main.py uses bible_core"
 ```
 
 ---
@@ -492,16 +492,16 @@ git commit -m "feat: add command_parser for LINE text commands"
 
 ---
 
-## Task 5: `main.py` 加上權限機制與 `我的ID` 指令
+## Task 5: `app.py` 加上權限機制與 `我的ID` 指令
 
 **Files:**
-- Modify: `main.py:1-22`（頂部設定區加 `ADMIN_USER_ID` 與 `is_admin`）
+- Modify: `app.py:1-22`（頂部設定區加 `ADMIN_USER_ID` 與 `is_admin`）
 
 **Interfaces:**
 - Consumes：Task 4 的 `command_parser.parse_command`
-- Produces：`main.is_admin(event) -> bool`，供 Task 7 使用
+- Produces：`app.is_admin(event) -> bool`，供 Task 7 使用
 
-- [ ] **Step 1: 修改 `main.py` 頂部設定區**
+- [ ] **Step 1: 修改 `app.py` 頂部設定區**
 
 原本：
 ```python
@@ -566,7 +566,7 @@ def is_admin(event):
     return bool(ADMIN_USER_ID) and user_id == ADMIN_USER_ID
 ```
 
-註：原本 `genai.configure(...)` 與 `model = genai.GenerativeModel(...)` 這兩行拿掉，因為生成經文改由 `bible_core.generate_verse(api_key, model_name, ...)` 內部處理（見 Task 1），`main.py` 不需要再自己管理 `genai` 物件。
+註：原本 `genai.configure(...)` 與 `model = genai.GenerativeModel(...)` 這兩行拿掉，因為生成經文改由 `bible_core.generate_verse(api_key, model_name, ...)` 內部處理（見 Task 1），`app.py` 不需要再自己管理 `genai` 物件。
 
 - [ ] **Step 2: 手動驗證 `is_admin`（用假的環境變數，不需要真的 secrets）**
 
@@ -578,16 +578,16 @@ os.environ['LINE_CHANNEL_SECRET'] = 'dummy'
 os.environ['LINE_TOKEN'] = 'dummy'
 os.environ['GEMINI_API_KEY'] = 'dummy'
 os.environ['ADMIN_USER_ID'] = 'Uadmin123'
-import main
+import app
 
 class FakeSource:
     user_id = 'Uadmin123'
 class FakeEvent:
     source = FakeSource()
 
-print('admin match:', main.is_admin(FakeEvent()))
+print('admin match:', app.is_admin(FakeEvent()))
 FakeSource.user_id = 'Uother456'
-print('non-admin:', main.is_admin(FakeEvent()))
+print('non-admin:', app.is_admin(FakeEvent()))
 "
 ```
 
@@ -600,16 +600,16 @@ non-admin: False
 - [ ] **Step 3: Commit**
 
 ```bash
-git add main.py
-git commit -m "feat: add ADMIN_USER_ID permission check to main.py"
+git add app.py
+git commit -m "feat: add ADMIN_USER_ID permission check to app.py"
 ```
 
 ---
 
-## Task 6: `main.py` 加上 `/export` 路由
+## Task 6: `app.py` 加上 `/export` 路由
 
 **Files:**
-- Modify: `main.py`（在 `/callback` 路由後面新增 `/export` 路由）
+- Modify: `app.py`（在 `/callback` 路由後面新增 `/export` 路由）
 
 **Interfaces:**
 - Consumes：Task 1 的 `bible_core.load_history`、`bible_core.generate_html_backup`
@@ -642,16 +642,16 @@ import os
 os.environ['LINE_CHANNEL_SECRET'] = 'dummy'
 os.environ['LINE_TOKEN'] = 'dummy'
 os.environ['GEMINI_API_KEY'] = 'dummy'
-import main
+import app
 
-client = main.app.test_client()
+client = app.app.test_client()
 resp = client.get('/export')
 print('status:', resp.status_code)
 print('body starts with:', resp.data[:20])
-print('export url (no RENDER_EXTERNAL_URL):', main.get_export_url())
+print('export url (no RENDER_EXTERNAL_URL):', app.get_export_url())
 
 os.environ['RENDER_EXTERNAL_URL'] = 'https://daily-bible-bot.onrender.com'
-print('export url (with RENDER_EXTERNAL_URL):', main.get_export_url())
+print('export url (with RENDER_EXTERNAL_URL):', app.get_export_url())
 "
 ```
 
@@ -666,21 +666,21 @@ export url (with RENDER_EXTERNAL_URL): https://daily-bible-bot.onrender.com/expo
 - [ ] **Step 3: Commit**
 
 ```bash
-git add main.py
+git add app.py
 git commit -m "feat: add /export route for history backup download"
 ```
 
 ---
 
-## Task 7: `main.py` 整合完整指令處理邏輯
+## Task 7: `app.py` 整合完整指令處理邏輯
 
 **Files:**
-- Modify: `main.py`（重寫 `handle_message` 函式）
+- Modify: `app.py`（重寫 `handle_message` 函式）
 
 **Interfaces:**
 - Consumes：Task 1 的 `bible_core.generate_verse`/`send_line_message`/`record_entry`/`load_history`；Task 4 的 `parse_command`；Task 5 的 `is_admin`；Task 6 的 `get_export_url`
 
-- [ ] **Step 1: 在 `main.py` 裡新增 Quick Reply 產生函式，並整個換掉 `handle_message`**
+- [ ] **Step 1: 在 `app.py` 裡新增 Quick Reply 產生函式，並整個換掉 `handle_message`**
 
 原本的 `handle_message`：
 ```python
@@ -815,7 +815,7 @@ os.environ['LINE_TOKEN'] = 'dummy'
 os.environ['GEMINI_API_KEY'] = 'dummy'
 os.environ['TARGET_GROUP_ID'] = 'Cdummygroup'
 os.environ['ADMIN_USER_ID'] = 'Uadmin'
-import main
+import app
 import bible_core
 from unittest.mock import patch
 
@@ -832,8 +832,8 @@ class FakeEvent:
 # 情境一：admin 打「推播」，應該真的呼叫 generate_verse/send_line_message
 with patch.object(bible_core, 'generate_verse', return_value=('假經文內容', '平安')) as gen, \
      patch.object(bible_core, 'send_line_message') as send, \
-     patch.object(main.line_api, 'reply_message') as reply:
-    main.handle_message(FakeEvent())
+     patch.object(app.line_api, 'reply_message') as reply:
+    app.handle_message(FakeEvent())
     print('admin push -> generate_verse called:', gen.called)
     print('admin push -> send_line_message called:', send.called)
     print('admin push -> reply text:', reply.call_args[0][1].text)
@@ -841,8 +841,8 @@ with patch.object(bible_core, 'generate_verse', return_value=('假經文內容',
 # 情境二：非 admin 打「推播」，應該被拒絕，不觸發 generate_verse
 FakeSource.user_id = 'Uother'
 with patch.object(bible_core, 'generate_verse') as gen, \
-     patch.object(main.line_api, 'reply_message') as reply:
-    main.handle_message(FakeEvent())
+     patch.object(app.line_api, 'reply_message') as reply:
+    app.handle_message(FakeEvent())
     print('non-admin push -> generate_verse called:', gen.called)
     print('non-admin push -> reply text:', reply.call_args[0][1].text)
 "
@@ -860,7 +860,7 @@ non-admin push -> reply text: ⚠️ 這個指令你沒有權限使用
 - [ ] **Step 3: Commit**
 
 ```bash
-git add main.py
+git add app.py
 git commit -m "feat: wire push/theme/history/download/menu commands into handle_message"
 ```
 
@@ -877,7 +877,7 @@ git commit -m "feat: wire push/theme/history/download/menu commands into handle_
 
 在 `CLAUDE.md` 的這段：
 ```markdown
-**Render 環境變數**（供 `main.py` 使用，跟這個 repo 無關，要改去 Render 後台改）：
+**Render 環境變數**（供 `app.py` 使用，跟這個 repo 無關，要改去 Render 後台改）：
 - `LINE_CHANNEL_SECRET`
 - `LINE_TOKEN`
 - `GEMINI_API_KEY`
@@ -886,18 +886,18 @@ git commit -m "feat: wire push/theme/history/download/menu commands into handle_
 
 改成：
 ```markdown
-**Render 環境變數**（供 `main.py` 使用，跟這個 repo 無關，要改去 Render 後台改）：
+**Render 環境變數**（供 `app.py` 使用，跟這個 repo 無關，要改去 Render 後台改）：
 - `LINE_CHANNEL_SECRET`
 - `LINE_TOKEN`
 - `GEMINI_API_KEY`
 - `TARGET_GROUP_ID`（optional）
 - `ADMIN_USER_ID`：Brett 本人的 LINE User ID，用來判斷「推播」「主題」指令的權限。取得方式：在 LINE 裡打「我的ID」，機器人會回覆傳訊者的 User ID。
-- `RENDER_EXTERNAL_URL`：Render 平台自動注入，不用手動設定，`main.py` 的 `/export` 路由靠這個組出對外網址。
+- `RENDER_EXTERNAL_URL`：Render 平台自動注入，不用手動設定，`app.py` 的 `/export` 路由靠這個組出對外網址。
 ```
 
-- [ ] **Step 2: 在架構說明的 `main.py` 段落補上指令說明**
+- [ ] **Step 2: 在架構說明的 `app.py` 段落補上指令說明**
 
-在 `CLAUDE.md` 的「### 2. `main.py` — LINE Webhook 被動回覆」段落最後加一句：
+在 `CLAUDE.md` 的「### 2. `app.py` — LINE Webhook 被動回覆」段落最後加一句：
 
 ```markdown
 - 支援文字指令（見 [docs/superpowers/specs/2026-07-22-line-command-console-design.md](docs/superpowers/specs/2026-07-22-line-command-console-design.md)）：`推播`、`主題 <名稱>`（僅 Brett）、`歷史 <N>`、`下載`、`選單`、`我的ID`
@@ -916,7 +916,7 @@ git commit -m "docs: document ADMIN_USER_ID and new LINE commands in CLAUDE.md"
 
 這個任務需要 Render 後台存取權跟 Brett 自己的 LINE 帳號，subagent 沒有這些權限，必須由 Brett 本人完成。
 
-- [ ] Push 所有 commit 到 GitHub（main.py 有變動時 Render 若有設定 auto-deploy 會自動重新部署；沒設定的話要手動在 Render 觸發 deploy）
+- [ ] Push 所有 commit 到 GitHub（app.py 有變動時 Render 若有設定 auto-deploy 會自動重新部署；沒設定的話要手動在 Render 觸發 deploy）
 - [ ] 在 LINE 裡打「我的ID」，把回傳的 User ID 存進 Render 的 `ADMIN_USER_ID` 環境變數，存完 Render 會自動重啟服務
 - [ ] 用 Brett 帳號打「推播」→ 應收到新經文推播到目標群組，且 `bible_history.json` 多一筆紀錄
 - [ ] 用另一個帳號（或請群組其他成員）打「推播」→ 應收到「沒有權限」提示，且**沒有**觸發推播
@@ -925,4 +925,4 @@ git commit -m "docs: document ADMIN_USER_ID and new LINE commands in CLAUDE.md"
 - [ ] 打「歷史 abc」→ 不噴錯，回覆格式提示
 - [ ] 打「下載」→ 收到連結，手動點開確認能看到完整歷史
 - [ ] 打「選單」→ 收到 Quick Reply 按鈕，Brett 帳號看到「推播」按鈕，其他人不會看到
-- [ ] 確認 GitHub Actions 排程（`daily_push.py`）跟本機 `app.py` 控制台都還能正常運作（各手動觸發一次驗證）
+- [ ] 確認 GitHub Actions 排程（`daily_push.py`）跟本機 `main.py` 控制台都還能正常運作（各手動觸發一次驗證）
