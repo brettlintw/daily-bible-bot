@@ -16,6 +16,13 @@ DB_FILE = "bible_history.json"
 ID_FILE = "latest_group_id.txt"
 THEMES = ["安慰", "力量", "盼望", "智慧", "愛與饒恕", "平安", "信心"]
 
+FREE_MODEL_CANDIDATES = [
+    ("models/gemini-2.5-flash-lite", "額度通常較寬鬆"),
+    ("models/gemini-2.0-flash-lite", "額度通常較寬鬆"),
+    ("models/gemini-2.5-flash", "額度普通"),
+    ("models/gemini-flash-latest", "目前預設，額度較容易撞牆"),
+]
+
 
 def load_history(db_file=DB_FILE):
     if os.path.exists(db_file):
@@ -51,9 +58,8 @@ def _generate_with_retry(model, prompt):
     return model.generate_content(prompt, generation_config=genai.types.GenerationConfig(temperature=0.8))
 
 
-def generate_verse(api_key, model_name, theme=None, history_limit=30):
+def generate_verse(api_key, model_name=None, theme=None, history_limit=30):
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(model_name)
 
     chosen_theme = theme or random.choice(THEMES)
     history_titles = [item.get("content", "")[:60] for item in load_history()[:history_limit]]
@@ -72,8 +78,23 @@ def generate_verse(api_key, model_name, theme=None, history_limit=30):
     【內容】；【章節】；【領受】。
     """
 
-    res = _generate_with_retry(model, prompt)
-    return res.text.strip(), chosen_theme
+    if model_name:
+        model = genai.GenerativeModel(model_name)
+        res = _generate_with_retry(model, prompt)
+        return res.text.strip(), chosen_theme
+
+    last_error = None
+    for candidate_name, _label in FREE_MODEL_CANDIDATES:
+        try:
+            model = genai.GenerativeModel(candidate_name)
+            res = model.generate_content(
+                prompt, generation_config=genai.types.GenerationConfig(temperature=0.8)
+            )
+            return res.text.strip(), chosen_theme
+        except Exception as e:
+            logger.error(f"模型 {candidate_name} 失敗：{e}，改試下一個")
+            last_error = e
+    raise last_error
 
 
 def send_line_message(line_token, target_id, message_text):
