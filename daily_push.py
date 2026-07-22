@@ -10,7 +10,6 @@ def main():
     target_id = os.environ.get('TARGET_GROUP_ID', '').strip()
     api_key = os.environ.get('GEMINI_API_KEY', '').strip()
     line_token = os.environ.get('LINE_TOKEN', '').strip()
-    model_name = os.environ.get('GEMINI_MODEL_NAME', 'models/gemini-flash-latest')
 
     if not all([target_id, api_key, line_token]):
         return
@@ -19,7 +18,7 @@ def main():
         f.write(target_id)
 
     try:
-        payload, chosen_theme = bible_core.generate_verse(api_key, model_name)
+        payload, chosen_theme = bible_core.generate_verse(api_key)
         bible_core.send_line_message(line_token, target_id, f'【每日靈修】\n\n{payload}')
         bible_core.record_entry(payload, f"自動靈修-{chosen_theme}")
     except Exception as e:
