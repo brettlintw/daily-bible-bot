@@ -817,16 +817,15 @@ os.environ['TARGET_GROUP_ID'] = 'Cdummygroup'
 os.environ['ADMIN_USER_ID'] = 'Uadmin'
 import app
 import bible_core
+from linebot.models import TextMessage
 from unittest.mock import patch
 
 class FakeSource:
     type = 'user'
     user_id = 'Uadmin'
-class FakeMessage:
-    text = '推播'
 class FakeEvent:
     source = FakeSource()
-    message = FakeMessage()
+    message = TextMessage(text='推播')
     reply_token = 'dummy-token'
 
 # 情境一：admin 打「推播」，應該真的呼叫 generate_verse/send_line_message
