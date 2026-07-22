@@ -1,73 +1,28 @@
 import streamlit as st
-import json
 import os
-import random
-import google.generativeai as genai
-from linebot.v3.messaging import Configuration, ApiClient, MessagingApi, PushMessageRequest, TextMessage
-from datetime import datetime, timezone, timedelta
-from tenacity import retry, stop_after_attempt, wait_exponential
+import bible_core
+from datetime import datetime
 from itertools import groupby
-import io
 
 # --- 1. 設定區 ---
-DB_FILE = "bible_history.json"
-ID_FILE = "latest_group_id.txt"
-TZ_TW = timezone(timedelta(hours=8))
 DEFAULT_TARGET_ID = "C8a7777fb460a7ca0479b1b33c82f7a16"
 
 st.set_page_config(page_title="靈修控制台", layout="wide")
 st.title("🛡️ 聖經-LINE推送 V60.5 正式版")
 
 # --- 輔助函式 ---
-def load_history():
-    if os.path.exists(DB_FILE):
-        with open(DB_FILE, "r", encoding="utf-8") as f:
-            try: return json.load(f)
-            except: return []
-    return []
-
-# 產生穩定的 HTML 備份內容
-def generate_html_backup(data):
-    html_content = """<html><head><meta charset="utf-8">
-    <style>body { font-family: sans-serif; font-size: 16px; line-height: 1.6; padding: 20px; }
-    .entry { border-bottom: 1px solid #ccc; margin-bottom: 20px; padding-bottom: 10px; }
-    .meta { color: #555; font-size: 14px; }</style></head><body>
-    <h1>靈修歷史紀錄備份</h1>"""
-    for h in data:
-        content = h.get('content', '無內容').replace('\n', '<br/>')
-        html_content += f"<div class='entry'><div class='meta'>{h.get('date')} {h.get('time')} | {h.get('category')}</div><div>{content}</div></div>"
-    html_content += "</body></html>"
-    return html_content
-
 def get_secret(key_name):
     return st.secrets.get(key_name, os.environ.get(key_name, ""))
-
-# --- [v3] 封裝推送函式 ---
-def send_line_message(target_id, message_text):
-    configuration = Configuration(access_token=get_secret("LINE_TOKEN"))
-    with ApiClient(configuration) as api_client:
-        line_bot_api = MessagingApi(api_client)
-        line_bot_api.push_message(
-            PushMessageRequest(
-                to=target_id,
-                messages=[TextMessage(text=message_text)]
-            )
-        )
 
 # --- 2. 系統自動配置 ---
 st.sidebar.header("⚙️ 系統鎖定配置")
 st.sidebar.subheader("🔍 群組 ID 比對偵測器")
-if os.path.exists(ID_FILE):
-    with open(ID_FILE, "r") as f:
+if os.path.exists(bible_core.ID_FILE):
+    with open(bible_core.ID_FILE, "r") as f:
         detected_id = f.read().strip()
         st.sidebar.info(f"偵測到的群組 ID:\n{detected_id}")
 line_token = st.sidebar.text_input("LINE Token:", value=get_secret("LINE_TOKEN"), type="password")
 model_name = get_secret("GEMINI_MODEL_NAME") or "models/gemini-flash-latest"
-
-# --- 3. 靈修推送核心邏輯 ---
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
-def generate_with_retry(model, prompt):
-    return model.generate_content(prompt, generation_config=genai.types.GenerationConfig(temperature=0.8))
 
 st.subheader("🚀 手動精準推送")
 target_id = st.text_input("目標 UserID / 群組 ID", value=DEFAULT_TARGET_ID)
@@ -75,27 +30,18 @@ target_id = st.text_input("目標 UserID / 群組 ID", value=DEFAULT_TARGET_ID)
 if st.button("執行推送"):
     try:
         api_key = get_secret("GEMINI_API_KEY")
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel(model_name)
-        themes = ["安慰", "力量", "盼望", "智慧", "愛與饒恕", "平安", "信心"]
-        chosen_theme = random.choice(themes)
-        prompt = f"你是溫柔牧者。請針對主題「{chosen_theme}」，精選一段聖經經文。格式：【經文內容】(阿們。)；【章節】；【領受與感悟】。"
+        line_token = get_secret("LINE_TOKEN")
         with st.spinner("🚀 牧者正在領受啟示..."):
-            res = generate_with_retry(model, prompt)
-        if res and res.text:
-            payload = res.text.strip()
-            send_line_message(target_id.strip(), f'【每日靈修】\n\n{payload}')
-            st.success(f"✅ 發送成功")
-            history = load_history()
-            history.insert(0, {"date": datetime.now(TZ_TW).strftime("%Y-%m-%d"), "time": datetime.now(TZ_TW).strftime("%H:%M:%S"), "category": f"手動-{chosen_theme}", "content": payload})
-            with open(DB_FILE, "w", encoding="utf-8") as f:
-                json.dump(history, f, ensure_ascii=False, indent=4)
+            payload, chosen_theme = bible_core.generate_verse(api_key, model_name)
+        bible_core.send_line_message(line_token, target_id.strip(), f'【每日靈修】\n\n{payload}')
+        bible_core.record_entry(payload, f"手動-{chosen_theme}")
+        st.success(f"✅ 發送成功")
     except Exception as e:
         st.error(f"❌ 系統故障: {str(e)}")
 
 # --- 4. 歷史管理 ---
 st.subheader("📚 歷史經文典藏管理庫")
-history_data = load_history()
+history_data = bible_core.load_history()
 
 if history_data:
     # 預處理分組
@@ -113,9 +59,9 @@ if history_data:
     with col2:
         selected_month = st.selectbox("選擇下載月份", months)
         monthly_data = grouped_history[selected_month]
-        st.download_button(f"📄 下載 {selected_month} (HTML)", data=generate_html_backup(monthly_data), file_name=f"history_{selected_month}.html", mime="text/html")
+        st.download_button(f"📄 下載 {selected_month} (HTML)", data=bible_core.generate_html_backup(monthly_data), file_name=f"history_{selected_month}.html", mime="text/html")
     with col3:
-        st.download_button("📄 下載全部 (HTML)", data=generate_html_backup(history_data), file_name="history_all.html", mime="text/html")
+        st.download_button("📄 下載全部 (HTML)", data=bible_core.generate_html_backup(history_data), file_name="history_all.html", mime="text/html")
     
     # 顯示區塊
     expand_all = st.checkbox("預設全部展開", value=False)

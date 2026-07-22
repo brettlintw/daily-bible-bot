@@ -15,6 +15,7 @@
 - **部署在 Render**（Brett 本人帳號），常駐服務，不透過 GitHub Actions 執行，也不會反映在這個 repo 的 commit 紀錄裡
 - 監聽 LINE 訊息，含「靈修」關鍵字時即時用 Gemini 生成一段經文回覆
 - Render 免費方案有休眠機制，久未使用可能有喚醒延遲，如果 Brett 反應「Webhook 沒反應」先確認是不是冷啟動
+- 支援文字指令（見 [docs/superpowers/specs/2026-07-22-line-command-console-design.md](docs/superpowers/specs/2026-07-22-line-command-console-design.md)）：`推播`、`主題 <名稱>`（僅 Brett）、`歷史 <N>`、`下載`、`選單`、`我的ID`
 
 ### 3. `main.py` — Streamlit 手動控制台
 - **只在本機執行**，沒有部署到 Streamlit Cloud
@@ -32,6 +33,8 @@
 - `LINE_TOKEN`
 - `GEMINI_API_KEY`
 - `TARGET_GROUP_ID`（optional）
+- `ADMIN_USER_ID`：Brett 本人的 LINE User ID，用來判斷「推播」「主題」指令的權限。取得方式：在 LINE 裡打「我的ID」，機器人會回覆傳訊者的 User ID。
+- `RENDER_EXTERNAL_URL`：Render 平台自動注入，不用手動設定，`app.py` 的 `/export` 路由靠這個組出對外網址。
 
 **本機執行 `main.py`**：透過 `st.secrets` 或環境變數皆可（見 `get_secret()`）。
 
