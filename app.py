@@ -55,22 +55,98 @@ def export_history():
     data = bible_core.load_history()
     return bible_core.generate_html_backup(data)
 
+def build_quick_reply(event):
+    buttons = [
+        QuickReplyButton(action=MessageAction(label="查歷史", text="歷史 5")),
+        QuickReplyButton(action=MessageAction(label="下載", text="下載")),
+    ]
+    if is_admin(event):
+        buttons.insert(0, QuickReplyButton(action=MessageAction(label="推播", text="推播")))
+    return QuickReply(items=buttons)
+
+
 @handler.add(MessageEvent)
 def handle_message(event):
     TARGET_ID = os.environ.get('TARGET_GROUP_ID')
-    
+
     if event.source.type == "group":
         captured_id = event.source.group_id
-        with open("latest_group_id.txt", "w") as f:
+        with open(bible_core.ID_FILE, "w") as f:
             f.write(captured_id)
-    
-    if event.source.type == "group" and event.source.group_id != TARGET_ID:
-        return 
 
-    if isinstance(event.message, TextMessage) and "靈修" in event.message.text:
+    if event.source.type == "group" and event.source.group_id != TARGET_ID:
+        return
+
+    if not isinstance(event.message, TextMessage):
+        return
+
+    text = event.message.text
+    command, arg = parse_command(text)
+
+    if command == "whoami":
+        line_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text=f"你的 User ID 是：\n{getattr(event.source, 'user_id', '無法取得')}")
+        )
+        return
+
+    if command == "menu":
+        line_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text="請選擇功能：", quick_reply=build_quick_reply(event))
+        )
+        return
+
+    if command == "history_error":
+        line_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text="⚠️ 格式錯誤，請用「歷史 5」這種格式（數字需為正整數）")
+        )
+        return
+
+    if command == "history":
         try:
-            res = model.generate_content("請精選一段聖經經文分享。格式：【經文】；【章節】；【感悟】")
-            line_api.reply_message(event.reply_token, TextSendMessage(text=res.text))
+            items = bible_core.load_history()[:arg]
+            if not items:
+                reply_text = "目前還沒有歷史紀錄。"
+            else:
+                reply_text = "\n\n".join(
+                    f"{h.get('date')} | {h.get('category')}\n{h.get('content')}" for h in items
+                )
+            line_api.reply_message(event.reply_token, TextSendMessage(text=reply_text))
+        except Exception as e:
+            logger.error(f"查歷史失敗: {e}")
+            line_api.reply_message(event.reply_token, TextSendMessage(text="⚠️ 暫時無法處理，稍後再試"))
+        return
+
+    if command == "download":
+        line_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text=f"完整歷史備份：\n{get_export_url()}")
+        )
+        return
+
+    if command in ("push", "theme"):
+        if not is_admin(event):
+            line_api.reply_message(event.reply_token, TextSendMessage(text="⚠️ 這個指令你沒有權限使用"))
+            return
+        try:
+            theme = arg if command == "theme" else None
+            payload, chosen_theme = bible_core.generate_verse(
+                os.environ['GEMINI_API_KEY'], model_name, theme=theme
+            )
+            bible_core.send_line_message(os.environ['LINE_TOKEN'], TARGET_ID, f'【每日靈修】\n\n{payload}')
+            bible_core.record_entry(payload, f"指令-{chosen_theme}")
+            line_api.reply_message(event.reply_token, TextSendMessage(text="✅ 已推播"))
+        except Exception as e:
+            logger.error(f"指令推播失敗: {e}")
+            line_api.reply_message(event.reply_token, TextSendMessage(text="⚠️ 暫時無法處理，稍後再試"))
+        return
+
+    if "靈修" in text:
+        try:
+            payload, _ = bible_core.generate_verse(os.environ['GEMINI_API_KEY'], model_name)
+            line_api.reply_message(event.reply_token, TextSendMessage(text=payload))
         except Exception as e:
             logger.error(f"靈修生成失敗: {e}")
             line_api.reply_message(event.reply_token, TextSendMessage(text="⚠️ 靈修內容暫時無法讀取。"))
