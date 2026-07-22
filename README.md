@@ -13,8 +13,8 @@
 | 元件 | 說明 | 執行環境 |
 |---|---|---|
 | `daily_push.py` | 每日自動推播腳本 | GitHub Actions（排程觸發） |
-| `main.py` | LINE Webhook 被動回覆 | Render（常駐服務） |
-| `app.py` | 手動控制台 | 本機 Streamlit |
+| `app.py` | LINE Webhook 被動回覆 | Render（常駐服務） |
+| `main.py` | 手動控制台 | 本機 Streamlit |
 
 詳細架構、環境變數需求、已知缺口請見 [CLAUDE.md](CLAUDE.md)。
 
@@ -22,7 +22,7 @@
 
 ```bash
 pip install -r requirements.txt
-streamlit run app.py
+streamlit run main.py
 ```
 
 需要環境變數：`LINE_TOKEN`、`GEMINI_API_KEY`（皆可透過 `.streamlit/secrets.toml` 或系統環境變數提供）。
