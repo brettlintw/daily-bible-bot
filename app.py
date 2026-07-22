@@ -1,11 +1,16 @@
 from flask import Flask, request, abort
 from linebot import WebhookHandler
 from linebot.exceptions import InvalidSignatureError
-from linebot.models import MessageEvent, TextMessage, TextSendMessage
+from linebot.models import (
+    MessageEvent, TextMessage, TextSendMessage,
+    QuickReply, QuickReplyButton, MessageAction,
+)
 from linebot import LineBotApi
 import os
-import google.generativeai as genai
 import logging
+
+import bible_core
+from command_parser import parse_command
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -15,11 +20,17 @@ app = Flask(__name__)
 # 初始化設定
 handler = WebhookHandler(os.environ['LINE_CHANNEL_SECRET'])
 line_api = LineBotApi(os.environ['LINE_TOKEN'])
-genai.configure(api_key=os.environ['GEMINI_API_KEY'])
 
 # 讀取環境變數中的模型名稱
 model_name = os.environ.get('GEMINI_MODEL_NAME', 'models/gemini-flash-latest')
-model = genai.GenerativeModel(model_name)
+
+# 有權限使用 推播/主題 指令的 LINE User ID（在 Render 環境變數設定）
+ADMIN_USER_ID = os.environ.get('ADMIN_USER_ID', '').strip()
+
+
+def is_admin(event):
+    user_id = getattr(event.source, "user_id", None)
+    return bool(ADMIN_USER_ID) and user_id == ADMIN_USER_ID
 
 @app.route("/callback", methods=['POST'])
 def callback():
