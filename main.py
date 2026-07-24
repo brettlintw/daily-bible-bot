@@ -22,17 +22,20 @@ if os.path.exists(bible_core.ID_FILE):
         detected_id = f.read().strip()
         st.sidebar.info(f"偵測到的群組 ID:\n{detected_id}")
 line_token = st.sidebar.text_input("LINE Token:", value=get_secret("LINE_TOKEN"), type="password")
-model_name = get_secret("GEMINI_MODEL_NAME") or "models/gemini-flash-latest"
+MODEL_OPTIONS = {"自動（依序嘗試免費模型，推薦）": None}
+MODEL_OPTIONS.update({f"{name}（{label}）": name for name, label in bible_core.FREE_MODEL_CANDIDATES})
 
 st.subheader("🚀 手動精準推送")
 target_id = st.text_input("目標 UserID / 群組 ID", value=DEFAULT_TARGET_ID)
+selected_label = st.selectbox("選擇生成模型：", list(MODEL_OPTIONS.keys()))
+selected_model_name = MODEL_OPTIONS[selected_label]
 
 if st.button("執行推送"):
     try:
         api_key = get_secret("GEMINI_API_KEY")
         line_token = get_secret("LINE_TOKEN")
         with st.spinner("🚀 牧者正在領受啟示..."):
-            payload, chosen_theme = bible_core.generate_verse(api_key, model_name)
+            payload, chosen_theme = bible_core.generate_verse(api_key, selected_model_name)
         bible_core.send_line_message(line_token, target_id.strip(), f'【每日靈修】\n\n{payload}')
         bible_core.record_entry(payload, f"手動-{chosen_theme}")
         st.success(f"✅ 發送成功")

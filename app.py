@@ -21,9 +21,6 @@ app = Flask(__name__)
 handler = WebhookHandler(os.environ['LINE_CHANNEL_SECRET'])
 line_api = LineBotApi(os.environ['LINE_TOKEN'])
 
-# 讀取環境變數中的模型名稱
-model_name = os.environ.get('GEMINI_MODEL_NAME', 'models/gemini-flash-latest')
-
 # 有權限使用 推播/主題 指令的 LINE User ID（在 Render 環境變數設定）
 ADMIN_USER_ID = os.environ.get('ADMIN_USER_ID', '').strip()
 
@@ -133,7 +130,7 @@ def handle_message(event):
         try:
             theme = arg if command == "theme" else None
             payload, chosen_theme = bible_core.generate_verse(
-                os.environ['GEMINI_API_KEY'], model_name, theme=theme
+                os.environ['GEMINI_API_KEY'], theme=theme
             )
             bible_core.send_line_message(os.environ['LINE_TOKEN'], TARGET_ID, f'【每日靈修】\n\n{payload}')
             bible_core.record_entry(payload, f"指令-{chosen_theme}")
@@ -145,7 +142,7 @@ def handle_message(event):
 
     if "靈修" in text:
         try:
-            payload, _ = bible_core.generate_verse(os.environ['GEMINI_API_KEY'], model_name)
+            payload, _ = bible_core.generate_verse(os.environ['GEMINI_API_KEY'])
             line_api.reply_message(event.reply_token, TextSendMessage(text=payload))
         except Exception as e:
             logger.error(f"靈修生成失敗: {e}")

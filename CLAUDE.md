@@ -41,6 +41,10 @@
 ## 帳號歸屬
 LINE 官方帳號、Google AI Studio（Gemini API）都註冊在 Brett 本人名下。API Key 過期/額度問題要提醒他去這兩個地方處理。
 
+## Gemini 模型自動容錯
+
+`bible_core.py` 的 `FREE_MODEL_CANDIDATES` 是一份手動維護的免費模型優先順序清單，`generate_verse` 在沒有指定模型時會依序嘗試，一個撞到額度限制就換下一個。Google 常調整免費方案的額度規則，如果之後常常整批失敗（Render log 出現多行「模型 X 失敗」），要去 Google AI Studio 確認現在的免費額度規則，更新這份清單的內容或順序。`GEMINI_MODEL_NAME` 環境變數已經沒有作用了（Render／GitHub Actions 上如果還留著可以不用管，但不會被讀取）。
+
 ## requirements.txt 備註
 - `xhtml2pdf`：目前 `main.py`/`app.py`/`daily_push.py` **都沒有引用**，疑似遺留依賴。不要直接砍，先跟 Brett 確認是否還有計畫用到（例如匯出 PDF 功能）再移除。
 - `gunicorn`：程式碼裡沒有 import 是正常的——這是 Render 上啟動 `app.py` 用的 WSGI server，屬於部署層依賴，不是程式碼層漏用。
