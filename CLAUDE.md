@@ -23,10 +23,11 @@
 
 ## Secrets / 環境變數
 
-**GitHub repo Secrets**（已設定，供 `daily_push.py` 在 Actions 裡使用）：
+**GitHub repo Secrets**（供 `daily_push.py` 在 Actions 裡使用）：
 - `LINE_TOKEN`
 - `GEMINI_API_KEY`
 - `TARGET_GROUP_ID`
+- `ADMIN_USER_ID`：Brett 本人的 LINE User ID，跟 Render 上的值相同。用於全部候選模型都失敗時，`daily_push.py` 主動推播失敗通知給 Brett（2026-08-31 加入，之前這個 secret 只設在 Render）。
 
 **Render 環境變數**（供 `app.py` 使用，跟這個 repo 無關，要改去 Render 後台改）：
 - `LINE_CHANNEL_SECRET`
@@ -43,7 +44,13 @@ LINE 官方帳號、Google AI Studio（Gemini API）都註冊在 Brett 本人名
 
 ## Gemini 模型自動容錯
 
-`bible_core.py` 的 `FREE_MODEL_CANDIDATES` 是一份手動維護的免費模型優先順序清單，`generate_verse` 在沒有指定模型時會依序嘗試，一個撞到額度限制就換下一個。Google 常調整免費方案的額度規則，如果之後常常整批失敗（Render log 出現多行「模型 X 失敗」），要去 Google AI Studio 確認現在的免費額度規則，更新這份清單的內容或順序。`GEMINI_MODEL_NAME` 環境變數已經沒有作用了（Render／GitHub Actions 上如果還留著可以不用管，但不會被讀取）。
+`bible_core.py` 的 `FREE_MODEL_CANDIDATES` 是一份手動維護的模型優先順序清單（依已知單價由低到高排序），`generate_verse` 在沒有指定模型時會依序嘗試，一個失敗就換下一個。
+
+**注意**：Brett 的 Google Cloud 專案是 **Tier 1**（已開通計費，不是完全免費），Gemini API 是否收費是專案層級設定，不是依模型名稱切換——這份清單能降低「單一模型下架或出問題」造成整批失敗的風險，但無法讓呼叫變成真正免費。額度/計費狀態可以到 https://aistudio.google.com/spend 查看目前的每月支出上限與用量。
+
+如果之後常常整批失敗（GitHub Actions/Render log 出現多行「模型 X 失敗」），除了檢查上面那個支出上限頁面，也要去 Google AI Studio 確認模型是否又被下架或改名（2026-08 曾發生 `models/gemini-2.0-flash-lite` 被下架導致整批失敗），更新這份清單的內容或順序。`GEMINI_MODEL_NAME` 環境變數已經沒有作用了（Render／GitHub Actions 上如果還留著可以不用管，但不會被讀取）。
+
+`daily_push.py` 在所有候選模型都失敗時，會額外推一則 LINE 訊息通知 `ADMIN_USER_ID`（需要在 GitHub repo Secrets 也設定這個值，見上面「GitHub repo Secrets」清單），避免像 2026-08-31 那次一樣連續多天失敗都沒人發現。
 
 ## requirements.txt 備註
 - `xhtml2pdf`：目前 `main.py`/`app.py`/`daily_push.py` **都沒有引用**，疑似遺留依賴。不要直接砍，先跟 Brett 確認是否還有計畫用到（例如匯出 PDF 功能）再移除。
