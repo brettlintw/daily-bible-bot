@@ -17,10 +17,9 @@ ID_FILE = "latest_group_id.txt"
 THEMES = ["安慰", "力量", "盼望", "智慧", "愛與饒恕", "平安", "信心"]
 
 FREE_MODEL_CANDIDATES = [
-    ("models/gemini-2.5-flash-lite", "額度通常較寬鬆"),
-    ("models/gemini-2.0-flash-lite", "額度通常較寬鬆"),
-    ("models/gemini-2.5-flash", "額度普通"),
-    ("models/gemini-flash-latest", "目前預設，額度較容易撞牆"),
+    ("models/gemini-2.5-flash-lite", "成本最低，優先使用"),
+    ("models/gemini-flash-latest", "成本次低"),
+    ("models/gemini-2.5-flash", "成本較高，當保底"),
 ]
 
 

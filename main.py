@@ -22,7 +22,7 @@ if os.path.exists(bible_core.ID_FILE):
         detected_id = f.read().strip()
         st.sidebar.info(f"偵測到的群組 ID:\n{detected_id}")
 line_token = st.sidebar.text_input("LINE Token:", value=get_secret("LINE_TOKEN"), type="password")
-MODEL_OPTIONS = {"自動（依序嘗試免費模型，推薦）": None}
+MODEL_OPTIONS = {"自動（依序嘗試，成本由低到高，推薦）": None}
 MODEL_OPTIONS.update({f"{name}（{label}）": name for name, label in bible_core.FREE_MODEL_CANDIDATES})
 
 st.subheader("🚀 手動精準推送")
