@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 TZ_TW = timezone(timedelta(hours=8))
 DB_FILE = "bible_history.json"
 ID_FILE = "latest_group_id.txt"
-THEMES = ["安慰", "力量", "盼望", "智慧", "愛與饒恕", "平安", "信心"]
+THEMES = ["安慰", "力量", "盼望", "智慧", "愛與饒恕", "平安", "信心", "感恩", "喜樂", "忍耐", "謙卑", "引導"]
 
 FREE_MODEL_CANDIDATES = [
     ("models/gemini-2.5-flash-lite", "成本最低，優先使用"),
@@ -79,21 +79,19 @@ def _generate_with_retry(model, prompt):
     return model.generate_content(prompt, generation_config=genai.types.GenerationConfig(temperature=0.8))
 
 
-def generate_verse(api_key, model_name=None, theme=None, history_limit=30):
+def _generate_once(api_key, model_name, chosen_theme, avoid_refs):
     genai.configure(api_key=api_key)
 
-    chosen_theme = theme or random.choice(THEMES)
-    history_titles = [item.get("content", "")[:60] for item in load_history()[:history_limit]]
-    history_str = "\n".join(history_titles)
+    avoid_str = "\n".join(sorted(avoid_refs)) if avoid_refs else "（無）"
 
     prompt = f"""
     你是一位充滿智慧的資深牧者。
     請精選一段聖經經文。
     主題選擇：{chosen_theme}。
 
-    【絕對禁令】：嚴禁輸出與下方清單相似或重複的內容。
-    這是一份你最近分享過的內容清單 (請避開以下所有內容)：
-    {history_str}
+    【絕對禁令】：嚴禁輸出與下方清單相同的經文章節。
+    這是一份最近 5 個月已經分享過的經文章節清單 (請避開以下所有章節)：
+    {avoid_str}
 
     請依照此格式嚴格輸出：
     【內容】；【章節】；【領受】。
@@ -102,7 +100,7 @@ def generate_verse(api_key, model_name=None, theme=None, history_limit=30):
     if model_name:
         model = genai.GenerativeModel(model_name)
         res = _generate_with_retry(model, prompt)
-        return res.text.strip(), chosen_theme
+        return res.text.strip()
 
     last_error = None
     for candidate_name, _label in FREE_MODEL_CANDIDATES:
@@ -111,11 +109,30 @@ def generate_verse(api_key, model_name=None, theme=None, history_limit=30):
             res = model.generate_content(
                 prompt, generation_config=genai.types.GenerationConfig(temperature=0.8)
             )
-            return res.text.strip(), chosen_theme
+            return res.text.strip()
         except Exception as e:
             logger.error(f"模型 {candidate_name} 失敗：{e}，改試下一個")
             last_error = e
     raise last_error
+
+
+def generate_verse(api_key, model_name=None, theme=None, dedup_months=5, max_attempts=3):
+    avoid_refs = get_recent_references(months=dedup_months)
+
+    last_payload, last_theme = None, None
+    for attempt in range(1, max_attempts + 1):
+        chosen_theme = theme or random.choice(THEMES)
+        payload = _generate_once(api_key, model_name, chosen_theme, avoid_refs)
+        ref = extract_reference(payload)
+        last_payload, last_theme = payload, chosen_theme
+
+        if ref is None or ref not in avoid_refs:
+            return payload, chosen_theme
+
+        logger.error(f"第 {attempt} 次生成撞到重複經文（{ref}），重打")
+
+    logger.error(f"重試 {max_attempts} 次仍重複，直接採用最後一次結果")
+    return last_payload, last_theme
 
 
 def send_line_message(line_token, target_id, message_text):
