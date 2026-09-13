@@ -33,6 +33,45 @@ def extract_reference(content):
     return None
 
 
+_CN_DIGITS = {'零': 0, '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9}
+_CN_UNITS = {'十': 10, '百': 100}
+_CN_NUM_PATTERN = re.compile(r'[零一二三四五六七八九十百]+')
+
+
+def _cn_num_to_arabic(cn_num_str):
+    total = 0
+    section = 0
+    num = 0
+    for ch in cn_num_str:
+        if ch in _CN_DIGITS:
+            num = _CN_DIGITS[ch]
+        elif ch in _CN_UNITS:
+            unit = _CN_UNITS[ch]
+            if num == 0:
+                num = 1
+            section += num * unit
+            num = 0
+    section += num
+    total += section
+    return str(total)
+
+
+def normalize_reference(ref):
+    if ref is None:
+        return None
+    ref = re.sub(r'《[^》]*[·・]', '《', ref)
+    # Split off the 《book title》 portion so label-stripping below never touches
+    # characters that are part of the book name itself (e.g. "詩篇", "約翰一書").
+    if '》' in ref:
+        book, rest = ref.split('》', 1)
+        book += '》'
+    else:
+        book, rest = '', ref
+    rest = _CN_NUM_PATTERN.sub(lambda m: _cn_num_to_arabic(m.group(0)), rest)
+    rest = rest.replace('至', '-').replace('第', '').replace('章', ':').replace('篇', ':').replace('節', '')
+    return re.sub(r'\s+', '', book + rest)
+
+
 def get_recent_references(months=5, db_file=DB_FILE):
     cutoff = datetime.now(TZ_TW) - timedelta(days=30 * months)
     cutoff_date_str = cutoff.strftime("%Y-%m-%d")
@@ -41,7 +80,7 @@ def get_recent_references(months=5, db_file=DB_FILE):
         if entry.get("date", "") >= cutoff_date_str:
             ref = extract_reference(entry.get("content", ""))
             if ref:
-                refs.add(ref)
+                refs.add(normalize_reference(ref))
     return refs
 
 
@@ -79,7 +118,7 @@ def _generate_with_retry(model, prompt):
     return model.generate_content(prompt, generation_config=genai.types.GenerationConfig(temperature=0.8))
 
 
-def _generate_once(api_key, model_name, chosen_theme, avoid_refs):
+def _generate_once(api_key, model_name, chosen_theme, avoid_refs, dedup_months):
     genai.configure(api_key=api_key)
 
     avoid_str = "\n".join(sorted(avoid_refs)) if avoid_refs else "（無）"
@@ -90,7 +129,7 @@ def _generate_once(api_key, model_name, chosen_theme, avoid_refs):
     主題選擇：{chosen_theme}。
 
     【絕對禁令】：嚴禁輸出與下方清單相同的經文章節。
-    這是一份最近 5 個月已經分享過的經文章節清單 (請避開以下所有章節)：
+    這是一份最近 {dedup_months} 個月已經分享過的經文章節清單 (請避開以下所有章節)：
     {avoid_str}
 
     請依照此格式嚴格輸出：
@@ -122,11 +161,11 @@ def generate_verse(api_key, model_name=None, theme=None, dedup_months=5, max_att
     last_payload, last_theme = None, None
     for attempt in range(1, max_attempts + 1):
         chosen_theme = theme or random.choice(THEMES)
-        payload = _generate_once(api_key, model_name, chosen_theme, avoid_refs)
+        payload = _generate_once(api_key, model_name, chosen_theme, avoid_refs, dedup_months)
         ref = extract_reference(payload)
         last_payload, last_theme = payload, chosen_theme
 
-        if ref is None or ref not in avoid_refs:
+        if ref is None or normalize_reference(ref) not in avoid_refs:
             return payload, chosen_theme
 
         logger.error(f"第 {attempt} 次生成撞到重複經文（{ref}），重打")
