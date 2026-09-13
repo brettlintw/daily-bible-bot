@@ -1,0 +1,39 @@
+name: Monthly Summary
+
+on:
+  schedule:
+    - cron: '0 1 1 * *'
+  workflow_dispatch: # 允許在 GitHub 頁面手動點擊執行測試
+
+jobs:
+  monthly_summary_job:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # 必須授予寫入權限，否則無法進行自動提交
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install system CJK font
+        run: sudo apt-get update && sudo apt-get install -y fonts-noto-cjk
+
+      - name: Install dependencies
+        run: pip install line-bot-sdk weasyprint
+
+      - name: Run Python Script
+        env:
+          LINE_TOKEN: ${{ secrets.LINE_TOKEN }}
+          TARGET_GROUP_ID: ${{ secrets.TARGET_GROUP_ID }}
+        run: python monthly_summary.py
+
+      - name: Auto-Commit Changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Auto-generate monthly summary PDF"
+          file_pattern: 'monthly_summaries/*.pdf'
