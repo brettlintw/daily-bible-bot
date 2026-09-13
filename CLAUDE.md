@@ -21,6 +21,13 @@
 - **只在本機執行**，沒有部署到 Streamlit Cloud
 - 用途：手動觸發一次推播、瀏覽/下載 `bible_history.json`（TXT/HTML 匯出）
 
+### 4. `monthly_summary.py` — 每月經文彙整 PDF（2026-09 新增）
+- 由 [.github/workflows/monthly_summary.yml](.github/workflows/monthly_summary.yml) 的 GitHub Actions 觸發，跟 `daily_push.yml` 完全獨立的排程
+- Cron：`0 1 1 * *`（每月 1 號 UTC 01:00 = 台灣時間 09:00），也可手動 workflow_dispatch 觸發測試
+- 流程：讀 `bible_history.json` → 篩出上個月資料 → 依主題分組（`bible_core.THEMES` 順序）→ 用 `weasyprint` 轉成 PDF → 存到 `monthly_summaries/YYYY-MM.pdf` 並 commit → 推播 GitHub 網頁預覽連結到 LINE 目標群組
+- 用 `weasyprint`（不是 `xhtml2pdf`——已實測 `xhtml2pdf` 無法正確嵌入中文字型），需要 GitHub Actions 的 Ubuntu 環境裝 `fonts-noto-cjk` 系統字型，本機 Windows 無法完整測試這個流程的 PDF 渲染結果
+- 上個月沒有推播紀錄時直接跳過，不報錯、不通知
+
 ## Secrets / 環境變數
 
 **GitHub repo Secrets**（供 `daily_push.py` 在 Actions 裡使用）：
