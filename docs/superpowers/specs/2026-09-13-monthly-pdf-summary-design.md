@@ -15,12 +15,13 @@ Brett 每個月會手動把 `history_all.html`（`main.py`「下載全部 HTML�
 
 - **新檔案** `.github/workflows/monthly_summary.yml`：cron 排程設在每月 1 號（例如 `0 1 1 * *`，UTC 01:00 = 台灣時間 09:00）
 - **新腳本** `monthly_summary.py`：
-  1. 讀 `bible_history.json`，篩出「上個月」（若今天是 9 月，篩 8/1~8/31）所有紀錄
-  2. 用類似 `bible_core.generate_html_backup` 的邏輯組出一份 HTML（可以重用既有函式或做一個排版更適合列印的版本）
-  3. 用 `weasyprint` 把 HTML 轉成 PDF（見下一節「中文字型」，說明為什麼選這套而不是 `xhtml2pdf`）
-  4. PDF 存到 repo 的 `monthly_summaries/YYYY-MM.pdf`（例如 `monthly_summaries/2026-08.pdf`）
-  5. 用既有的 `git-auto-commit-action`（跟 `daily_push.yml` 用的同一種機制）把新產生的 PDF commit 進 repo
-  6. 推一則 LINE 訊息到 `TARGET_GROUP_ID`，內容是這個檔案的 GitHub 網頁預覽連結：`https://github.com/brettlintw/daily-bible-bot/blob/main/monthly_summaries/{YYYY-MM}.pdf`（GitHub 本身就有內建的 PDF 預覽功能，點開瀏覽器直接看，不需要另外架設任何下載服務）
+  1. 讀 `bible_history.json`，篩出「上個月」（若今天是 9 月，篩 8/1~8/31）所有紀錄，依日期由舊到新排序
+  2. **依主題分組**（不是按日期條列）：從每筆紀錄的 `category` 欄位（例如「自動靈修-智慧」「手動-平安」「指令-喜樂」，三種來源命名規則一致，都是「前綴-主題名稱」）取最後一段當作主題名稱；輸出時依 `bible_core.THEMES` 既有順序（安慰→力量→...→引導）分區塊顯示，當月完全沒出現的主題不顯示空區塊；同一主題區塊內的多筆經文依日期由舊到新排列
+  3. 組出一份專屬於這個月報的 HTML（新函式，不是重用 `bible_core.generate_html_backup`——那個函式是給 `main.py`「下載全部 HTML」用的，維持原本按日期條列不分組的行為，兩邊需求不同、互不影響）
+  4. 用 `weasyprint` 把 HTML 轉成 PDF（見下一節「中文字型」，說明為什麼選這套而不是 `xhtml2pdf`）
+  5. PDF 存到 repo 的 `monthly_summaries/YYYY-MM.pdf`（例如 `monthly_summaries/2026-08.pdf`）
+  6. 用既有的 `git-auto-commit-action`（跟 `daily_push.yml` 用的同一種機制）把新產生的 PDF commit 進 repo
+  7. 推一則 LINE 訊息到 `TARGET_GROUP_ID`，內容是這個檔案的 GitHub 網頁預覽連結：`https://github.com/brettlintw/daily-bible-bot/blob/main/monthly_summaries/{YYYY-MM}.pdf`（GitHub 本身就有內建的 PDF 預覽功能，點開瀏覽器直接看，不需要另外架設任何下載服務）
 
 ## 中文字型：改用 `weasyprint`，不用 `xhtml2pdf`
 
