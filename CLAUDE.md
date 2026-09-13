@@ -72,6 +72,6 @@ LINE 官方帳號、Google AI Studio（Gemini API）都註冊在 Brett 本人名
 - `gunicorn`：程式碼裡沒有 import 是正常的——這是 Render 上啟動 `app.py` 用的 WSGI server，屬於部署層依賴，不是程式碼層漏用。
 
 ## 已知缺口
-- 沒有 `.gitignore`（`latest_group_id.txt` 目前沒被 commit，但也沒有規則明確排除它）
+- 有 `.gitignore`（排除 `.superpowers/`、`__pycache__/`、`*.pyc`），但 `latest_group_id.txt` 仍沒被規則明確排除（目前沒被 commit，靠慣例而非規則）
 - 沒有任何測試
 - `bible_history.json` 會持續增長，目前只在推播時 insert 到最前面，沒有輪替/封存機制
