@@ -52,6 +52,14 @@ LINE 官方帳號、Google AI Studio（Gemini API）都註冊在 Brett 本人名
 
 `daily_push.py` 在所有候選模型都失敗時，會額外推一則 LINE 訊息通知 `ADMIN_USER_ID`（需要在 GitHub repo Secrets 也設定這個值，見上面「GitHub repo Secrets」清單），避免像 2026-08-31 那次一樣連續多天失敗都沒人發現。
 
+## 經文防重複機制
+
+`generate_verse` 會在生成經文後，用 `extract_reference` 抓出「《書卷》第X章Y節」這段當作識別碼，跟 `get_recent_references(months=5)` 算出的「最近 5 個月已經推過的章節」比對。撞到就重打，最多重打 3 次；3 次都撞到的話，直接採用第 3 次的結果照常推播（不會因此中斷推播），並記一行 log。
+
+背景：2026-09 發現同一節經文常常一個月內重複好幾次（例如雅各書 1:5 一個月出現 3 次），原因是舊機制只在 prompt 裡「拜託」Gemini 避開最近 30 筆內容，沒有程式層級驗證。這次改成生成後實際驗證，不再只靠 AI 自覺遵守指示。
+
+`THEMES` 目前有 12 個主題（原本 7 個 + 感恩、喜樂、忍耐、謙卑、引導）。
+
 ## requirements.txt 備註
 - `xhtml2pdf`：目前 `main.py`/`app.py`/`daily_push.py` **都沒有引用**，疑似遺留依賴。不要直接砍，先跟 Brett 確認是否還有計畫用到（例如匯出 PDF 功能）再移除。
 - `gunicorn`：程式碼裡沒有 import 是正常的——這是 Render 上啟動 `app.py` 用的 WSGI server，屬於部署層依賴，不是程式碼層漏用。

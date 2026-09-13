@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import random
 import logging
@@ -14,13 +15,73 @@ logger = logging.getLogger(__name__)
 TZ_TW = timezone(timedelta(hours=8))
 DB_FILE = "bible_history.json"
 ID_FILE = "latest_group_id.txt"
-THEMES = ["安慰", "力量", "盼望", "智慧", "愛與饒恕", "平安", "信心"]
+THEMES = ["安慰", "力量", "盼望", "智慧", "愛與饒恕", "平安", "信心", "感恩", "喜樂", "忍耐", "謙卑", "引導"]
 
 FREE_MODEL_CANDIDATES = [
     ("models/gemini-2.5-flash-lite", "成本最低，優先使用"),
     ("models/gemini-flash-latest", "成本次低"),
     ("models/gemini-2.5-flash", "成本較高，當保底"),
 ]
+
+REFERENCE_PATTERN = re.compile(r'《[^》]+》[^；\n]*')
+
+
+def extract_reference(content):
+    match = REFERENCE_PATTERN.search(content)
+    if match:
+        return match.group(0).strip()
+    return None
+
+
+_CN_DIGITS = {'零': 0, '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9}
+_CN_UNITS = {'十': 10, '百': 100}
+_CN_NUM_PATTERN = re.compile(r'[零一二三四五六七八九十百]+')
+
+
+def _cn_num_to_arabic(cn_num_str):
+    total = 0
+    section = 0
+    num = 0
+    for ch in cn_num_str:
+        if ch in _CN_DIGITS:
+            num = _CN_DIGITS[ch]
+        elif ch in _CN_UNITS:
+            unit = _CN_UNITS[ch]
+            if num == 0:
+                num = 1
+            section += num * unit
+            num = 0
+    section += num
+    total += section
+    return str(total)
+
+
+def normalize_reference(ref):
+    if ref is None:
+        return None
+    ref = re.sub(r'《[^》]*[·・]', '《', ref)
+    # Split off the 《book title》 portion so label-stripping below never touches
+    # characters that are part of the book name itself (e.g. "詩篇", "約翰一書").
+    if '》' in ref:
+        book, rest = ref.split('》', 1)
+        book += '》'
+    else:
+        book, rest = '', ref
+    rest = _CN_NUM_PATTERN.sub(lambda m: _cn_num_to_arabic(m.group(0)), rest)
+    rest = rest.replace('至', '-').replace('第', '').replace('章', ':').replace('篇', ':').replace('節', '')
+    return re.sub(r'\s+', '', book + rest)
+
+
+def get_recent_references(months=5, db_file=DB_FILE):
+    cutoff = datetime.now(TZ_TW) - timedelta(days=30 * months)
+    cutoff_date_str = cutoff.strftime("%Y-%m-%d")
+    refs = set()
+    for entry in load_history(db_file):
+        if entry.get("date", "") >= cutoff_date_str:
+            ref = extract_reference(entry.get("content", ""))
+            if ref:
+                refs.add(normalize_reference(ref))
+    return refs
 
 
 def load_history(db_file=DB_FILE):
@@ -57,21 +118,19 @@ def _generate_with_retry(model, prompt):
     return model.generate_content(prompt, generation_config=genai.types.GenerationConfig(temperature=0.8))
 
 
-def generate_verse(api_key, model_name=None, theme=None, history_limit=30):
+def _generate_once(api_key, model_name, chosen_theme, avoid_refs, dedup_months):
     genai.configure(api_key=api_key)
 
-    chosen_theme = theme or random.choice(THEMES)
-    history_titles = [item.get("content", "")[:60] for item in load_history()[:history_limit]]
-    history_str = "\n".join(history_titles)
+    avoid_str = "\n".join(sorted(avoid_refs)) if avoid_refs else "（無）"
 
     prompt = f"""
     你是一位充滿智慧的資深牧者。
     請精選一段聖經經文。
     主題選擇：{chosen_theme}。
 
-    【絕對禁令】：嚴禁輸出與下方清單相似或重複的內容。
-    這是一份你最近分享過的內容清單 (請避開以下所有內容)：
-    {history_str}
+    【絕對禁令】：嚴禁輸出與下方清單相同的經文章節。
+    這是一份最近 {dedup_months} 個月已經分享過的經文章節清單 (請避開以下所有章節)：
+    {avoid_str}
 
     請依照此格式嚴格輸出：
     【內容】；【章節】；【領受】。
@@ -80,7 +139,7 @@ def generate_verse(api_key, model_name=None, theme=None, history_limit=30):
     if model_name:
         model = genai.GenerativeModel(model_name)
         res = _generate_with_retry(model, prompt)
-        return res.text.strip(), chosen_theme
+        return res.text.strip()
 
     last_error = None
     for candidate_name, _label in FREE_MODEL_CANDIDATES:
@@ -89,11 +148,30 @@ def generate_verse(api_key, model_name=None, theme=None, history_limit=30):
             res = model.generate_content(
                 prompt, generation_config=genai.types.GenerationConfig(temperature=0.8)
             )
-            return res.text.strip(), chosen_theme
+            return res.text.strip()
         except Exception as e:
             logger.error(f"模型 {candidate_name} 失敗：{e}，改試下一個")
             last_error = e
     raise last_error
+
+
+def generate_verse(api_key, model_name=None, theme=None, dedup_months=5, max_attempts=3):
+    avoid_refs = get_recent_references(months=dedup_months)
+
+    last_payload, last_theme = None, None
+    for attempt in range(1, max_attempts + 1):
+        chosen_theme = theme or random.choice(THEMES)
+        payload = _generate_once(api_key, model_name, chosen_theme, avoid_refs, dedup_months)
+        ref = extract_reference(payload)
+        last_payload, last_theme = payload, chosen_theme
+
+        if ref is None or normalize_reference(ref) not in avoid_refs:
+            return payload, chosen_theme
+
+        logger.error(f"第 {attempt} 次生成撞到重複經文（{ref}），重打")
+
+    logger.error(f"重試 {max_attempts} 次仍重複，直接採用最後一次結果")
+    return last_payload, last_theme
 
 
 def send_line_message(line_token, target_id, message_text):
