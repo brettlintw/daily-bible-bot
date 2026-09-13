@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import random
 import logging
@@ -21,6 +22,27 @@ FREE_MODEL_CANDIDATES = [
     ("models/gemini-flash-latest", "成本次低"),
     ("models/gemini-2.5-flash", "成本較高，當保底"),
 ]
+
+REFERENCE_PATTERN = re.compile(r'《[^》]+》[^；\n]*')
+
+
+def extract_reference(content):
+    match = REFERENCE_PATTERN.search(content)
+    if match:
+        return match.group(0).strip()
+    return None
+
+
+def get_recent_references(months=5, db_file=DB_FILE):
+    cutoff = datetime.now(TZ_TW) - timedelta(days=30 * months)
+    cutoff_date_str = cutoff.strftime("%Y-%m-%d")
+    refs = set()
+    for entry in load_history(db_file):
+        if entry.get("date", "") >= cutoff_date_str:
+            ref = extract_reference(entry.get("content", ""))
+            if ref:
+                refs.add(ref)
+    return refs
 
 
 def load_history(db_file=DB_FILE):
