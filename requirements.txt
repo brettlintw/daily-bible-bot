@@ -12,3 +12,6 @@ google-generativeai
 tenacity
 streamlit
 xhtml2pdf
+
+# 每月經文彙整 PDF（monthly_summary.py 用，需要系統 Pango 引擎，只在 Linux 上能正常運作）
+weasyprint
