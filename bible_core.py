@@ -25,11 +25,33 @@ FREE_MODEL_CANDIDATES = [
 
 REFERENCE_PATTERN = re.compile(r'《[^》]+》[^；\n]*')
 
+BIBLE_BOOKS = [
+    "創世記", "出埃及記", "利未記", "民數記", "申命記", "約書亞記", "士師記", "路得記", "撒母耳記上", "撒母耳記下",
+    "列王紀上", "列王紀下", "歷代志上", "歷代志下", "以斯拉記", "尼希米記", "以斯帖記", "約伯記", "詩篇", "箴言",
+    "傳道書", "雅歌", "以賽亞書", "耶利米書", "耶利米哀歌", "以西結書", "但以理書", "何西阿書", "約珥書", "阿摩司書",
+    "俄巴底亞書", "約拿書", "彌迦書", "那鴻書", "哈巴谷書", "西番雅書", "哈該書", "撒迦利亞書", "瑪拉基書",
+    "馬太福音", "馬可福音", "路加福音", "約翰福音", "使徒行傳", "羅馬書", "哥林多前書", "哥林多後書", "加拉太書",
+    "以弗所書", "腓立比書", "歌羅西書", "帖撒羅尼迦前書", "帖撒羅尼迦後書", "提摩太前書", "提摩太後書", "提多書",
+    "腓利門書", "希伯來書", "雅各書", "彼得前書", "彼得後書", "約翰一書", "約翰二書", "約翰三書", "猶大書", "啟示錄",
+]
+_NUM = r'[\d零一二三四五六七八九十百]+'
+# Fallback for when Gemini ignores the 《書卷》 format, e.g. 【彼得前書】5:7 or 「羅馬書 15:13」
+BOOK_REFERENCE_PATTERN = re.compile(
+    r'(' + '|'.join(sorted(BIBLE_BOOKS, key=len, reverse=True)) + r')'
+    r'[】》\s*]*第?\s*(' + _NUM + r')\s*[章篇:：]\s*(' + _NUM + r'(?:\s*[-–—至]\s*' + _NUM + r')?)'
+)
+
 
 def extract_reference(content):
     match = REFERENCE_PATTERN.search(content)
     if match:
         return match.group(0).strip()
+    # Only look before the 領受 section so a book name quoted in the commentary can't match
+    scripture_part = re.split(r'【領受', content, maxsplit=1)[0]
+    match = BOOK_REFERENCE_PATTERN.search(scripture_part)
+    if match:
+        book, chapter, verses = match.groups()
+        return f"《{book}》{chapter}:{verses}"
     return None
 
 
@@ -132,7 +154,7 @@ def _generate_once(api_key, model_name, chosen_theme, avoid_refs, dedup_months):
     這是一份最近 {dedup_months} 個月已經分享過的經文章節清單 (請避開以下所有章節)：
     {avoid_str}
 
-    請依照此格式嚴格輸出：
+    請依照此格式嚴格輸出，【章節】必須寫成《書卷名》章:節 (例如《彼得前書》5:7)：
     【內容】；【章節】；【領受】。
     """
 
@@ -165,10 +187,13 @@ def generate_verse(api_key, model_name=None, theme=None, dedup_months=5, max_att
         ref = extract_reference(payload)
         last_payload, last_theme = payload, chosen_theme
 
-        if ref is None or normalize_reference(ref) not in avoid_refs:
+        if ref is not None and normalize_reference(ref) not in avoid_refs:
             return payload, chosen_theme
 
-        logger.error(f"第 {attempt} 次生成撞到重複經文（{ref}），重打")
+        if ref is None:
+            logger.error(f"第 {attempt} 次生成無法辨識章節，無法驗證是否重複，重打")
+        else:
+            logger.error(f"第 {attempt} 次生成撞到重複經文（{ref}），重打")
 
     logger.error(f"重試 {max_attempts} 次仍重複，直接採用最後一次結果")
     return last_payload, last_theme
