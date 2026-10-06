@@ -6,7 +6,7 @@
 
 ### 1. `daily_push.py` — 每日自動排程（正式運作中）
 - 由 [.github/workflows/daily_push.yml](.github/workflows/daily_push.yml) 的 GitHub Actions 觸發
-- Cron：`0 0 * * *`（UTC 0:00 = 台灣時間 08:00），也可在 GitHub 頁面手動 workflow_dispatch 觸發測試
+- Cron：`30 3 * * *`（UTC 03:30 = 台灣時間 11:30 提早啟動），`daily_push.py` 的 `wait_until_push_time()` 會等到台灣 12:00 整才推播（GitHub 排程常延遲數分鐘，所以提早啟動再等）；Actions 遲到超過 12:00 就立刻推，手動 workflow_dispatch 不等待
 - 流程：Gemini 產生經文 → 排除最近 30 筆歷史避免重複 → 推播到 LINE → 寫回 `bible_history.json`
 - 跑完後 Actions 用 `git-auto-commit-action` 自動 commit `bible_history.json`，commit message 固定是 "Auto-sync bible history"
   - **這就是 commit 紀錄裡一大堆同名 commit 的來源，屬正常現象，不是異常，不需要清理**
