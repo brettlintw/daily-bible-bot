@@ -12,9 +12,21 @@ PUSH_HOUR_TW = 12
 MAX_WAIT_SECONDS = 45 * 60
 
 
+def is_auto_trigger():
+    """GitHub 排程，或 cron-job.org 帶 wait_for_noon=true 的 workflow_dispatch，才算自動推播；手動測試不算。"""
+    return (os.environ.get('GITHUB_EVENT_NAME') == 'schedule'
+            or os.environ.get('WAIT_FOR_NOON', '').lower() == 'true')
+
+
+def already_pushed_today():
+    today = datetime.now(bible_core.TZ_TW).strftime("%Y-%m-%d")
+    return any(e.get("date") == today and e.get("category", "").startswith("自動靈修")
+               for e in bible_core.load_history())
+
+
 def wait_until_push_time():
-    """排程提早啟動，這裡等到台灣時間整點才推播；已過整點（Actions 遲到）就立刻推。手動觸發不等待。"""
-    if os.environ.get('GITHUB_EVENT_NAME') != 'schedule':
+    """提早啟動，這裡等到台灣時間整點才推播；已過整點（觸發遲到）就立刻推。手動觸發不等待。"""
+    if not is_auto_trigger():
         return
     now = datetime.now(bible_core.TZ_TW)
     target = now.replace(hour=PUSH_HOUR_TW, minute=0, second=0, microsecond=0)
@@ -31,6 +43,11 @@ def main():
     admin_user_id = os.environ.get('ADMIN_USER_ID', '').strip()
 
     if not all([target_id, api_key, line_token]):
+        return
+
+    # cron-job.org 準時觸發推過之後，GitHub 自己的排程（常延遲數小時）再跑到時就跳過，避免一天推兩次
+    if is_auto_trigger() and already_pushed_today():
+        logger.info("今天已經自動推播過，跳過")
         return
 
     with open(bible_core.ID_FILE, "w") as f:
