@@ -10,6 +10,8 @@
 - 流程：Gemini 產生經文 → 排除最近 30 筆歷史避免重複 → 推播到 LINE → 寫回 `bible_history.json`
 - 跑完後 Actions 用 `git-auto-commit-action` 自動 commit `bible_history.json`，commit message 固定是 "Auto-sync bible history"
   - **這就是 commit 紀錄裡一大堆同名 commit 的來源，屬正常現象，不是異常，不需要清理**
+- 兩支 workflow 的 `runs-on` 都固定在 `ubuntu-24.04`，不要改回 `ubuntu-latest`（見下方「GitHub Actions 環境事故紀錄」）
+- 兩支 workflow 最後都有一個 `if: failure()` 的步驟，失敗時直接用 curl 推 LINE 給 `ADMIN_USER_ID`（附該次執行的連結），涵蓋 Python 腳本根本沒跑起來的情況
 
 ### 2. `app.py` — LINE Webhook 被動回覆
 - **部署在 Render**（Brett 本人帳號），常駐服務，不透過 GitHub Actions 執行，也不會反映在這個 repo 的 commit 紀錄裡
@@ -68,6 +70,12 @@ LINE 官方帳號、Google AI Studio（Gemini API）都註冊在 Brett 本人名
 **2026-10 補洞**：Gemini 有時不照格式輸出（例如 `【彼得前書】5:7`、`【經文章節】羅馬書 15:13`），導致 `extract_reference` 抓不到章節、防重複被默默跳過（彼得前書 5:7 因此在 9/29 與 10/1 重複）。現在 `extract_reference` 有 66 卷書名的 fallback 解析，抓不到章節時也會視為失敗並重打，prompt 也明確要求《書卷》章:節格式。
 
 `THEMES` 目前有 12 個主題（原本 7 個 + 感恩、喜樂、忍耐、謙卑、引導）。
+
+## GitHub Actions 環境事故紀錄
+
+**2026-11-16 ～ 11-25 連續 10 天沒推播**：`runs-on: ubuntu-latest` 被 GitHub 升級到 Ubuntu 26.04，而 26.04 沒有 Python 3.9（最低 3.10），`actions/setup-python` 在最前面就失敗（錯誤訊息：`The version '3.9' ... was not found for Ubuntu 26.04`），腳本根本沒執行，所以 `daily_push.py` 內建的失敗通知沒響。2026-11-26 修正：Python 改 3.12、系統固定 `ubuntu-24.04`、加上 workflow 層級的失敗通知。那 10 天沒有補發。
+
+**診斷口訣**：Actions 紀錄出現「連續失敗且只跑 7～20 秒」→ 問題在環境設定（Python/系統版本、pip 安裝），不是 Gemini/LINE；先點進失敗的 run 看 Annotations 的錯誤訊息。正常成功一次約 30～45 秒。
 
 ## requirements.txt 備註
 - `xhtml2pdf`：目前 `main.py`/`app.py`/`daily_push.py` **都沒有引用**，疑似遺留依賴。不要直接砍，先跟 Brett 確認是否還有計畫用到（例如匯出 PDF 功能）再移除。

@@ -8,7 +8,7 @@ on:
 
 jobs:
   push_job:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # pinned: ubuntu-latest moved to 26.04 and broke Python 3.9 (2026-11)
     permissions:
       contents: write # 必須授予寫入權限，否則無法進行自動提交
     
@@ -37,3 +37,17 @@ jobs:
         with:
           commit_message: "Auto-sync bible history"
           file_pattern: 'bible_history.json'
+
+      - name: Notify admin on workflow failure
+        if: failure()
+        env:
+          LINE_TOKEN: ${{ secrets.LINE_TOKEN }}
+          ADMIN_USER_ID: ${{ secrets.ADMIN_USER_ID }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          WORKFLOW_NAME: ${{ github.workflow }}
+        run: |
+          # Covers failures that happen before the Python script runs (e.g. runner/Python setup)
+          curl -sS -X POST https://api.line.me/v2/bot/message/push \
+            -H "Authorization: Bearer $LINE_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"to\":\"$ADMIN_USER_ID\",\"messages\":[{\"type\":\"text\",\"text\":\"⚠️ GitHub Actions「$WORKFLOW_NAME」執行失敗，請查看：$RUN_URL\"}]}"
