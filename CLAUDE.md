@@ -6,7 +6,9 @@
 
 ### 1. `daily_push.py` — 每日自動排程（正式運作中）
 - 由 [.github/workflows/daily_push.yml](.github/workflows/daily_push.yml) 的 GitHub Actions 觸發
-- Cron：`30 3 * * *`（UTC 03:30 = 台灣時間 11:30 提早啟動），`daily_push.py` 的 `wait_until_push_time()` 會等到台灣 12:00 整才推播（GitHub 排程常延遲數分鐘，所以提早啟動再等）；Actions 遲到超過 12:00 就立刻推，手動 workflow_dispatch 不等待
+- **主要觸發：cron-job.org**（Brett 本人帳號）每天台灣 11:50 呼叫 GitHub API 的 `workflow_dispatch`，帶 `wait_for_noon=true`，`daily_push.py` 的 `wait_until_push_time()` 等到台灣 12:00 整才推播。用的是 fine-grained PAT（只授權這個 repo 的 Actions: Read and write），過期要去 GitHub 重新產生再貼到 cron-job.org
+- **備援：GitHub 排程** `30 3 * * *`（UTC 03:30 = 台灣 11:30）。2026-10 實測 GitHub 排程會延遲 5～7 小時（原本 08:00 的排程實際 13:00 才跑，改 11:30 後變 18:00 多才跑），所以不能靠它準時；當天已經自動推過的話 `already_pushed_today()` 會跳過，不會重複推
+- 在 GitHub 頁面手動 workflow_dispatch（不勾 wait_for_noon）= 測試用，不等待、不檢查今天推過沒，會直接再推一次
 - 流程：Gemini 產生經文 → 排除最近 30 筆歷史避免重複 → 推播到 LINE → 寫回 `bible_history.json`
 - 跑完後 Actions 用 `git-auto-commit-action` 自動 commit `bible_history.json`，commit message 固定是 "Auto-sync bible history"
   - **這就是 commit 紀錄裡一大堆同名 commit 的來源，屬正常現象，不是異常，不需要清理**
